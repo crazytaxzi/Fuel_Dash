@@ -7,13 +7,19 @@
     detail: /^detail\.(xlsx|xlsm|xlsb|xls)$/i,
     trend: /^summary[ _-]*chart\.(xlsx|xlsm|xlsb|xls)$/i,
   };
+  const BASIC_REPORT_FILES = {
+    reportDriverMetrics: /^driver[ _-]*fuel[ _-]*metrics\.(xlsx|xlsm|xlsb|xls|pdf)$/i,
+    reportCompliance: /^fuel[ _-]*compliance[ _-]*analysis\.(xlsx|xlsm|xlsb|xls|pdf)$/i,
+    reportCost: /^fuel[ _-]*noncompliant[ _-]*cost[ _-]*analysis\.(xlsx|xlsm|xlsb|xls|pdf)$/i,
+    reportMpg: /^mpg[ _-]*by[ _-]*driver\.(xlsx|xlsm|xlsb|xls|pdf)$/i,
+  };
   const OPTIONAL_FILES = {
     apu: /(?:^|[ _-])(?:electric[ _-]*)?apu(?:[ _-].*)?\.(xlsx|xlsm|xlsb|xls)$/i,
     ptaTracker: /pta[ _-]*dispatch[ _-]*tracker.*\.(xlsx|xlsm|xlsb|xls)$/i,
     ptaFinder: /fleet[ _-]*pta[ _-]*finder.*\.(xlsx|xlsm|xlsb|xls)$/i,
     driverPdf: /\.pdf$/i,
   };
-  const ALL_FILE_PATTERNS = { ...EXPECTED_FILES, ...OPTIONAL_FILES };
+  const ALL_FILE_PATTERNS = { ...EXPECTED_FILES, ...BASIC_REPORT_FILES, ...OPTIONAL_FILES };
   const PTA_PASTE_HEADERS = ["Truck #", "Div #", "Driver", "PTA", "Status", "Plans", "Plan", "Team", "Destination", "OM", "Count"];
   const PTA_PASTE_KEYS = {
     active: "vixenManualPtaActive",
@@ -293,9 +299,10 @@
     setBusy(true);
     try {
       const files = await collectSourceFiles();
-      const missing = Object.keys(EXPECTED_FILES).filter((key) => !files[key] && !(key === "drivers" && files.driverPdf));
-      if (missing.length) {
-        throw new Error(`Missing source file${missing.length > 1 ? "s" : ""}: ${missing.map(sourceLabel).join(", ")}`);
+      const legacyReady = Object.keys(EXPECTED_FILES).every((key) => files[key] || (key === "drivers" && files.driverPdf));
+      const basicMissing = Object.keys(BASIC_REPORT_FILES).filter((key) => !files[key]);
+      if (!legacyReady && basicMissing.length) {
+        throw new Error(`Choose either the legacy workbook set or all four basic reports. Missing basic report${basicMissing.length > 1 ? "s" : ""}: ${basicMissing.map(sourceLabel).join(", ")}`);
       }
 
       const signatures = Object.fromEntries(Object.entries(files).map(([key, file]) => [key, `${file.name}|${file.size}|${file.lastModified}`]));
@@ -308,21 +315,25 @@
       const workbooks = {};
       for (const [key, file] of Object.entries(files)) {
         const buffer = await file.arrayBuffer();
-        workbooks[key] = key === "driverPdf"
-          ? await extractPdfDriverRecords(buffer)
-          : XLSX.read(buffer, { type: "array", cellDates: false, raw: true, dense: false });
+        if (/\.pdf$/i.test(file.name)) {
+          const pdfLines = await extractPdfTextLines(buffer);
+          workbooks[key] = key === "driverPdf" ? parseBasicDriverPdfLines(pdfLines) : { pdfLines };
+        } else {
+          workbooks[key] = XLSX.read(buffer, { type: "array", cellDates: false, raw: true, dense: false });
+        }
       }
 
       state.sourceFiles = files;
       state.sourceSignatures = signatures;
-      state.analysis = analyzeWorkbooks(workbooks, files);
+      state.analysis = legacyReady ? analyzeWorkbooks(workbooks, files) : analyzeBasicReports(workbooks, files);
       renderDashboard(state.analysis);
       updateSourceStatus();
       updateLastRefresh(new Date());
       els.connectOverlay.classList.add("hidden");
       els.connectError.textContent = "";
       scheduleAutoRefresh();
-      showToast(`Dashboard refreshed from local ${files.driverPdf ? "workbooks and PDF data" : "workbooks"}.`);
+      const hasPdf = Object.values(files).some((file) => /\.pdf$/i.test(file.name));
+      showToast(`Dashboard refreshed from local ${hasPdf ? "XLSX/PDF reports" : "workbooks"}.`);
     } catch (error) {
       console.error(error);
       els.connectOverlay.classList.remove("hidden");
@@ -345,6 +356,10 @@
       ptaTracker: ["PTA_Dispatch_Tracker_Updated_FIXED.xlsx", "PTA Dispatch Tracker.xlsx", "PTA_Dispatch_Tracker.xlsx", "PTA Dispatch Tracker.xlsm"],
       ptaFinder: ["Fleet_PTA_Finder.xlsx", "Fleet PTA Finder.xlsx", "Fleet_PTA_Finder.xlsm", "Fleet PTA Finder.xlsm"],
       driverPdf: ["Driver Fuel Report.pdf", "Fuel Driver Report.pdf", "driver report.pdf", "fuel report.pdf"],
+      reportDriverMetrics: ["data/Driver Fuel Metrics.xlsx", "data/Driver Fuel Metrics.pdf", "Driver Fuel Metrics.xlsx", "Driver Fuel Metrics.pdf"],
+      reportCompliance: ["data/Fuel Compliance Analysis.xlsx", "data/Fuel Compliance Analysis.pdf", "Fuel Compliance Analysis.xlsx", "Fuel Compliance Analysis.pdf"],
+      reportCost: ["data/Fuel Noncompliant Cost Analysis.xlsx", "data/Fuel Noncompliant Cost Analysis.pdf", "Fuel Noncompliant Cost Analysis.xlsx", "Fuel Noncompliant Cost Analysis.pdf"],
+      reportMpg: ["data/MPG by Driver.xlsx", "data/MPG by Driver.pdf", "MPG by Driver.xlsx", "MPG by Driver.pdf"],
     };
     const found = {};
     for (const [key, names] of Object.entries(candidates)) {
@@ -362,8 +377,9 @@
         } catch (_) {}
       }
     }
-    const missingRequired = Object.keys(EXPECTED_FILES).some((key) => !found[key] && !(key === "drivers" && found.driverPdf));
-    if (missingRequired) return false;
+    const legacyReady = Object.keys(EXPECTED_FILES).every((key) => found[key] || (key === "drivers" && found.driverPdf));
+    const basicReady = Object.keys(BASIC_REPORT_FILES).every((key) => found[key]);
+    if (!legacyReady && !basicReady) return false;
     state.staticFiles = found;
     state.directoryHandle = null;
     state.fallbackFiles = null;
@@ -383,21 +399,28 @@
       for await (const [name, handle] of state.directoryHandle.entries()) {
         if (handle.kind !== "file") continue;
         const key = matchSourceKey(name);
-        if (key && !found[key]) found[key] = await handle.getFile();
+        if (key) {
+          const file = await handle.getFile();
+          if (!found[key] || shouldReplaceSource(found[key], file)) found[key] = file;
+        }
       }
     } else if (state.fallbackFiles) {
       for (const file of state.fallbackFiles) {
         const key = matchSourceKey(file.name);
-        if (key && !found[key]) found[key] = file;
+        if (key && (!found[key] || shouldReplaceSource(found[key], file))) found[key] = file;
       }
     } else {
-      throw new Error("Choose the folder containing the four required fuel-report workbooks. Electric APU and PTA workbooks are optional.");
+      throw new Error("Choose the folder containing either the legacy workbook set or the four basic XLSX/PDF reports. Electric APU and PTA workbooks are optional.");
     }
     return found;
   }
 
   function matchSourceKey(name) {
     return Object.entries(ALL_FILE_PATTERNS).find(([, regex]) => regex.test(name))?.[0] || null;
+  }
+
+  function shouldReplaceSource(existing, candidate) {
+    return /\.pdf$/i.test(existing?.name || "") && !/\.pdf$/i.test(candidate?.name || "");
   }
 
   function sourceLabel(key) {
@@ -410,6 +433,10 @@
       ptaTracker: "optional PTA Dispatch Tracker.xlsx/xlsm",
       ptaFinder: "optional Fleet PTA Finder.xlsx/xlsm",
       driverPdf: "optional basic driver report PDF",
+      reportDriverMetrics: "Driver Fuel Metrics.xlsx/pdf",
+      reportCompliance: "Fuel Compliance Analysis.xlsx/pdf",
+      reportCost: "Fuel Noncompliant Cost Analysis.xlsx/pdf",
+      reportMpg: "MPG by Driver.xlsx/pdf",
     })[key] || key;
   }
 
@@ -443,6 +470,217 @@
       files,
       settings: { ...state.settings },
       generatedAt: new Date(),
+    };
+  }
+
+  function analyzeBasicReports(workbooks, files) {
+    const compliance = parseBasicComplianceReport(workbooks.reportCompliance);
+    const cost = parseBasicCostReport(workbooks.reportCost);
+    const metricRows = parseBasicDriverMetricsReport(workbooks.reportDriverMetrics);
+    const mpgRows = parseBasicMpgReport(workbooks.reportMpg);
+    const summary = {
+      completed: compliance.weeks,
+      allDated: compliance.weeks,
+      latest: compliance.weeks.at(-1),
+      previous: compliance.weeks.at(-2) || null,
+      partialRows: [],
+    };
+    if (!summary.latest) throw new Error("No dated compliance values were found in the Fuel Compliance Analysis report.");
+
+    const drivers = buildBasicReportDrivers(metricRows, mpgRows, summary.latest.date);
+    const detail = {
+      records: [],
+      units: [],
+      stops: [],
+      totals: { grossPositive: Math.max(0, cost.totalCost), negativeOffsets: Math.min(0, cost.totalCost), netCost: cost.totalCost },
+      quality: { invalidNextDates: 0, invalidPpgRows: 0, badPurchaseType: 0, badRecGallons: 0, duplicateCount: 0 },
+      basicReport: true,
+    };
+    const weeks = compliance.weeks.map((week, index) => ({
+      date: week.date,
+      compliance: week.compliance,
+      gallonCost: index === compliance.weeks.length - 1 ? cost.gallonCost : 0,
+      locationCost: index === compliance.weeks.length - 1 ? cost.locationCost : 0,
+      totalCost: index === compliance.weeks.length - 1 ? cost.totalCost : 0,
+    }));
+    const trend = {
+      weeks,
+      recent: weeks,
+      latest: weeks.at(-1) || null,
+      previous: weeks.at(-2) || null,
+      change: null,
+      rollingAverage: weeks.map((_, index) => average(weeks.slice(Math.max(0, index - 3), index + 1).map((week) => week.totalCost))),
+    };
+    const emptyApu = analyzeApu([], drivers, null);
+    const pta = analyzePta(workbooks.ptaTracker || null, workbooks.ptaFinder || null, files, activeManualPtaRows());
+    const quality = {
+      findings: [{
+        severity: "Medium",
+        count: 1,
+        title: "Basic report mode",
+        impact: "The four summary reports do not include transaction-level fueling events.",
+        fix: "Use the legacy Detail workbook when unit and fueling-event drilldown is needed.",
+      }],
+    };
+    const actions = buildActions(drivers, detail, quality, emptyApu, pta);
+    return {
+      summary, drivers, detail, trend, apu: emptyApu, pta, quality, actions, files,
+      settings: { ...state.settings }, generatedAt: new Date(), sourceMode: "basic-reports",
+    };
+  }
+
+  function basicReportRows(source) {
+    return source?.pdfLines ? [] : workbookRows(source, 0);
+  }
+
+  function parseBasicDriverMetricsReport(source) {
+    if (source?.pdfLines) return parseDriverMetricsPdfLines(source.pdfLines);
+    const rows = basicReportRows(source);
+    const headerIndex = findHeaderRowIndex(rows, ["driver", "dispatch mpg", "idle"]);
+    if (headerIndex < 0) throw new Error("Driver Fuel Metrics did not contain a recognizable driver table.");
+    const headers = rows[headerIndex] || [];
+    const driverColumn = findHeaderIndex(headers, ["driver"]);
+    const codeColumn = findHeaderIndex(headers, ["driver current position code", "driver code"]);
+    const leaderColumn = findHeaderIndex(headers, ["driver leader"]);
+    const mpgColumn = findHeaderIndex(headers, ["dispatch mpg"]);
+    const idleColumn = headers.findIndex((value) => /idle\s*%/i.test(text(value)));
+    const oorColumn = findHeaderIndex(headers, ["oor"]);
+    const idleDate = idleColumn >= 0 ? parseDate(text(headers[idleColumn]).split(/\r?\n/)[0]) : null;
+    return rows.slice(headerIndex + 1).map((row) => ({
+      driverName: text(row[driverColumn]),
+      driverCode: text(row[codeColumn]),
+      driverLeader: text(row[leaderColumn]) || "Unassigned",
+      dispatchMpg: number(row[mpgColumn]),
+      dailyIdlePct: null,
+      idle7DayPct: null,
+      idle28DayPct: normalizePercent(row[idleColumn]),
+      oorPct: normalizePercent(row[oorColumn]),
+      reportDate: idleDate,
+    })).filter((record) => record.driverName && !/^grand total$/i.test(record.driverName));
+  }
+
+  function parseDriverMetricsPdfLines(lines) {
+    const records = [];
+    lines.forEach((line) => {
+      const values = [...line.matchAll(/-?\d+(?:\.\d+)?%?/g)].map((match) => match[0]);
+      if (values.length < 3 || /grand total|last refreshed|date range/i.test(line)) return;
+      const tail = values.slice(-3);
+      const tailStart = line.lastIndexOf(tail[0]);
+      const identity = line.slice(0, tailStart).trim();
+      const codeMatch = identity.match(/\b(\d{4,}|[A-Z]{4,}|[A-Z]{2,}\d+[A-Z0-9]*)\b/);
+      const name = identity.slice(0, codeMatch?.index ?? identity.length).trim();
+      if (!name || /driver|terminal|leader|cost center/i.test(name)) return;
+      records.push({
+        driverName: name,
+        driverCode: codeMatch?.[1] || "",
+        driverLeader: "Unassigned",
+        dispatchMpg: number(tail[0]),
+        dailyIdlePct: null,
+        idle7DayPct: null,
+        idle28DayPct: normalizePercent(tail[1]),
+        oorPct: normalizePercent(tail[2]),
+        reportDate: null,
+      });
+    });
+    if (!records.length) throw new Error("The Driver Fuel Metrics PDF opened, but no driver rows were recognized.");
+    return records;
+  }
+
+  function parseBasicComplianceReport(source) {
+    if (source?.pdfLines) {
+      const weeks = [];
+      source.pdfLines.forEach((line) => {
+        const dateMatch = line.match(/\b(\d{1,2}\/\d{1,2}\/(?:\d{2}|\d{4}))\b/);
+        if (!dateMatch || /date range|last refreshed/i.test(line)) return;
+        const percentages = [...line.matchAll(/(\d+(?:\.\d+)?)\s*%/g)].map((match) => Number(match[1]) / 100);
+        if (percentages.length) weeks.push({ date: parseDate(dateMatch[1]), compliance: percentages.at(-1), marker: "*" });
+      });
+      return { weeks: weeks.filter((week) => week.date).sort((a, b) => a.date - b.date) };
+    }
+    const rows = basicReportRows(source);
+    const weeks = rows.map((row) => {
+      const date = parseDate(row[0]);
+      const compliance = normalizePercent(row[32]) ?? normalizePercent(row[15]);
+      return date && compliance !== null ? { date, compliance, marker: "*" } : null;
+    }).filter(Boolean).sort((a, b) => a.date - b.date);
+    return { weeks };
+  }
+
+  function parseBasicCostReport(source) {
+    if (source?.pdfLines) {
+      const line = source.pdfLines.find((value) => /grand total/i.test(value)) || "";
+      const values = [...line.matchAll(/-?\$?[\d,]+(?:\.\d+)?/g)].map((match) => number(match[0])).filter((value) => value !== null);
+      const totalCost = values.at(-3) ?? values.at(-1) ?? 0;
+      return { gallonCost: values.at(-5) || 0, locationCost: values.at(-4) || 0, totalCost };
+    }
+    const rows = basicReportRows(source);
+    const totalRow = rows.find((row) => /^grand total$/i.test(text(row[0]))) || [];
+    return { gallonCost: number(totalRow[21]) || 0, locationCost: number(totalRow[25]) || 0, totalCost: number(totalRow[31]) || 0 };
+  }
+
+  function parseBasicMpgReport(source) {
+    if (source?.pdfLines) {
+      const records = [];
+      source.pdfLines.forEach((line) => {
+        const id = line.match(/\b(\d{5,8})\b/);
+        const values = [...line.matchAll(/\b\d+\.\d+\b/g)].map((match) => Number(match[0]));
+        if (!id || !values.length) return;
+        const before = line.slice(0, id.index).trim();
+        const after = line.slice((id.index || 0) + id[0].length).trim();
+        const name = after.replace(/\s+\d+\.\d+[\s\S]*$/, "").trim() || before;
+        records.push({ driverCode: id[1], driverName: name, dispatchMpg: values.at(-1), history: values });
+      });
+      return records;
+    }
+    const rows = basicReportRows(source);
+    return rows.slice(5).map((row) => {
+      const identity = [text(row[0]), text(row[1])].filter(Boolean).join(" ").replace(/\r?\n/g, " ");
+      const match = identity.match(/\b(\d{5,8})\s+(.+)/);
+      const history = row.slice(2, 13).map(number).filter((value) => value !== null);
+      return match && history.length ? { driverCode: match[1], driverName: match[2].trim(), dispatchMpg: history.at(-1), history } : null;
+    }).filter(Boolean);
+  }
+
+  function buildBasicReportDrivers(metrics, mpgRows, currentDate) {
+    const mpgByCode = new Map(mpgRows.map((row) => [normalizeIdentity(row.driverCode), row]));
+    const mpgByName = new Map(mpgRows.map((row) => [normalizeIdentity(row.driverName), row]));
+    const base = metrics.length ? metrics : mpgRows;
+    const raw = base.map((record) => {
+      const mpg = mpgByCode.get(normalizeIdentity(record.driverCode)) || mpgByName.get(normalizeIdentity(record.driverName));
+      return {
+        ...record,
+        dispatchMpg: record.dispatchMpg ?? mpg?.dispatchMpg ?? null,
+        priorDispatchMpg: mpg?.history?.at(-2) ?? null,
+        dailyIdlePct: record.dailyIdlePct ?? null,
+        idle7DayPct: record.idle7DayPct ?? null,
+        idle28DayPct: record.idle28DayPct ?? null,
+        idlePct: record.idle28DayPct ?? null,
+        movingMpg: null, fuelGallons: null, dispatchMiles: null, drivingFuel: null, qualcommMiles: null,
+        oorPct: record.oorPct ?? null, priorIdlePct: null, priorOorPct: null,
+      };
+    });
+    const mpgValues = raw.map((driver) => driver.dispatchMpg).filter(isFiniteNumber);
+    const idleValues = raw.map((driver) => driver.idlePct).filter(isFiniteNumber);
+    const targetMpg = percentile(mpgValues, .75);
+    const idleThreshold = percentile(idleValues, .5);
+    const records = raw.map((driver) => {
+      const highIdle = driver.idlePct !== null && driver.idlePct > idleThreshold;
+      const lowMpg = driver.dispatchMpg !== null && driver.dispatchMpg < targetMpg;
+      return {
+        ...driver, mpgChange: driver.priorDispatchMpg === null ? null : driver.dispatchMpg - driver.priorDispatchMpg,
+        excessGallons: 0, estimatedCost: 0, annualizedCost: 0,
+        priority: highIdle && lowMpg ? "High" : highIdle || lowMpg ? "Medium" : "Monitor",
+        reviewLabel: highIdle && lowMpg ? "Talk first" : highIdle || lowMpg ? "Review" : "Watch",
+        confidence: "Basic report", likelyDriver: highIdle ? "High idle" : lowMpg ? "Low dispatch MPG" : "Monitor",
+        focus: highIdle ? `Idle is above the fleet middle at ${pct(driver.idlePct, 1)}` : `Dispatch MPG is ${num(driver.dispatchMpg, 2)}`,
+        action: "Review the basic report values and record any follow-up for the next shift.",
+      };
+    }).sort((a, b) => (b.idlePct || 0) - (a.idlePct || 0));
+    return {
+      records,
+      totals: { excessGallons: 0, modeledCost: 0, annualizedCost: 0, topFourShare: 0 },
+      targetMpg, idleThreshold, oorThreshold: percentile(raw.map((driver) => driver.oorPct).filter(isFiniteNumber), .5),
+      movingThreshold: 0, currentDate,
     };
   }
 
@@ -631,7 +869,7 @@
     return focus.join(" · ");
   }
 
-  async function extractPdfDriverRecords(buffer) {
+  async function extractPdfTextLines(buffer) {
     const pdfjs = await import("./vendor/pdfjs/pdf.min.mjs");
     pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdfjs/pdf.worker.min.mjs";
     const pdf = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise;
@@ -650,11 +888,7 @@
         if (line) lines.push(line);
       });
     }
-    const records = parseBasicDriverPdfLines(lines);
-    if (!records.length) {
-      throw new Error("The PDF opened, but no driver rows were recognized. Include labels such as Driver, Daily Idle, 7 Day Idle, 28 Day Idle, or Fuel Cost.");
-    }
-    return records;
+    return lines;
   }
 
   function parseBasicDriverPdfLines(lines) {
@@ -1670,7 +1904,9 @@
     els.kpiWeeklyCostBar.style.width = `${clamp(100 - Math.abs((costChange || 0) * 100), 18, 100)}%`;
 
     els.kpiModeledSavings.textContent = moneyCompact(drivers.totals.modeledCost);
-    els.kpiModeledSavingsNote.textContent = `${num(drivers.totals.excessGallons, 0)} estimated gallons above the strong-peer target`;
+    els.kpiModeledSavingsNote.textContent = analysis.sourceMode === "basic-reports"
+      ? "Driver-level cost and gallons are not supplied by the basic reports"
+      : `${num(drivers.totals.excessGallons, 0)} estimated gallons above the strong-peer target`;
     els.kpiModeledSavingsBar.style.width = `${clamp(drivers.totals.topFourShare * 100, 12, 100)}%`;
 
     els.kpiAnnualExposure.textContent = moneyCompact(drivers.totals.annualizedCost);
@@ -1690,7 +1926,9 @@
 
     const topDriver = drivers.records[0];
     els.heroInsight.innerHTML = topDriver
-      ? `${escapeHtml(topDriver.driverName)} has the largest estimated cost gap to review. ${escapeHtml(topDriver.focus)}. The dashboard estimates <strong>${moneyCompact(topDriver.estimatedCost)}</strong> in possible 28-day savings if performance reaches the strong-peer target. Fleet-wide possible savings are <strong>${moneyCompact(drivers.totals.modeledCost)}</strong>.`
+      ? analysis.sourceMode === "basic-reports"
+        ? `<strong>Basic XLSX/PDF report mode.</strong> ${escapeHtml(topDriver.driverName)} is first in the idle/MPG review order. ${escapeHtml(topDriver.focus)}. Transaction-level driver cost is not included in these reports.`
+        : `${escapeHtml(topDriver.driverName)} has the largest estimated cost gap to review. ${escapeHtml(topDriver.focus)}. The dashboard estimates <strong>${moneyCompact(topDriver.estimatedCost)}</strong> in possible 28-day savings if performance reaches the strong-peer target. Fleet-wide possible savings are <strong>${moneyCompact(drivers.totals.modeledCost)}</strong>.`
       : "No estimated driver cost gap was found.";
     els.heroSavings.textContent = moneyCompact(drivers.totals.modeledCost);
 
@@ -1809,6 +2047,10 @@
 
   function renderUnitsTable(units) {
     const tbody = $("unitsTable").querySelector("tbody");
+    if (!units.length && state.analysis?.sourceMode === "basic-reports") {
+      tbody.innerHTML = '<tr><td colspan="11" class="empty-state">Unit-level records are not included in the four basic XLSX/PDF reports.</td></tr>';
+      return;
+    }
     tbody.innerHTML = units.slice(0, 80).map((unit) => `
       <tr><td>${escapeHtml(unit.unit)}</td><td class="numeric">${unit.transactions}</td><td class="numeric cost-positive">${money(unit.grossPositive, 2)}</td>
       <td class="numeric cost-negative">${money(unit.negativeOffsets, 2)}</td><td class="numeric ${unit.netCost >= 0 ? "cost-positive" : "cost-negative"}">${money(unit.netCost, 2)}</td>
@@ -1818,6 +2060,10 @@
 
   function renderExceptionsTable(records) {
     const tbody = $("exceptionsTable").querySelector("tbody");
+    if (!records.length && state.analysis?.sourceMode === "basic-reports") {
+      tbody.innerHTML = '<tr><td colspan="13" class="empty-state">Transaction-level fueling events are not included in the four basic XLSX/PDF reports.</td></tr>';
+      return;
+    }
     tbody.innerHTML = records.slice(0, 400).map((record) => `
       <tr><td>${escapeHtml(record.unit)}</td><td>${escapeHtml(record.order)}</td><td>${record.actualFuelDate ? shortDate(record.actualFuelDate) : ""}</td>
       <td>${escapeHtml(record.actualFuelType)}</td><td>${escapeHtml(record.recStop)}</td><td>${escapeHtml(record.actualStop)}</td>
@@ -2354,7 +2600,10 @@
   }
 
   function updateSourceStatus() {
-    const fileRows = Object.entries(ALL_FILE_PATTERNS).map(([key]) => {
+    const activePatterns = state.analysis?.sourceMode === "basic-reports"
+      ? { ...BASIC_REPORT_FILES, ...OPTIONAL_FILES }
+      : { ...EXPECTED_FILES, ...OPTIONAL_FILES };
+    const fileRows = Object.entries(activePatterns).map(([key]) => {
       const file = state.sourceFiles[key];
       const isPtaFile = key === "ptaTracker" || key === "ptaFinder";
       const missingLabel = Object.prototype.hasOwnProperty.call(OPTIONAL_FILES, key) ? "Optional, not found" : "Missing";
@@ -2541,8 +2790,9 @@
 
   // Lightweight diagnostic hook used by the included validation script.
   window.VixenFuelDebug = {
-    analyzeWorkbooks, analyzeApu, analyzePta, normalizePtaPasteRows,
+    analyzeWorkbooks, analyzeBasicReports, analyzeApu, analyzePta, normalizePtaPasteRows,
     parseDelimitedText, parseBasicDriverPdfLines, analyzePdfDrivers,
+    parseBasicDriverMetricsReport, parseBasicComplianceReport, parseBasicCostReport, parseBasicMpgReport,
     parseDate, parseDateTime, sourceLabel, ptaTruckNoteKey, driverNoteKey, recentTruckWork
   };
 })();

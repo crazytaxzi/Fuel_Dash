@@ -3,7 +3,7 @@ VIXEN FLEET OPS - LOCAL HTML COMMAND CENTER
 
 VERSION
 -------
-v3.3 PDF driver reports + rolling idle review + daily notes + shift-transition export
+v3.4 dual XLSX/PDF basic reports + rolling idle review + shift-transition export
 
 WHAT IT IS
 ----------
@@ -11,9 +11,9 @@ A local, streamer-themed HTML dashboard that reads your fleet workbooks without
 rebuilding an Excel dashboard. Fuel, electric APU, and PTA dispatch work can live
 in one command center instead of breeding separate spreadsheets in the dark.
 
-REQUIRED FUEL SOURCE FILES
---------------------------
-The dashboard accepts XLSX or XLSM versions of:
+SOURCE MODE 1 - LEGACY WORKBOOKS
+--------------------------------
+The full-detail dashboard accepts XLSX or XLSM versions of:
 
 - summary
 - c1
@@ -26,6 +26,21 @@ summary.xlsx / summary.xlsm
 c1.xlsx / c1.xlsm
 Detail.xlsx / Detail.xlsm
 summary chart.xlsx / summary chart.xlsm
+
+SOURCE MODE 2 - BASIC XLSX/PDF REPORTS
+--------------------------------------
+The dashboard can instead load these four reports from the data folder:
+
+- Driver Fuel Metrics.xlsx / Driver Fuel Metrics.pdf
+- Fuel Compliance Analysis.xlsx / Fuel Compliance Analysis.pdf
+- Fuel Noncompliant Cost Analysis.xlsx / Fuel Noncompliant Cost Analysis.pdf
+- MPG by Driver.xlsx / MPG by Driver.pdf
+
+Each report may independently be XLSX or PDF, so mixed sets are supported. The
+basic reports provide compliance, driver MPG/idle/OOR, overall noncompliant
+cost, and available MPG history. They do not contain transaction-level fueling
+events or unit-level cost details; those panels explain this when basic mode is
+active.
 
 OPTIONAL PTA DISPATCH FILES
 ---------------------------
@@ -83,16 +98,11 @@ Weekly_APU_Report.xlsx
 Helpful APU columns include Driver Code, Driver Name, Unit, Electric APU Hours,
 Engine Idle Hours, APU Use %, Battery SOC, Faults, and Notes.
 
-BASIC PDF DRIVER REPORTS
-------------------------
-The dashboard can read one text-based PDF driver report in addition to c1, or
-use it as the basic driver source when c1 is not available. Scanned/image-only
-PDFs need OCR before the browser can read them.
-
-Recognized labels include Driver, Driver Code/ID, Unit/Truck, Daily Idle,
-7 Day Idle, 28 Day Idle (or 4 Week Idle), Fuel Cost, and Fuel MPG. Keep the PDF
-beside the dashboard with a name such as "Driver Fuel Report.pdf", or select it
-with Choose Files. See "PDF Driver Report Guide.txt" for details.
+PDF REQUIREMENTS
+----------------
+PDFs must contain selectable text. Scanned/image-only PDFs need OCR before the
+browser can read them. Keep the four basic reports in the data folder using the
+recognized filenames above. See "PDF Driver Report Guide.txt" for limitations.
 
 DRIVER DETAILS
 --------------
@@ -116,13 +126,15 @@ Higher means more cost to investigate, not better performance.
 HOW TO RUN IT
 -------------
 1. Extract the entire package to a normal Windows folder.
-2. Keep the four required fuel workbooks in that folder.
+2. Keep either the legacy workbooks beside the dashboard or the four basic
+   XLSX/PDF reports in the data folder.
 3. Add the PTA and APU files when available.
 4. Double-click "Launch Fuel Dashboard.cmd".
 5. The dashboard opens in your default browser.
 
-If the workbooks are beside the dashboard, they load automatically. If they are
-stored elsewhere, click Choose Data Folder and select the folder.
+If the reports are beside the dashboard or in its data folder, they load
+automatically. If stored elsewhere, click Choose Data Folder and select the
+folder containing the selected source set.
 
 AUTO REFRESH
 ------------
@@ -165,8 +177,10 @@ APU Column Guide.txt        APU workbook requirements and matching notes
 TROUBLESHOOTING
 ---------------
 Dashboard says required files are missing:
-- Confirm the four required fuel filenames match the supported names above.
-- Confirm they are in the dashboard folder, or choose their folder manually.
+- Confirm either the legacy set or all four basic report filenames match the
+  supported names above.
+- Confirm they are beside the dashboard, in its data folder, or choose their
+  folder manually.
 
 PTA page says no data was found:
 - Confirm the filename contains Fleet PTA Finder or PTA Dispatch Tracker.

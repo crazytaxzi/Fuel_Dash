@@ -1,46 +1,59 @@
-PDF DRIVER REPORT GUIDE
-=======================
+XLSX / PDF BASIC REPORT GUIDE
+=============================
 
-The dashboard reads text-based driver PDFs. It does not upload the PDF.
-Image-only/scanned PDFs must be OCR'd first.
+The dashboard supports these four basic reports in either XLSX or PDF format:
 
-BEST RESULTS
-------------
-Use clear labels on each driver block:
+- Driver Fuel Metrics
+- Fuel Compliance Analysis
+- Fuel Noncompliant Cost Analysis
+- MPG by Driver
 
-Driver: Jane Driver
-Driver Code: JDRI
-Unit: 1234
-Daily Idle: 8.2%
-7 Day Idle: 9.4%
-28 Day Idle: 10.1%
-Fuel Cost: $425
-Fuel MPG: 6.72
+Files may be mixed. For example, Driver Fuel Metrics and MPG by Driver may be
+PDF while the two analysis reports remain XLSX.
 
-Recognized alternatives include:
+FILENAMES
+---------
 
-- Today Idle / Today's Idle
-- Rolling 7 Day Idle
-- Rolling 28 Day Idle
-- 4 Week Idle
-- Truck / Tractor instead of Unit
-- Driver ID instead of Driver Code
-- Fuel Impact / Fuel Savings instead of Fuel Cost
+Use these exact base names:
 
-HOW PDF DATA IS USED
---------------------
+Driver Fuel Metrics.xlsx / Driver Fuel Metrics.pdf
+Fuel Compliance Analysis.xlsx / Fuel Compliance Analysis.pdf
+Fuel Noncompliant Cost Analysis.xlsx / Fuel Noncompliant Cost Analysis.pdf
+MPG by Driver.xlsx / MPG by Driver.pdf
 
-- When c1.xlsx/xlsm is present, matching PDF values supplement the c1 drivers.
-  Driver Code is the strongest match; Driver Name is the fallback.
-- Without c1, the PDF provides a basic driver view. The other required fuel
-  sources are still needed for overview compliance, transactions, and trends.
-- A PDF value replaces the matching daily, 7-day, 28-day idle, or fuel-cost
-  value for that refresh.
+Place the reports in the dashboard's data folder for automatic loading, or
+choose the folder containing them from the connection screen.
+
+PDF REQUIREMENTS
+----------------
+
+- PDFs must contain selectable text.
+- Image-only/scanned PDFs must be OCR'd first.
+- The parser recognizes the layout and labels used by the matching XLSX exports.
+- Keep report titles, table headers, dates, percentages, and totals visible.
+
+WHAT BASIC MODE PROVIDES
+------------------------
+
+- Weekly fuel compliance
+- Driver dispatch MPG
+- Driver idle percentage
+- Driver out-of-route percentage
+- Overall gallon and location noncompliant cost
+- Available driver MPG history
+- Driver follow-up notes and shift-transition export
+
+The basic reports do not contain transaction-level fueling events or unit-level
+cost rows. Use the legacy Detail workbook when those drilldowns are required.
+
+SOURCE PRECEDENCE
+-----------------
+
+The dashboard needs one matching file for each of the four basic reports. When
+both XLSX and PDF versions of the same report are present, XLSX is preferred.
 
 LIMITATIONS
 -----------
 
-- The first recognized PDF in the selected folder is used.
-- Scanned PDFs are not OCR'd by the dashboard.
-- Highly graphical or unlabeled tables may require a parser adjustment.
-- Supply a representative PDF when a field does not map correctly.
+PDF text order is produced by the report generator. If a PDF redesign moves or
+renames columns, its parser may need to be adjusted using a representative file.

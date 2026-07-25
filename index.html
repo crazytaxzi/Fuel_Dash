@@ -16,17 +16,20 @@
       <div class="connect-brand">VIXEN <span>FLEET OPS</span></div>
       <h1>Connect your fuel-report folder</h1>
       <p>
-        Choose the folder containing <code>summary</code>, <code>c1</code>,
-        <code>Detail</code>, and <code>summary chart</code> workbooks.
+        Choose the folder containing either the legacy <code>summary</code>,
+        <code>c1</code>, <code>Detail</code>, and <code>summary chart</code>
+        workbooks, or the four basic reports in XLSX/PDF format:
+        <code>Driver Fuel Metrics</code>, <code>Fuel Compliance Analysis</code>,
+        <code>Fuel Noncompliant Cost Analysis</code>, and <code>MPG by Driver</code>.
         Optional electric APU and PTA dispatch workbooks can be included too.
         The dashboard recognizes <code>Fleet PTA Finder</code> and <code>PTA Dispatch Tracker</code> files automatically.
-        XLSX, XLSM, and basic driver-report PDFs are accepted.
+        XLSX, XLSM, and matching text-based PDFs are accepted and may be mixed.
       </p>
       <button id="connectFolderBtn" class="button button-primary">Choose Data Folder</button>
       <button id="fallbackFilesBtn" class="button button-secondary">Choose Files Instead</button>
       <input id="fallbackFilesInput" type="file" accept=".xlsx,.xlsm,.xlsb,.xls,.pdf" multiple hidden />
       <div id="connectError" class="connect-error"></div>
-      <small>Your spreadsheets stay on this computer. The dashboard reads them locally.</small>
+      <small>Your reports stay on this computer. The dashboard reads them locally.</small>
     </div>
   </div>
 
