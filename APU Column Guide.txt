@@ -1,0 +1,31 @@
+OPTIONAL ELECTRIC APU WORKBOOK - COLUMN GUIDE
+=============================================
+
+Put one XLSX or XLSM workbook beside the dashboard with APU in the filename.
+Examples: APU.xlsx, Electric APU.xlsm, Weekly_APU_Report.xlsx
+
+The first worksheet should be a normal table. The dashboard recognizes common
+versions of these columns:
+
+Week End / Date
+Driver Code / Driver ID / Employee Code
+Driver Name / Driver
+Unit / Unit Number / Tractor / Truck
+Electric APU Hours / APU Runtime Hours / APU Hours
+Engine Idle Hours / Tractor Idle Hours / Idle Hours
+APU Use % / APU Usage % / APU Utilization %
+Battery SOC / Battery Charge % / State of Charge
+Faults / APU Faults / APU Alerts
+Notes / Comments
+
+Driver Code is the strongest match to c1. Driver Name is the fallback.
+The dashboard shows the latest row for each driver/unit identity and sorts:
+
+1. Check equipment
+2. Use APU more
+3. Review idle
+4. No recent use
+5. Working well
+
+No savings claim is calculated from APU hours alone. The APU section is used to
+separate possible equipment/availability problems from avoidable engine idle.

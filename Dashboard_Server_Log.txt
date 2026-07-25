@@ -1,0 +1,21 @@
+2026-07-21 14:33:24  Vixen Fuel Dashboard server started at http://127.0.0.1:8765/
+2026-07-21 14:40:29  Vixen Fuel Dashboard server started at http://127.0.0.1:8765/
+2026-07-21 14:40:58  Request failed: Exception calling "Write" with "3" argument(s): "Unable to write data to the transport connection: An established connection was aborted by the software in your host machine."
+2026-07-21 14:53:13  Shutdown requested.
+2026-07-21 14:53:13  Dashboard server stopped.
+2026-07-21 14:55:03  Vixen Fuel Dashboard server started at http://127.0.0.1:8765/
+2026-07-21 14:59:27  Shutdown requested.
+2026-07-21 14:59:27  Dashboard server stopped.
+2026-07-21 15:23:43  Vixen Fuel Dashboard server started at http://127.0.0.1:8765/
+2026-07-21 15:34:02  Shutdown requested.
+2026-07-21 15:34:02  Dashboard server stopped.
+2026-07-21 15:35:26  Vixen Fuel Dashboard server started at http://127.0.0.1:8765/
+2026-07-21 16:03:03  Shutdown requested.
+2026-07-21 16:03:03  Dashboard server stopped.
+2026-07-21 16:03:32  Vixen Fuel Dashboard server started at http://127.0.0.1:8765/
+2026-07-21 16:07:58  Shutdown requested.
+2026-07-21 16:07:58  Dashboard server stopped.
+2026-07-21 16:23:31  Vixen Fuel Dashboard server started at http://127.0.0.1:8765/
+2026-07-25 06:18:46  Vixen Fuel Dashboard server started at http://127.0.0.1:8765/
+2026-07-25 08:05:12  Vixen Fuel Dashboard server started at http://127.0.0.1:8765/
+2026-07-25 08:05:31  Request failed: Exception calling "Write" with "3" argument(s): "Unable to write data to the transport connection: An established connection was aborted by the software in your host machine."

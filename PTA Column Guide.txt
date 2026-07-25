@@ -1,0 +1,62 @@
+PTA DISPATCH WORKBOOK GUIDE
+===========================
+
+Recognized filenames
+--------------------
+Fleet_PTA_Finder.xlsx / XLSM
+PTA_Dispatch_Tracker.xlsx / XLSM
+PTA_Dispatch_Tracker_Updated_FIXED.xlsx
+
+PTA Dispatch Tracker sheet
+--------------------------
+Preferred sheet name: PTA Tracker
+
+Recognized columns:
+Truck # / Truck / Unit
+Div # / Division
+Driver
+PTA
+Status
+Plans / Preplan / Plan Status
+Plan
+Team
+Destination / Area
+OM
+Count
+Notes
+
+The webpage recalculates hours past or until PTA from the PTA date/time.
+
+Fleet PTA Finder sheets
+-----------------------
+Preferred sheet names:
+Settings
+Available
+Dispatched
+
+Recognized list columns:
+Truck
+Division
+Driver
+PTA
+Status
+Preplan
+Flag
+Type
+Area
+Miles / OM
+Count
+
+Settings may include Soon window (hours). The dashboard displays that window
+but trusts the Available and Dispatched sheets as the filtered queues.
+
+Plain-English alerts
+--------------------
+Critical: 24+ hours past PTA
+High: 8-24 hours past PTA
+Medium: 2-8 hours past PTA
+New overdue: 0-2 hours past PTA
+Due soon: finder row that is not yet past PTA
+
+These are work-priority flags, not blame findings. Confirm driver readiness,
+load availability, hours, equipment, and dispatch conditions.

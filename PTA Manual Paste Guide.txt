@@ -1,0 +1,34 @@
+PTA MANUAL PASTE GUIDE
+======================
+
+The PTA Dispatch page can now use one pasted report instead of two PTA workbooks.
+
+HOW TO USE IT
+-------------
+1. Open PTA Dispatch in the dashboard.
+2. Expand "Paste PTA data manually".
+3. Copy the dispatch rows from Excel.
+4. Paste them into the box.
+5. Click "Use pasted PTA data".
+
+The dashboard stores that paste in the current browser and uses it to build:
+- The overdue PTA tracker
+- The available-due-soon queue
+- The dispatched/loaded-due-soon queue
+
+EXPECTED COLUMNS
+----------------
+Truck #, Div #, Driver, PTA, Status, Plans, Plan, Team, Destination, OM, Count
+
+Headers are recommended. Without headers, the fields must be in that exact order.
+Tab-separated Excel clipboard data works best. Comma-separated text is supported too.
+
+SOURCE PRIORITY
+---------------
+While the manual paste is active, it overrides both PTA workbook files.
+Click "Go back to PTA files" to clear the browser paste and use the XLSX/XLSM files again.
+
+PRIVACY
+-------
+The pasted rows are kept in browser local storage on that computer. They are not
+sent to a server or uploaded anywhere.

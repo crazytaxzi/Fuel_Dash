@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>Vixen Fuel Ops</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+
+  <div id="connectOverlay" class="connect-overlay">
+    <div class="connect-card">
+      <div class="connect-brand">VIXEN <span>FLEET OPS</span></div>
+      <h1>Connect your fuel-report folder</h1>
+      <p>
+        Choose the folder containing <code>summary</code>, <code>c1</code>,
+        <code>Detail</code>, and <code>summary chart</code> workbooks.
+        Optional electric APU and PTA dispatch workbooks can be included too.
+        The dashboard recognizes <code>Fleet PTA Finder</code> and <code>PTA Dispatch Tracker</code> files automatically.
+        XLSX and XLSM are both accepted.
+      </p>
+      <button id="connectFolderBtn" class="button button-primary">Choose Data Folder</button>
+      <button id="fallbackFilesBtn" class="button button-secondary">Choose Files Instead</button>
+      <input id="fallbackFilesInput" type="file" accept=".xlsx,.xlsm,.xlsb,.xls" multiple hidden />
+      <div id="connectError" class="connect-error"></div>
+      <small>Your spreadsheets stay on this computer. The dashboard reads them locally.</small>
+    </div>
+  </div>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand-block">
+        <div id="brandName" class="brand-name">VIXEN</div>
+        <div class="brand-sub">FLEET OPS</div>
+      </div>
+
+      <div class="portrait-frame">
+        <div class="portrait-glow"></div>
+        <img src="assets/vixen.png" alt="Neon Swift semi truck sipping diesel" />
+        <div class="portrait-corner corner-a"></div>
+        <div class="portrait-corner corner-b"></div>
+      </div>
+
+      <div class="motto-card">
+        <div class="motto-icon">⬡</div>
+        <div><strong>DRIVE SMART.</strong><span>KEEP MORE.</span></div>
+      </div>
+
+      <nav class="nav-list" aria-label="Dashboard views">
+        <button class="nav-item active" data-view="overview"><span>⌂</span>Overview</button>
+        <button class="nav-item" data-view="drivers"><span>◉</span>Cost Drivers</button>
+        <button class="nav-item" data-view="units"><span>♜</span>Unit Watchlist</button>
+        <button class="nav-item" data-view="apu"><span>⚡</span>Electric APU</button>
+        <button class="nav-item" data-view="pta"><span>◷</span>PTA Dispatch</button>
+        <button class="nav-item" data-view="exceptions"><span>▤</span>Fueling Events</button>
+        <button class="nav-item" data-view="quality"><span>⚙</span>Data Quality</button>
+        <button class="nav-item" data-view="settings"><span>✦</span>Settings</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="status-label">LAST REFRESH</div>
+        <div id="lastRefresh" class="status-value">Not connected</div>
+        <div class="status-dot"></div>
+      </div>
+    </aside>
+
+    <main class="main-panel">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">LOCAL FLEET INTELLIGENCE</div>
+          <h1>FLEET OPERATIONS COMMAND CENTER</h1>
+          <div id="tagline" class="tagline">CUT WASTE. BOOST MARGINS. OUTPERFORM.</div>
+        </div>
+        <div class="topbar-actions">
+          <div class="period-chip">
+            <span>▣</span>
+            <div><small>REPORTING WEEK</small><strong id="reportingWeek">No data</strong></div>
+          </div>
+          <button id="refreshBtn" class="icon-button" title="Refresh source files">↻</button>
+          <button id="changeFolderBtn" class="icon-button" title="Choose a different data folder">⌁</button>
+        </div>
+      </header>
+
+      <section id="overviewView" class="view active-view">
+        <div class="kpi-grid">
+          <article class="kpi-card purple">
+            <div class="kpi-icon">⬢</div>
+            <div class="kpi-copy"><span>FUEL PLAN FOLLOWED</span><strong id="kpiCompliance">--</strong><small id="kpiComplianceDelta">Waiting for data</small></div>
+            <div class="kpi-bar"><i id="kpiComplianceBar"></i></div>
+          </article>
+          <article class="kpi-card green">
+            <div class="kpi-icon">◒</div>
+            <div class="kpi-copy"><span>EXTRA COST THIS PERIOD</span><strong id="kpiWeeklyCost">--</strong><small id="kpiWeeklyCostDelta">Waiting for data</small></div>
+            <div class="kpi-bar"><i id="kpiWeeklyCostBar"></i></div>
+          </article>
+          <article class="kpi-card purple">
+            <div class="kpi-icon">▣</div>
+            <div class="kpi-copy"><span>POSSIBLE 28-DAY SAVINGS</span><strong id="kpiModeledSavings">--</strong><small id="kpiModeledSavingsNote">Estimate if performance reaches a strong peer level</small></div>
+            <div class="kpi-bar"><i id="kpiModeledSavingsBar"></i></div>
+          </article>
+          <article class="kpi-card green">
+            <div class="kpi-icon">$</div>
+            <div class="kpi-copy"><span>POSSIBLE YEARLY COST</span><strong id="kpiAnnualExposure">--</strong><small id="kpiAnnualNote">Estimate if the current gap repeats</small></div>
+            <div class="kpi-bar"><i id="kpiAnnualBar"></i></div>
+          </article>
+        </div>
+
+        <div class="primary-grid">
+          <article class="panel hero-panel">
+            <div class="panel-title green-text"><span>✣</span> HERO INSIGHT</div>
+            <div class="hero-content">
+              <div class="hero-copy">
+                <p id="heroInsight">Connect the source folder to interrogate the numbers.</p>
+                <button id="heroDriverDetailsBtn" class="ghost-button" type="button">OPEN DRIVER DETAILS <span>›</span></button>
+                <div class="plain-english-note"><strong>Possible savings</strong> means estimated cost that may be reduced. A higher number is a bigger problem to address, not better performance.</div>
+              </div>
+              <div class="hero-chart-wrap">
+                <div class="chart-heading">EXTRA COST TREND</div>
+                <canvas id="heroChart"></canvas>
+                <div class="chart-callout"><span>POSSIBLE 28-DAY SAVINGS</span><strong id="heroSavings">--</strong></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel coaching-panel">
+            <div class="panel-title purple-text"><span>✦</span> DRIVERS TO REVIEW FIRST</div>
+            <button class="view-all" data-view-target="drivers">VIEW ALL</button>
+            <div class="mini-table header"><span>Driver</span><span>Possible savings</span><span>What stands out</span><span>Details</span></div>
+            <div id="topDriversList" class="mini-table-body empty-state">No driver data yet.</div>
+          </article>
+        </div>
+
+        <div class="secondary-grid">
+          <article class="panel watch-panel">
+            <div class="panel-title green-text"><span>▧</span> UNITS TO REVIEW</div>
+            <button class="view-all" data-view-target="units">VIEW ALL</button>
+            <div class="watch-table header"><span>Unit</span><span>Added cost</span><span>Net cost</span><span>Review level</span></div>
+            <div id="unitWatchList" class="watch-table-body empty-state">No unit data yet.</div>
+          </article>
+
+          <article class="panel trend-panel">
+            <div class="panel-title purple-text"><span>⌁</span> WEEKLY TREND</div>
+            <canvas id="weeklyChart"></canvas>
+            <div class="trend-total"><small>WEEK TOTAL</small><strong id="trendWeekTotal">--</strong><span id="trendWeekDelta">--</span></div>
+          </article>
+
+          <article class="panel quality-panel">
+            <div class="panel-title pink-text"><span>◫</span> DATA QUALITY ALERTS</div>
+            <button class="view-all" data-view-target="quality">VIEW ALL</button>
+            <div id="qualityAlerts" class="alert-stack empty-state">No alerts yet.</div>
+          </article>
+
+          <article class="panel actions-panel">
+            <div class="panel-title green-text"><span>☑</span> NEXT ACTIONS</div>
+            <div id="nextActions" class="action-stack empty-state">No actions yet.</div>
+          </article>
+        </div>
+
+        <article class="panel pta-pulse-panel">
+          <div class="panel-title green-text"><span>◷</span> PTA DISPATCH PULSE</div>
+          <button class="view-all" data-view-target="pta">OPEN PTA BOARD</button>
+          <div id="ptaPulseSummary" class="pta-pulse-summary empty-state">Add the optional PTA workbooks to see dispatch timing.</div>
+          <div class="pta-pulse-layout">
+            <div>
+              <div class="pta-queue-heading">OVERDUE / NEEDS ACTION</div>
+              <div id="ptaOverviewQueue" class="pta-overview-queue empty-state">No PTA data yet.</div>
+            </div>
+            <div>
+              <div class="pta-queue-heading">DUE SOON · NO PREPLAN</div>
+              <div id="ptaDueSoonQueue" class="pta-overview-queue empty-state">No PTA Finder data yet.</div>
+            </div>
+          </div>
+        </article>
+
+      </section>
+
+      <section id="driversView" class="view table-view">
+        <div class="view-heading"><div><span class="eyebrow">PEOPLE + PERFORMANCE</span><h2>Drivers to Review</h2></div><input class="table-search" data-table="driversTable" placeholder="Search drivers..." /></div>
+        <div class="table-explainer"><strong>How to read this:</strong> “Possible savings” is estimated avoidable cost. Higher means more money may be recoverable, so that driver should be reviewed sooner.</div>
+        <div class="table-shell"><table id="driversTable"><thead><tr><th>Review level</th><th>Driver</th><th>Leader</th><th>Fuel MPG</th><th>Engine idle</th><th>Out-of-route</th><th>MPG while moving</th><th>Estimated excess gallons</th><th>Possible 28-day savings</th><th>Possible yearly cost</th><th>What stands out</th><th>What to check next</th><th>Details</th></tr></thead><tbody></tbody></table></div>
+      </section>
+
+      <section id="unitsView" class="view table-view">
+        <div class="view-heading"><div><span class="eyebrow">TRACTOR + STOP COSTS</span><h2>Units to Review</h2></div><input class="table-search" data-table="unitsTable" placeholder="Search units..." /></div>
+        <div class="table-shell"><table id="unitsTable"><thead><tr><th>Unit</th><th>Fueling events</th><th>Added cost</th><th>Savings offsets</th><th>Net cost</th><th>Gallons different from plan</th><th>Wrong-stop events</th><th>Plan not followed</th><th>Most common stop</th><th>What may be happening</th><th>Who should review</th></tr></thead><tbody></tbody></table></div>
+      </section>
+
+
+      <section id="apuView" class="view table-view">
+        <div class="view-heading"><div><span class="eyebrow">BATTERY-POWERED CAB COMFORT</span><h2>Electric APU Review</h2></div><input class="table-search" data-table="apuTable" placeholder="Search driver, unit, or status..." /></div>
+        <div class="table-explainer"><strong>Sorted with problems first.</strong> “Use APU more” means engine idle is high while electric APU use appears low. “Check equipment” means a fault or low battery may be blocking normal use.</div>
+        <div id="apuSummaryGrid" class="apu-summary-grid"></div>
+        <div id="apuEmptyState" class="apu-empty-state hidden">
+          <strong>No electric APU data was found.</strong> Add an optional XLSX/XLSM file with <code>APU</code> in the filename. Helpful columns include Driver Code, Driver Name, Unit, Electric APU Hours, Engine Idle Hours, APU Use %, Battery SOC, and Faults.
+        </div>
+        <div id="apuTableShell" class="table-shell"><table id="apuTable"><thead><tr><th>Status</th><th>Driver</th><th>Driver code</th><th>Unit</th><th>Electric APU hours</th><th>Engine idle hours</th><th>APU use</th><th>Battery charge</th><th>Faults</th><th>Driver engine idle</th><th>Plain-English note</th></tr></thead><tbody></tbody></table></div>
+      </section>
+
+
+      <section id="ptaView" class="view table-view">
+        <div class="view-heading">
+          <div><span class="eyebrow">DISPATCH TIMING + LOAD PLANNING</span><h2>PTA Dispatch Board</h2></div>
+          <input class="table-search" data-table="ptaTable" placeholder="Search truck, driver, destination, notes..." />
+        </div>
+        <div class="table-explainer"><strong>How to read this:</strong> the board puts overdue PTAs first, especially trucks with no preplan. “Due soon” means the truck is inside the 48-hour planning window without a preplan.</div>
+
+        <details id="ptaPastePanel" class="pta-paste-panel">
+          <summary>
+            <span><strong>Paste PTA data manually</strong><small>Paste the shared report once. It feeds both the overdue tracker and the available/dispatched finder queues.</small></span>
+            <span id="ptaPasteStatus" class="pta-paste-status">Using PTA workbook files</span>
+          </summary>
+          <div class="pta-paste-content">
+            <div class="pta-paste-instructions">
+              <div>
+                <h3>One paste, both PTA tools</h3>
+                <p>Copy the dispatch report from Excel and paste it below. Headers are recommended. Without headers, the dashboard expects this order:</p>
+                <code>Truck # · Div # · Driver · PTA · Status · Plans · Plan · Team · Destination · OM · Count</code>
+              </div>
+              <button id="copyPtaHeaderBtn" class="button button-secondary" type="button">Copy header</button>
+            </div>
+            <textarea id="ptaPasteInput" class="pta-paste-input" spellcheck="false" placeholder="Truck #&#9;Div #&#9;Driver&#9;PTA&#9;Status&#9;Plans&#9;Plan&#9;Team&#9;Destination&#9;OM&#9;Count"></textarea>
+            <div class="pta-paste-actions">
+              <button id="applyPtaPasteBtn" class="button button-primary" type="button">Use pasted PTA data</button>
+              <button id="clearPtaPasteBtn" class="button button-secondary" type="button">Go back to PTA files</button>
+              <span id="ptaPasteMessage" class="pta-paste-message">Pasted data is stored only in this browser.</span>
+            </div>
+          </div>
+        </details>
+
+        <div id="ptaSummaryGrid" class="pta-summary-grid"></div>
+        <div id="ptaEmptyState" class="apu-empty-state hidden">
+          <strong>No PTA dispatch data was found.</strong> Paste the shared PTA report above, or add <code>Fleet_PTA_Finder.xlsx</code> and <code>PTA_Dispatch_Tracker.xlsx</code> to the dashboard folder.
+        </div>
+        <div id="ptaFilterBar" class="pta-filter-bar">
+          <button class="pta-filter active" type="button" data-pta-filter="action">Needs action</button>
+          <button class="pta-filter" type="button" data-pta-filter="overdue">All overdue</button>
+          <button class="pta-filter" type="button" data-pta-filter="available">Available soon</button>
+          <button class="pta-filter" type="button" data-pta-filter="dispatched">Dispatched soon</button>
+          <button class="pta-filter" type="button" data-pta-filter="all">All tracker rows</button>
+        </div>
+        <div id="ptaTableShell" class="table-shell">
+          <table id="ptaTable">
+            <thead><tr>
+              <th>Urgency</th><th>Truck</th><th>Driver</th><th>PTA</th><th>Time status</th>
+              <th>Truck status</th><th>Plan status</th><th>Destination</th><th>OM</th><th>Count</th>
+              <th>What to do next</th><th>Notes</th><th>Details</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="exceptionsView" class="view table-view">
+        <div class="view-heading"><div><span class="eyebrow">TRANSACTION DETAIL</span><h2>Fueling Events</h2></div><input class="table-search" data-table="exceptionsTable" placeholder="Search orders, units, stops..." /></div>
+        <div class="table-shell"><table id="exceptionsTable"><thead><tr><th>Unit</th><th>Order</th><th>Fuel date</th><th>How fuel was bought</th><th>Planned stop</th><th>Actual stop</th><th>Planned gallons</th><th>Actual gallons</th><th>Used planned location</th><th>Fuel-amount cost</th><th>Wrong-stop cost</th><th>Total extra cost</th><th>Data warning</th></tr></thead><tbody></tbody></table></div>
+      </section>
+
+      <section id="qualityView" class="view table-view">
+        <div class="view-heading"><div><span class="eyebrow">CAN WE TRUST THE SOURCE FILES?</span><h2>Data Quality</h2></div></div>
+        <div id="qualityCards" class="quality-cards"></div>
+      </section>
+
+      <section id="settingsView" class="view settings-view">
+        <div class="view-heading"><div><span class="eyebrow">CONTROL PANEL</span><h2>Dashboard Settings</h2></div></div>
+        <div class="settings-grid">
+          <article class="panel settings-card">
+            <h3>Cost Model</h3>
+            <label>Planning diesel price per gallon<input id="planningPpgInput" type="number" min="0.01" step="0.01" value="4.00" /></label>
+            <label>Auto-refresh interval<select id="refreshIntervalSelect"><option value="0">Off</option><option value="30">30 seconds</option><option value="60" selected>60 seconds</option><option value="300">5 minutes</option></select></label>
+            <button id="saveSettingsBtn" class="button button-primary">Apply Settings</button>
+          </article>
+          <article class="panel settings-card">
+            <h3>Brand</h3>
+            <label>Brand name<input id="brandInput" value="VIXEN" maxlength="20" /></label>
+            <label>Tagline<input id="taglineInput" value="CUT WASTE. BOOST MARGINS. OUTPERFORM." maxlength="80" /></label>
+            <button id="saveBrandBtn" class="button button-secondary">Update Branding</button>
+          </article>
+          <article class="panel settings-card source-status-card">
+            <h3>Source Status</h3><p class="settings-help">Electric APU and PTA workbooks are optional. A manual PTA paste overrides both PTA files until you switch back to file mode.</p>
+            <div id="sourceStatusList" class="source-status-list"></div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+
+  <dialog id="driverModal" class="driver-modal">
+    <div class="modal-shell">
+      <button id="closeDriverModalBtn" class="modal-close" type="button" aria-label="Close driver details">×</button>
+      <div class="modal-kicker">DRIVER REVIEW</div>
+      <div class="modal-heading">
+        <div><h2 id="modalDriverName">Driver details</h2><p id="modalDriverMeta"></p></div>
+        <div id="modalReviewBadge" class="modal-review-badge">Review</div>
+      </div>
+      <div class="meaning-card"><strong>What “possible savings” means:</strong> this is estimated avoidable cost if the driver reaches the dashboard’s strong-peer MPG target. A larger number means more cost to investigate, not that the driver is performing better.</div>
+      <div id="modalDriverMetrics" class="modal-metrics"></div>
+      <div class="modal-detail-grid">
+        <article class="modal-panel"><h3>What stands out</h3><div id="modalDriverFocus"></div></article>
+        <article class="modal-panel"><h3>What to check next</h3><div id="modalDriverAction"></div></article>
+        <article class="modal-panel apu-modal-panel"><h3>Electric APU</h3><div id="modalDriverApu"></div></article>
+        <article class="modal-panel pta-modal-panel"><h3>PTA / Dispatch</h3><div id="modalDriverPta"></div></article>
+        <article class="modal-panel"><h3>Important context</h3><div id="modalDriverContext"></div></article>
+      </div>
+      <div class="modal-footer">
+        <button id="openDriversTableBtn" class="button button-secondary" type="button">Open all drivers</button>
+        <button id="closeDriverModalFooterBtn" class="button button-primary" type="button">Close</button>
+      </div>
+    </div>
+  </dialog>
+
+
+  <dialog id="ptaModal" class="driver-modal pta-modal">
+    <div class="modal-shell">
+      <button id="closePtaModalBtn" class="modal-close" type="button" aria-label="Close PTA details">×</button>
+      <div class="modal-kicker">PTA DISPATCH REVIEW</div>
+      <div class="modal-heading">
+        <div><h2 id="modalPtaTruck">Truck details</h2><p id="modalPtaMeta"></p></div>
+        <div id="modalPtaBadge" class="modal-review-badge">Review</div>
+      </div>
+      <div class="meaning-card"><strong>PTA in plain English:</strong> this is when the driver or truck is expected to be ready for the next assignment. Past due with no preplan gets the loudest alert because it is the clearest dispatch risk.</div>
+      <div id="modalPtaMetrics" class="modal-metrics"></div>
+      <div class="modal-detail-grid">
+        <article class="modal-panel"><h3>What to do next</h3><div id="modalPtaAction"></div></article>
+        <article class="modal-panel"><h3>Dispatch notes</h3><div id="modalPtaNotes"></div></article>
+        <article class="modal-panel pta-modal-panel"><h3>Planning context</h3><div id="modalPtaContext"></div></article>
+        <article class="modal-panel"><h3>Source</h3><div id="modalPtaSource"></div></article>
+      </div>
+      <section class="pta-action-note-panel" aria-labelledby="ptaActionNoteHeading">
+        <div class="pta-action-note-heading">
+          <div><span class="modal-kicker">YOUR FOLLOW-UP LOG</span><h3 id="ptaActionNoteHeading">Why did we take that action?</h3></div>
+          <small id="ptaActionNoteStatus">Notes are saved locally in this browser.</small>
+        </div>
+        <textarea id="ptaActionNoteInput" maxlength="2500" spellcheck="true" placeholder="Example: Held the truck because the driver needed a reset. Called dispatch at 14:20 and moved the PTA to the evening queue."></textarea>
+        <div class="pta-action-note-controls">
+          <span>Tip: press Ctrl+Enter to save.</span>
+          <button id="clearPtaActionNoteBtn" class="button button-secondary" type="button">Clear draft</button>
+          <button id="savePtaActionNoteBtn" class="button button-primary" type="button">Save action note</button>
+        </div>
+        <div id="ptaActionNoteHistory" class="pta-action-note-history"></div>
+      </section>
+      <div class="modal-footer">
+        <button id="openPtaTableBtn" class="button button-secondary" type="button">Open PTA board</button>
+        <button id="closePtaModalFooterBtn" class="button button-primary" type="button">Close</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="vendor/xlsx.full.min.js"></script>
+  <script src="vendor/chart.umd.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

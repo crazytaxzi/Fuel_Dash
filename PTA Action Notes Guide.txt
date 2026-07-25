@@ -1,0 +1,12 @@
+PTA ACTION NOTES
+================
+
+1. Open the PTA Dispatch page.
+2. Click OPEN for a truck.
+3. Type why you held, dispatched, called, reassigned, or otherwise handled it.
+4. Click Save action note, or press Ctrl+Enter.
+
+The dashboard keeps a timestamped history for each truck. It also captures the
+PTA, status, plan status, and destination that were showing when the note was
+saved. Notes live in this browser's local storage. They are not written into the
+Excel files and do not sync to other computers.
