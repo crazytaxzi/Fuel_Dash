@@ -136,6 +136,21 @@ If the reports are beside the dashboard or in its data folder, they load
 automatically. If stored elsewhere, click Choose Data Folder and select the
 folder containing the selected source set.
 
+PDF TO XLSX CONVERTER
+---------------------
+For the most reliable PDF workflow:
+
+1. Double-click "Convert PDF Reports to XLSX.cmd".
+2. Choose one or more of the four supported PDF reports.
+3. Allow multiple downloads if the browser asks.
+4. Move the downloaded XLSX files into the dashboard's data folder.
+5. Launch or refresh the dashboard.
+
+The converter repairs the PDFs' character-by-character text layout and writes
+dashboard-ready XLSX files. It runs locally using the bundled PDF.js and
+SheetJS libraries. Each converted workbook includes a structured "Table 1"
+sheet plus an "Extracted Text" sheet for troubleshooting.
+
 AUTO REFRESH
 ------------
 The dashboard checks a selected folder every 60 seconds by default. The interval
@@ -164,11 +179,14 @@ FILES
 index.html                  Dashboard page
 styles.css                  Theme, modals, and layout
 app.js                      Workbook reading and analysis
+pdf_to_xlsx.html            Local PDF conversion page
+pdf_to_xlsx.js              Position-aware PDF-to-XLSX conversion
 assets/vixen.png            Neon truck profile image
 vendor/xlsx.full.min.js     Local spreadsheet parser
 vendor/chart.umd.js         Local chart renderer
 serve_dashboard.ps1         Tiny local static server
 Launch Fuel Dashboard.cmd  Starts the server and opens the dashboard
+Convert PDF Reports to XLSX.cmd  Starts the local PDF conversion tool
 Stop Dashboard Server.cmd  Stops the local server
 PTA Column Guide.txt        PTA workbook requirements and matching notes
 PTA Manual Paste Guide.txt Paste-once workflow for both PTA tools

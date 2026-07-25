@@ -1,0 +1,49 @@
+PDF TO XLSX CONVERSION GUIDE
+============================
+
+WHAT IT DOES
+------------
+
+The converter turns the four supported text-based PDFs into dashboard-ready
+XLSX files:
+
+- Driver Fuel Metrics.pdf -> Driver Fuel Metrics.xlsx
+- Fuel Compliance Analysis.pdf -> Fuel Compliance Analysis.xlsx
+- Fuel Noncompliant Cost Analysis.pdf -> Fuel Noncompliant Cost Analysis.xlsx
+- MPG by Driver.pdf -> MPG by Driver.xlsx
+
+HOW TO USE IT
+-------------
+
+1. Extract the full Fuel Dashboard package.
+2. Double-click "Convert PDF Reports to XLSX.cmd".
+3. Click "Choose PDF files" or drag the PDFs onto the conversion page.
+4. Select any or all of the supported reports.
+5. If Edge or Chrome asks to allow multiple downloads, choose Allow.
+6. Copy the downloaded XLSX files into the dashboard's data folder.
+7. Launch the dashboard or click Refresh.
+
+HOW IT WORKS
+------------
+
+The report PDFs store many words and numbers as individually positioned
+characters. The converter reconstructs text using each character's page
+position, identifies the report's data rows, and creates the table structure
+expected by the dashboard.
+
+Each XLSX contains:
+
+- Table 1: normalized data consumed by the dashboard
+- Extracted Text: reconstructed PDF text for troubleshooting
+
+PRIVACY
+-------
+
+Conversion happens locally at http://127.0.0.1:8765. Reports are not uploaded.
+
+LIMITATIONS
+-----------
+
+- PDFs must contain selectable text. Scanned PDFs need OCR first.
+- The converter recognizes the current four report layouts.
+- A future report redesign may require parser adjustments.
