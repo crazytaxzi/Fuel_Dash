@@ -1,0 +1,46 @@
+PDF DRIVER REPORT GUIDE
+=======================
+
+The dashboard reads text-based driver PDFs. It does not upload the PDF.
+Image-only/scanned PDFs must be OCR'd first.
+
+BEST RESULTS
+------------
+Use clear labels on each driver block:
+
+Driver: Jane Driver
+Driver Code: JDRI
+Unit: 1234
+Daily Idle: 8.2%
+7 Day Idle: 9.4%
+28 Day Idle: 10.1%
+Fuel Cost: $425
+Fuel MPG: 6.72
+
+Recognized alternatives include:
+
+- Today Idle / Today's Idle
+- Rolling 7 Day Idle
+- Rolling 28 Day Idle
+- 4 Week Idle
+- Truck / Tractor instead of Unit
+- Driver ID instead of Driver Code
+- Fuel Impact / Fuel Savings instead of Fuel Cost
+
+HOW PDF DATA IS USED
+--------------------
+
+- When c1.xlsx/xlsm is present, matching PDF values supplement the c1 drivers.
+  Driver Code is the strongest match; Driver Name is the fallback.
+- Without c1, the PDF provides a basic driver view. The other required fuel
+  sources are still needed for overview compliance, transactions, and trends.
+- A PDF value replaces the matching daily, 7-day, 28-day idle, or fuel-cost
+  value for that refresh.
+
+LIMITATIONS
+-----------
+
+- The first recognized PDF in the selected folder is used.
+- Scanned PDFs are not OCR'd by the dashboard.
+- Highly graphical or unlabeled tables may require a parser adjustment.
+- Supply a representative PDF when a field does not map correctly.

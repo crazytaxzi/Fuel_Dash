@@ -96,7 +96,7 @@ body::before {
 
 .view { display:none; }
 .active-view { display:block; }
-.kpi-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.kpi-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
 .kpi-card { min-height:132px; position:relative; display:grid; grid-template-columns:72px 1fr; gap:6px; padding:20px 18px 17px; background:linear-gradient(140deg,rgba(15,25,33,.96),rgba(5,12,17,.95)); border:1px solid var(--line); box-shadow:var(--shadow), inset 0 0 28px rgba(168,85,247,.03); overflow:hidden; }
 .kpi-card::after { content:""; position:absolute; inset:0; pointer-events:none; opacity:.5; background:linear-gradient(120deg,transparent 0 56%,rgba(255,255,255,.035) 57%,transparent 58%); }
 .kpi-card.green { border-color:var(--line-green); }
@@ -744,6 +744,36 @@ tbody tr:hover { background:rgba(168,85,247,.075); }
 .pta-urgency.new-overdue { color:#ffe990; border-color:rgba(255,229,118,.4); background:rgba(255,229,118,.08); }
 .pta-urgency.due-soon { color:#76ff92; border-color:rgba(57,255,99,.38); background:rgba(57,255,99,.09); }
 .pta-urgency.future { color:#a9b4bd; border-color:rgba(169,180,189,.25); background:rgba(169,180,189,.06); }
+.worked-marker {
+  display:inline-block;
+  margin:3px 0 0 6px;
+  padding:3px 7px;
+  border:1px solid rgba(255,205,74,.55);
+  border-radius:999px;
+  background:rgba(255,190,35,.14);
+  color:#ffd86f;
+  font-size:8px;
+  font-style:normal;
+  font-weight:900;
+  letter-spacing:.03em;
+  white-space:nowrap;
+  box-shadow:0 0 14px rgba(255,190,35,.12);
+}
+.pta-overview-row.worked-recently {
+  border-color:rgba(255,205,74,.58);
+  background:linear-gradient(100deg,rgba(255,190,35,.16),rgba(80,59,13,.12));
+  box-shadow:inset 4px 0 0 #ffd34f, 0 0 22px rgba(255,190,35,.09);
+}
+#ptaTable tbody tr.worked-recently td {
+  background:rgba(255,190,35,.075);
+  border-top-color:rgba(255,205,74,.24);
+  border-bottom-color:rgba(255,205,74,.24);
+}
+#ptaTable tbody tr.worked-recently td:first-child {
+  box-shadow:inset 4px 0 0 #ffd34f;
+}
+#ptaTable tbody tr.worked-recently:hover td { background:rgba(255,190,35,.12); }
+#ptaTable .worked-marker { display:block; width:max-content; margin-left:0; }
 .pta-filter-bar {
   display:flex;
   flex-wrap:wrap;
@@ -975,7 +1005,8 @@ tbody tr:hover { background:rgba(168,85,247,.075); }
   line-height:1.45;
   text-align:right;
 }
-#ptaActionNoteInput {
+#ptaActionNoteInput,
+.action-note-input {
   display:block;
   width:100%;
   min-height:94px;
@@ -992,12 +1023,20 @@ tbody tr:hover { background:rgba(168,85,247,.075); }
   box-shadow:inset 0 1px 9px rgba(0,0,0,.30);
   transition:border-color .18s ease, box-shadow .18s ease, background .18s ease;
 }
-#ptaActionNoteInput:focus {
+#ptaActionNoteInput:focus,
+.action-note-input:focus {
   border-color:rgba(57,255,99,.48);
   background:rgba(4,13,17,.92);
   box-shadow:0 0 0 3px rgba(57,255,99,.06), inset 0 1px 9px rgba(0,0,0,.28);
 }
-#ptaActionNoteInput::placeholder { color:#687780; }
+#ptaActionNoteInput::placeholder,
+.action-note-input::placeholder { color:#687780; }
+.pta-heading-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:10px; }
+.pta-heading-actions .table-search { min-width:260px; }
+@media (max-width: 760px) {
+  .pta-heading-actions { width:100%; justify-content:flex-start; }
+  .pta-heading-actions .table-search { width:100%; min-width:0; }
+}
 .pta-action-note-controls {
   display:flex;
   align-items:center;

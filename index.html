@@ -20,11 +20,11 @@
         <code>Detail</code>, and <code>summary chart</code> workbooks.
         Optional electric APU and PTA dispatch workbooks can be included too.
         The dashboard recognizes <code>Fleet PTA Finder</code> and <code>PTA Dispatch Tracker</code> files automatically.
-        XLSX and XLSM are both accepted.
+        XLSX, XLSM, and basic driver-report PDFs are accepted.
       </p>
       <button id="connectFolderBtn" class="button button-primary">Choose Data Folder</button>
       <button id="fallbackFilesBtn" class="button button-secondary">Choose Files Instead</button>
-      <input id="fallbackFilesInput" type="file" accept=".xlsx,.xlsm,.xlsb,.xls" multiple hidden />
+      <input id="fallbackFilesInput" type="file" accept=".xlsx,.xlsm,.xlsb,.xls,.pdf" multiple hidden />
       <div id="connectError" class="connect-error"></div>
       <small>Your spreadsheets stay on this computer. The dashboard reads them locally.</small>
     </div>
@@ -106,6 +106,16 @@
             <div class="kpi-copy"><span>POSSIBLE YEARLY COST</span><strong id="kpiAnnualExposure">--</strong><small id="kpiAnnualNote">Estimate if the current gap repeats</small></div>
             <div class="kpi-bar"><i id="kpiAnnualBar"></i></div>
           </article>
+          <article class="kpi-card purple">
+            <div class="kpi-icon">7</div>
+            <div class="kpi-copy"><span>7-DAY ROLLING IDLE</span><strong id="kpiIdle7Day">--</strong><small id="kpiIdle7DayNote">Fleet average from available drivers</small></div>
+            <div class="kpi-bar"><i id="kpiIdle7DayBar"></i></div>
+          </article>
+          <article class="kpi-card green">
+            <div class="kpi-icon">28</div>
+            <div class="kpi-copy"><span>28-DAY IDLE AVERAGE</span><strong id="kpiIdle28Day">--</strong><small id="kpiIdle28DayNote">Fleet average from available drivers</small></div>
+            <div class="kpi-bar"><i id="kpiIdle28DayBar"></i></div>
+          </article>
         </div>
 
         <div class="primary-grid">
@@ -180,7 +190,7 @@
       <section id="driversView" class="view table-view">
         <div class="view-heading"><div><span class="eyebrow">PEOPLE + PERFORMANCE</span><h2>Drivers to Review</h2></div><input class="table-search" data-table="driversTable" placeholder="Search drivers..." /></div>
         <div class="table-explainer"><strong>How to read this:</strong> “Possible savings” is estimated avoidable cost. Higher means more money may be recoverable, so that driver should be reviewed sooner.</div>
-        <div class="table-shell"><table id="driversTable"><thead><tr><th>Review level</th><th>Driver</th><th>Leader</th><th>Fuel MPG</th><th>Engine idle</th><th>Out-of-route</th><th>MPG while moving</th><th>Estimated excess gallons</th><th>Possible 28-day savings</th><th>Possible yearly cost</th><th>What stands out</th><th>What to check next</th><th>Details</th></tr></thead><tbody></tbody></table></div>
+        <div class="table-shell"><table id="driversTable"><thead><tr><th>Review level</th><th>Driver</th><th>Leader</th><th>Fuel MPG</th><th>Idle today</th><th>7-day idle</th><th>28-day idle</th><th>Out-of-route</th><th>MPG while moving</th><th>Estimated excess gallons</th><th>Possible 28-day savings</th><th>Possible yearly cost</th><th>What stands out</th><th>What to check next</th><th>Details</th></tr></thead><tbody></tbody></table></div>
       </section>
 
       <section id="unitsView" class="view table-view">
@@ -203,7 +213,10 @@
       <section id="ptaView" class="view table-view">
         <div class="view-heading">
           <div><span class="eyebrow">DISPATCH TIMING + LOAD PLANNING</span><h2>PTA Dispatch Board</h2></div>
-          <input class="table-search" data-table="ptaTable" placeholder="Search truck, driver, destination, notes..." />
+          <div class="pta-heading-actions">
+            <button id="exportTransitionBtn" class="button button-primary" type="button">Export shift transition</button>
+            <input class="table-search" data-table="ptaTable" placeholder="Search truck, driver, destination, notes..." />
+          </div>
         </div>
         <div class="table-explainer"><strong>How to read this:</strong> the board puts overdue PTAs first, especially trucks with no preplan. “Due soon” means the truck is inside the 48-hour planning window without a preplan.</div>
 
@@ -305,6 +318,19 @@
         <article class="modal-panel pta-modal-panel"><h3>PTA / Dispatch</h3><div id="modalDriverPta"></div></article>
         <article class="modal-panel"><h3>Important context</h3><div id="modalDriverContext"></div></article>
       </div>
+      <section class="pta-action-note-panel" aria-labelledby="driverActionNoteHeading">
+        <div class="pta-action-note-heading">
+          <div><span class="modal-kicker">TODAY'S DRIVER LOG</span><h3 id="driverActionNoteHeading">Fuel / idle follow-up notes</h3></div>
+          <small id="driverActionNoteStatus">Included in the next shift-transition export.</small>
+        </div>
+        <textarea id="driverActionNoteInput" class="action-note-input" maxlength="2500" spellcheck="true" placeholder="Example: Reviewed idle with driver; weather delay accounted for most of today’s idle. Recheck tomorrow."></textarea>
+        <div class="pta-action-note-controls">
+          <span>Tip: press Ctrl+Enter to save.</span>
+          <button id="clearDriverActionNoteBtn" class="button button-secondary" type="button">Clear draft</button>
+          <button id="saveDriverActionNoteBtn" class="button button-primary" type="button">Save driver note</button>
+        </div>
+        <div id="driverActionNoteHistory" class="pta-action-note-history"></div>
+      </section>
       <div class="modal-footer">
         <button id="openDriversTableBtn" class="button button-secondary" type="button">Open all drivers</button>
         <button id="closeDriverModalFooterBtn" class="button button-primary" type="button">Close</button>

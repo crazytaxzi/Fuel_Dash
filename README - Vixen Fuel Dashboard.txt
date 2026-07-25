@@ -3,7 +3,7 @@ VIXEN FLEET OPS - LOCAL HTML COMMAND CENTER
 
 VERSION
 -------
-v3.2 PTA action notes + manual paste + dispatch integration + smooth-edge UI + driver modal + electric APU support
+v3.3 PDF driver reports + rolling idle review + daily notes + shift-transition export
 
 WHAT IT IS
 ----------
@@ -82,6 +82,17 @@ Weekly_APU_Report.xlsx
 
 Helpful APU columns include Driver Code, Driver Name, Unit, Electric APU Hours,
 Engine Idle Hours, APU Use %, Battery SOC, Faults, and Notes.
+
+BASIC PDF DRIVER REPORTS
+------------------------
+The dashboard can read one text-based PDF driver report in addition to c1, or
+use it as the basic driver source when c1 is not available. Scanned/image-only
+PDFs need OCR before the browser can read them.
+
+Recognized labels include Driver, Driver Code/ID, Unit/Truck, Daily Idle,
+7 Day Idle, 28 Day Idle (or 4 Week Idle), Fuel Cost, and Fuel MPG. Keep the PDF
+beside the dashboard with a name such as "Driver Fuel Report.pdf", or select it
+with Choose Files. See "PDF Driver Report Guide.txt" for details.
 
 DRIVER DETAILS
 --------------
@@ -191,3 +202,20 @@ and destination at the time it was saved. The history stays attached to the
 truck and is stored locally in that browser. Notes are not written back to Excel
 and will not automatically move to a different computer or browser profile.
 
+When a note is saved for a truck on the PTA watch board, that truck turns gold
+and shows "Worked recently" for one hour. The remaining gold time is displayed
+on the row. After the hour expires, the row automatically returns to its normal
+urgency/watch styling so worked and waiting trucks are easy to distinguish.
+
+SHIFT TRANSITION (v3.3)
+-----------------------
+Driver details now include a daily fuel/idle follow-up log. On the PTA Dispatch
+page, click "Export shift transition" to download a dated text handoff containing:
+
+- All PTA truck notes saved today
+- High fuel-cost drivers
+- Each included driver's daily, 7-day, and 28-day idle percentages
+- Driver follow-up notes saved today
+
+PTA and driver notes remain local to that browser. Export the transition before
+moving to another computer or browser profile.

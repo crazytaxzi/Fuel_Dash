@@ -11,6 +11,7 @@
     apu: /(?:^|[ _-])(?:electric[ _-]*)?apu(?:[ _-].*)?\.(xlsx|xlsm|xlsb|xls)$/i,
     ptaTracker: /pta[ _-]*dispatch[ _-]*tracker.*\.(xlsx|xlsm|xlsb|xls)$/i,
     ptaFinder: /fleet[ _-]*pta[ _-]*finder.*\.(xlsx|xlsm|xlsb|xls)$/i,
+    driverPdf: /\.pdf$/i,
   };
   const ALL_FILE_PATTERNS = { ...EXPECTED_FILES, ...OPTIONAL_FILES };
   const PTA_PASTE_HEADERS = ["Truck #", "Div #", "Driver", "PTA", "Status", "Plans", "Plan", "Team", "Destination", "OM", "Count"];
@@ -20,6 +21,7 @@
     savedAt: "vixenManualPtaSavedAt",
   };
   const PTA_ACTION_NOTES_KEY = "vixenPtaActionNotesV1";
+  const DRIVER_ACTION_NOTES_KEY = "vixenDriverActionNotesV1";
 
   const state = {
     directoryHandle: null,
@@ -31,9 +33,12 @@
     heroChart: null,
     weeklyChart: null,
     refreshTimer: null,
+    workedStatusTimer: null,
     ptaFilter: "action",
     activePtaRecordIndex: null,
+    activeDriverRecordIndex: null,
     ptaActionNotes: loadPtaActionNotes(),
+    driverActionNotes: loadStoredNotes(DRIVER_ACTION_NOTES_KEY),
     manualPta: {
       active: localStorage.getItem(PTA_PASTE_KEYS.active) === "true",
       text: localStorage.getItem(PTA_PASTE_KEYS.text) || "",
@@ -58,6 +63,7 @@
     applyBranding();
     populateSettings();
     configureCharts();
+    scheduleWorkedStatusRefresh();
     await attemptRestoreDirectory();
   });
 
@@ -68,6 +74,7 @@
       "kpiCompliance", "kpiComplianceDelta", "kpiComplianceBar", "kpiWeeklyCost", "kpiWeeklyCostDelta",
       "kpiWeeklyCostBar", "kpiModeledSavings", "kpiModeledSavingsNote", "kpiModeledSavingsBar",
       "kpiAnnualExposure", "kpiAnnualNote", "kpiAnnualBar", "heroInsight", "heroSavings",
+      "kpiIdle7Day", "kpiIdle7DayNote", "kpiIdle7DayBar", "kpiIdle28Day", "kpiIdle28DayNote", "kpiIdle28DayBar",
       "topDriversList", "unitWatchList", "qualityAlerts", "nextActions", "trendWeekTotal", "trendWeekDelta",
       "planningPpgInput", "refreshIntervalSelect", "brandInput", "taglineInput", "saveSettingsBtn", "saveBrandBtn",
       "sourceStatusList", "qualityCards", "heroDriverDetailsBtn", "driverModal", "closeDriverModalBtn",
@@ -79,7 +86,9 @@
       "modalPtaMetrics", "modalPtaAction", "modalPtaNotes", "modalPtaContext", "modalPtaSource",
       "ptaPastePanel", "ptaPasteStatus", "ptaPasteInput", "applyPtaPasteBtn", "clearPtaPasteBtn",
       "copyPtaHeaderBtn", "ptaPasteMessage", "ptaActionNoteInput", "savePtaActionNoteBtn",
-      "clearPtaActionNoteBtn", "ptaActionNoteStatus", "ptaActionNoteHistory"
+      "clearPtaActionNoteBtn", "ptaActionNoteStatus", "ptaActionNoteHistory", "exportTransitionBtn",
+      "driverActionNoteInput", "saveDriverActionNoteBtn", "clearDriverActionNoteBtn",
+      "driverActionNoteStatus", "driverActionNoteHistory"
     ].forEach((id) => { els[id] = $(id); });
   }
 
@@ -141,6 +150,19 @@
       }
     });
     els.ptaActionNoteHistory.addEventListener("click", handlePtaActionNoteHistoryClick);
+    els.exportTransitionBtn.addEventListener("click", exportShiftTransition);
+    els.saveDriverActionNoteBtn.addEventListener("click", saveDriverActionNote);
+    els.clearDriverActionNoteBtn.addEventListener("click", () => {
+      els.driverActionNoteInput.value = "";
+      els.driverActionNoteInput.focus();
+    });
+    els.driverActionNoteInput.addEventListener("keydown", (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+        event.preventDefault();
+        saveDriverActionNote();
+      }
+    });
+    els.driverActionNoteHistory.addEventListener("click", handleDriverActionNoteHistoryClick);
     els.ptaPasteInput.addEventListener("keydown", (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
         event.preventDefault();
@@ -271,7 +293,7 @@
     setBusy(true);
     try {
       const files = await collectSourceFiles();
-      const missing = Object.keys(EXPECTED_FILES).filter((key) => !files[key]);
+      const missing = Object.keys(EXPECTED_FILES).filter((key) => !files[key] && !(key === "drivers" && files.driverPdf));
       if (missing.length) {
         throw new Error(`Missing source file${missing.length > 1 ? "s" : ""}: ${missing.map(sourceLabel).join(", ")}`);
       }
@@ -286,7 +308,9 @@
       const workbooks = {};
       for (const [key, file] of Object.entries(files)) {
         const buffer = await file.arrayBuffer();
-        workbooks[key] = XLSX.read(buffer, { type: "array", cellDates: false, raw: true, dense: false });
+        workbooks[key] = key === "driverPdf"
+          ? await extractPdfDriverRecords(buffer)
+          : XLSX.read(buffer, { type: "array", cellDates: false, raw: true, dense: false });
       }
 
       state.sourceFiles = files;
@@ -298,7 +322,7 @@
       els.connectOverlay.classList.add("hidden");
       els.connectError.textContent = "";
       scheduleAutoRefresh();
-      showToast("Dashboard refreshed from the local workbooks.");
+      showToast(`Dashboard refreshed from local ${files.driverPdf ? "workbooks and PDF data" : "workbooks"}.`);
     } catch (error) {
       console.error(error);
       els.connectOverlay.classList.remove("hidden");
@@ -320,6 +344,7 @@
       apu: ["APU.xlsx", "APU.xlsm", "apu.xlsx", "apu.xlsm", "Electric APU.xlsx", "Electric APU.xlsm", "electric_apu.xlsx", "electric_apu.xlsm"],
       ptaTracker: ["PTA_Dispatch_Tracker_Updated_FIXED.xlsx", "PTA Dispatch Tracker.xlsx", "PTA_Dispatch_Tracker.xlsx", "PTA Dispatch Tracker.xlsm"],
       ptaFinder: ["Fleet_PTA_Finder.xlsx", "Fleet PTA Finder.xlsx", "Fleet_PTA_Finder.xlsm", "Fleet PTA Finder.xlsm"],
+      driverPdf: ["Driver Fuel Report.pdf", "Fuel Driver Report.pdf", "driver report.pdf", "fuel report.pdf"],
     };
     const found = {};
     for (const [key, names] of Object.entries(candidates)) {
@@ -336,8 +361,9 @@
           break;
         } catch (_) {}
       }
-      if (!found[key] && Object.prototype.hasOwnProperty.call(EXPECTED_FILES, key)) return false;
     }
+    const missingRequired = Object.keys(EXPECTED_FILES).some((key) => !found[key] && !(key === "drivers" && found.driverPdf));
+    if (missingRequired) return false;
     state.staticFiles = found;
     state.directoryHandle = null;
     state.fallbackFiles = null;
@@ -377,24 +403,27 @@
   function sourceLabel(key) {
     return ({
       summary: "summary.xlsx/xlsm",
-      drivers: "c1.xlsx/xlsm",
+      drivers: "c1.xlsx/xlsm or a basic driver PDF",
       detail: "Detail.xlsx/xlsm",
       trend: "summary chart.xlsx/xlsm",
       apu: "optional APU.xlsx/xlsm",
       ptaTracker: "optional PTA Dispatch Tracker.xlsx/xlsm",
       ptaFinder: "optional Fleet PTA Finder.xlsx/xlsm",
+      driverPdf: "optional basic driver report PDF",
     })[key] || key;
   }
 
   function analyzeWorkbooks(workbooks, files) {
     const summaryRows = workbookRows(workbooks.summary, 0);
-    const driverRows = workbookRows(workbooks.drivers, 0);
+    const driverRows = workbooks.drivers ? workbookRows(workbooks.drivers, 0) : [];
     const detailRows = workbookRows(workbooks.detail, 0);
     const trendRows = workbookRows(workbooks.trend, 0);
     const apuRows = workbooks.apu ? workbookRows(workbooks.apu, 0) : [];
 
     const summary = analyzeSummary(summaryRows);
-    const drivers = analyzeDrivers(driverRows, summary.latest.date, state.settings.planningPpg);
+    const drivers = driverRows.length
+      ? analyzeDrivers(driverRows, summary.latest.date, state.settings.planningPpg, workbooks.driverPdf || [])
+      : analyzePdfDrivers(workbooks.driverPdf || [], summary.latest.date, state.settings.planningPpg);
     const detail = analyzeDetail(detailRows);
     const trend = analyzeTrend(trendRows, summary.completed, summary.latest.date);
     const apu = analyzeApu(apuRows, drivers, files.apu || null);
@@ -461,7 +490,7 @@
     return { completed, latest, previous, partialRows };
   }
 
-  function analyzeDrivers(rows, latestWeek, planningPpg) {
+  function analyzeDrivers(rows, latestWeek, planningPpg, pdfRecords = []) {
     if (!rows.length) throw new Error("The c1 driver workbook is empty.");
     const header = rows[0] || [];
     const dateColumns = [];
@@ -519,6 +548,10 @@
         }
         return null;
       };
+      const dailyIdlePct = metricValueAny([/^daily\s+(?:engine\s+)?idle\s*%$/i, /^today(?:'s)?\s+(?:engine\s+)?idle\s*%$/i]);
+      const idle7DayPct = metricValueAny([/(?:rolling\s*)?7\s*day.*idle\s*%/i, /idle\s*%.*(?:rolling\s*)?7\s*day/i]);
+      const idle28DayPct = metricValue("Rolling 4 Week Idle %")
+        ?? metricValueAny([/(?:rolling\s*)?28\s*day.*idle\s*%/i, /idle\s*%.*(?:rolling\s*)?28\s*day/i]);
       return {
         ...start,
         dispatchMiles: metricValue("Rolling 28 Day Dispatch Miles"),
@@ -526,7 +559,10 @@
         fuelGallons: metricValue("Rolling 28 day Fuel Gallons"),
         qualcommMiles: metricValue("Rolling 28 day Qualcomm Miles"),
         dispatchMpg: metricValue("Rolling 4 Week Dispatch MPG"),
-        idlePct: metricValue("Rolling 4 Week Idle %"),
+        dailyIdlePct,
+        idle7DayPct,
+        idle28DayPct,
+        idlePct: idle28DayPct,
         movingMpg: metricValue("Rolling 4 Week Moving MPG"),
         oorPct: metricValue("Rolling 4 Week OOR"),
         priorDispatchMpg: priorValue("Rolling 4 Week Dispatch MPG"),
@@ -545,7 +581,7 @@
     const oorThreshold = percentile(rawDrivers.map((driver) => driver.oorPct).filter(isFiniteNumber), 0.5);
     const movingThreshold = percentile(rawDrivers.map((driver) => driver.movingMpg).filter(isFiniteNumber), 0.5);
 
-    const records = rawDrivers.map((driver) => {
+    let records = rawDrivers.map((driver) => {
       const excessGallons = Math.max(0, driver.fuelGallons - (driver.dispatchMiles / targetMpg));
       const estimatedCost = excessGallons * planningPpg;
       const annualizedCost = estimatedCost * 13;
@@ -573,6 +609,8 @@
       };
     }).sort((a, b) => b.estimatedCost - a.estimatedCost);
 
+    records = mergePdfDriverRecords(records, pdfRecords);
+
     const totals = {
       excessGallons: sum(records.map((item) => item.excessGallons)),
       modeledCost: sum(records.map((item) => item.estimatedCost)),
@@ -591,6 +629,133 @@
     if (lowMoving) focus.push(`MPG while moving is low at ${num(driver.movingMpg, 2)}`);
     if (!focus.length) focus.push(`Overall fuel MPG is below the strong-peer target at ${num(driver.dispatchMpg, 2)}`);
     return focus.join(" · ");
+  }
+
+  async function extractPdfDriverRecords(buffer) {
+    const pdfjs = await import("./vendor/pdfjs/pdf.min.mjs");
+    pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdfjs/pdf.worker.min.mjs";
+    const pdf = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise;
+    const lines = [];
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+      const rows = new Map();
+      content.items.forEach((item) => {
+        const y = Math.round(item.transform?.[5] || 0);
+        if (!rows.has(y)) rows.set(y, []);
+        rows.get(y).push({ x: item.transform?.[4] || 0, text: item.str || "" });
+      });
+      [...rows.entries()].sort((a, b) => b[0] - a[0]).forEach(([, items]) => {
+        const line = items.sort((a, b) => a.x - b.x).map((item) => item.text).join(" ").replace(/\s+/g, " ").trim();
+        if (line) lines.push(line);
+      });
+    }
+    const records = parseBasicDriverPdfLines(lines);
+    if (!records.length) {
+      throw new Error("The PDF opened, but no driver rows were recognized. Include labels such as Driver, Daily Idle, 7 Day Idle, 28 Day Idle, or Fuel Cost.");
+    }
+    return records;
+  }
+
+  function parseBasicDriverPdfLines(lines) {
+    const records = [];
+    let current = null;
+    const commit = () => {
+      if (current?.driverName || current?.driverCode || current?.unit) records.push(current);
+      current = null;
+    };
+    const percentFrom = (value) => {
+      const parsed = number(value);
+      return parsed === null ? null : parsed > 1 ? parsed / 100 : parsed;
+    };
+    const read = (line, patterns) => {
+      for (const pattern of patterns) {
+        const match = line.match(pattern);
+        if (match) return match[1]?.trim() || "";
+      }
+      return "";
+    };
+
+    lines.forEach((line) => {
+      const driver = read(line, [
+        /\bdriver(?:\s+name)?\s*[:#-]\s*([A-Z][A-Z .,'-]+?)(?=\s{2,}|\s+(?:driver\s*(?:id|code)|unit|truck|daily|today|7\s*day|28\s*day|fuel\s*cost)\b|$)/i,
+      ]);
+      if (driver) {
+        if (current && normalizeIdentity(current.driverName) !== normalizeIdentity(driver)) commit();
+        current ||= {};
+        current.driverName = driver;
+      }
+      const hasMetrics = /\b(?:idle|fuel\s*cost|driver\s*(?:id|code)|unit|truck)\b/i.test(line);
+      if (!current && hasMetrics) current = {};
+      if (!current) return;
+
+      current.driverCode ||= read(line, [/\bdriver\s*(?:id|code|#)\s*[:#-]\s*([A-Z0-9-]+)/i]);
+      current.unit ||= read(line, [/\b(?:unit|truck|tractor)\s*(?:#|number)?\s*[:#-]\s*([A-Z0-9-]+)/i]);
+      const daily = read(line, [/\b(?:daily|today(?:'s)?)\s+(?:engine\s+)?idle(?:\s*%)?\s*[:=-]?\s*([\d.]+\s*%?)/i]);
+      const seven = read(line, [/\b(?:rolling\s*)?7[\s-]*day\s+(?:average\s+)?(?:engine\s+)?idle(?:\s*%)?\s*[:=-]?\s*([\d.]+\s*%?)/i]);
+      const twentyEight = read(line, [/\b(?:rolling\s*)?28[\s-]*day\s+(?:average\s+)?(?:engine\s+)?idle(?:\s*%)?\s*[:=-]?\s*([\d.]+\s*%?)/i, /\b4[\s-]*week\s+(?:average\s+)?(?:engine\s+)?idle(?:\s*%)?\s*[:=-]?\s*([\d.]+\s*%?)/i]);
+      const cost = read(line, [/\b(?:high\s+)?fuel\s+(?:cost|impact|savings)\s*[:=$-]?\s*(\$?[\d,.]+)/i]);
+      const mpg = read(line, [/\b(?:fuel|dispatch)\s*mpg\s*[:=-]?\s*([\d.]+)/i]);
+      if (daily) current.dailyIdlePct = percentFrom(daily);
+      if (seven) current.idle7DayPct = percentFrom(seven);
+      if (twentyEight) current.idle28DayPct = percentFrom(twentyEight);
+      if (cost) current.fuelCost = number(cost);
+      if (mpg) current.dispatchMpg = number(mpg);
+      current.source = "PDF";
+    });
+    commit();
+    return records.filter((record) => record.driverName || record.driverCode || record.unit);
+  }
+
+  function mergePdfDriverRecords(records, pdfRecords) {
+    if (!pdfRecords.length) return records;
+    const byIdentity = new Map();
+    records.forEach((driver) => {
+      [driver.driverCode, driver.driverName].filter(Boolean).forEach((value) => byIdentity.set(normalizeIdentity(value), driver));
+    });
+    pdfRecords.forEach((pdfRecord) => {
+      const driver = byIdentity.get(normalizeIdentity(pdfRecord.driverCode))
+        || byIdentity.get(normalizeIdentity(pdfRecord.driverName));
+      if (!driver) return;
+      ["dailyIdlePct", "idle7DayPct", "idle28DayPct"].forEach((field) => {
+        if (pdfRecord[field] !== null && pdfRecord[field] !== undefined) driver[field] = pdfRecord[field];
+      });
+      if (pdfRecord.idle28DayPct !== null && pdfRecord.idle28DayPct !== undefined) driver.idlePct = pdfRecord.idle28DayPct;
+      if (pdfRecord.fuelCost !== null && pdfRecord.fuelCost !== undefined) {
+        driver.pdfFuelCost = pdfRecord.fuelCost;
+        driver.estimatedCost = pdfRecord.fuelCost;
+      }
+      driver.pdfSupplemented = true;
+    });
+    return records.sort((a, b) => b.estimatedCost - a.estimatedCost);
+  }
+
+  function analyzePdfDrivers(pdfRecords, latestWeek, planningPpg) {
+    if (!pdfRecords.length) throw new Error("No c1 workbook or readable basic driver PDF was found.");
+    const records = pdfRecords.map((record) => {
+      const estimatedCost = record.fuelCost || 0;
+      const idle28DayPct = record.idle28DayPct ?? null;
+      return {
+        driverLeader: "Not reported", driverCode: record.driverCode || "", driverName: record.driverName || record.unit || "Unknown driver",
+        managerMatch: "", dispatchMiles: null, drivingFuel: null, fuelGallons: null, qualcommMiles: null,
+        dispatchMpg: record.dispatchMpg ?? null, dailyIdlePct: record.dailyIdlePct ?? null,
+        idle7DayPct: record.idle7DayPct ?? null, idle28DayPct, idlePct: idle28DayPct,
+        movingMpg: null, oorPct: null, priorDispatchMpg: null, priorIdlePct: null, priorOorPct: null,
+        excessGallons: 0, estimatedCost, annualizedCost: estimatedCost * 13, mpgChange: null,
+        likelyDriver: "Basic PDF report", priority: estimatedCost >= 400 ? "High" : estimatedCost >= 150 ? "Medium" : "Monitor",
+        reviewLabel: estimatedCost >= 400 ? "Talk first" : estimatedCost >= 150 ? "Review" : "Watch",
+        confidence: "Basic PDF", focus: `PDF report: daily idle ${pct(record.dailyIdlePct, 1)}, 7-day ${pct(record.idle7DayPct, 1)}, 28-day ${pct(idle28DayPct, 1)}`,
+        action: "Review the PDF values and add a follow-up note for the next shift.", pdfSupplemented: true,
+      };
+    }).sort((a, b) => b.estimatedCost - a.estimatedCost);
+    const totals = {
+      excessGallons: 0,
+      modeledCost: sum(records.map((item) => item.estimatedCost)),
+      annualizedCost: sum(records.map((item) => item.annualizedCost)),
+      topFourShare: 0,
+    };
+    totals.topFourShare = totals.modeledCost ? sum(records.slice(0, 4).map((item) => item.estimatedCost)) / totals.modeledCost : 0;
+    return { records, totals, targetMpg: 0, idleThreshold: percentile(records.map((r) => r.idlePct).filter(isFiniteNumber), .5), oorThreshold: 0, movingThreshold: 0, currentDate: latestWeek, planningPpg };
   }
 
   function buildDriverAction(highIdle, highOor, lowMoving) {
@@ -1512,6 +1677,17 @@
     els.kpiAnnualNote.textContent = `If the current gap repeats · ${money(state.settings.planningPpg, 2)}/gal`;
     els.kpiAnnualBar.style.width = `${clamp(drivers.totals.topFourShare * 100, 20, 100)}%`;
 
+    const idle7Values = drivers.records.map((driver) => driver.idle7DayPct).filter(isFiniteNumber);
+    const idle28Values = drivers.records.map((driver) => driver.idle28DayPct).filter(isFiniteNumber);
+    const idle7Average = idle7Values.length ? average(idle7Values) : null;
+    const idle28Average = idle28Values.length ? average(idle28Values) : null;
+    els.kpiIdle7Day.textContent = pct(idle7Average, 1);
+    els.kpiIdle7DayNote.textContent = `${formatCount(idle7Values.length)} driver${idle7Values.length === 1 ? "" : "s"} with 7-day data`;
+    els.kpiIdle7DayBar.style.width = `${clamp((idle7Average || 0) * 100, idle7Average === null ? 0 : 4, 100)}%`;
+    els.kpiIdle28Day.textContent = pct(idle28Average, 1);
+    els.kpiIdle28DayNote.textContent = `${formatCount(idle28Values.length)} driver${idle28Values.length === 1 ? "" : "s"} with 28-day data`;
+    els.kpiIdle28DayBar.style.width = `${clamp((idle28Average || 0) * 100, idle28Average === null ? 0 : 4, 100)}%`;
+
     const topDriver = drivers.records[0];
     els.heroInsight.innerHTML = topDriver
       ? `${escapeHtml(topDriver.driverName)} has the largest estimated cost gap to review. ${escapeHtml(topDriver.focus)}. The dashboard estimates <strong>${moneyCompact(topDriver.estimatedCost)}</strong> in possible 28-day savings if performance reaches the strong-peer target. Fleet-wide possible savings are <strong>${moneyCompact(drivers.totals.modeledCost)}</strong>.`
@@ -1622,7 +1798,8 @@
       <tr data-driver-index="${index}">
         <td class="priority-${driver.priority.toLowerCase()}">${escapeHtml(driver.reviewLabel)}</td>
         <td>${escapeHtml(driver.driverName)}</td><td>${escapeHtml(driver.driverLeader)}</td>
-        <td class="numeric">${num(driver.dispatchMpg, 2)}</td><td class="numeric">${pct(driver.idlePct, 1)}</td>
+        <td class="numeric">${num(driver.dispatchMpg, 2)}</td>
+        <td class="numeric">${pct(driver.dailyIdlePct, 1)}</td><td class="numeric">${pct(driver.idle7DayPct, 1)}</td><td class="numeric">${pct(driver.idle28DayPct, 1)}</td>
         <td class="numeric">${pct(driver.oorPct, 1)}</td><td class="numeric">${num(driver.movingMpg, 2)}</td>
         <td class="numeric">${num(driver.excessGallons, 1)}</td><td class="numeric cost-positive">${money(driver.estimatedCost, 0)}</td>
         <td class="numeric">${money(driver.annualizedCost, 0)}</td><td>${escapeHtml(driver.focus)}</td><td>${escapeHtml(driver.action)}</td>
@@ -1712,9 +1889,10 @@
   }
 
   function ptaOverviewRow(record) {
-    return `<button class="pta-overview-row" type="button" data-pta-index="${record.index}">
+    const worked = recentTruckWork(record);
+    return `<button class="pta-overview-row ${worked ? "worked-recently" : ""}" type="button" data-pta-index="${record.index}">
       <span class="pta-urgency ${record.urgencyKey}">${escapeHtml(record.urgency)}</span>
-      <span><strong>${escapeHtml(record.truck || "No truck")}</strong><small>${escapeHtml(record.driver || "No driver")} · ${escapeHtml(record.destination || "No destination")}</small></span>
+      <span><strong>${escapeHtml(record.truck || "No truck")}${worked ? ' <em class="worked-marker">Worked recently</em>' : ""}</strong><small>${escapeHtml(record.driver || "No driver")} · ${escapeHtml(record.destination || "No destination")}${worked ? ` · gold for ${escapeHtml(worked.remainingText)}` : ""}</small></span>
       <span class="pta-time">${escapeHtml(record.timeText)}</span>
       <span>›</span>
     </button>`;
@@ -1762,9 +1940,11 @@
     const tbody = $("ptaTable")?.querySelector("tbody");
     if (!tbody) return;
     const records = currentPtaRecords(pta);
-    tbody.innerHTML = records.length ? records.map((record) => `
-      <tr>
-        <td><span class="pta-urgency ${record.urgencyKey}">${escapeHtml(record.urgency)}</span></td>
+    tbody.innerHTML = records.length ? records.map((record) => {
+      const worked = recentTruckWork(record);
+      return `
+      <tr class="${worked ? "worked-recently" : ""}">
+        <td><span class="pta-urgency ${record.urgencyKey}">${escapeHtml(record.urgency)}</span>${worked ? `<span class="worked-marker">Worked recently · ${escapeHtml(worked.remainingText)}</span>` : ""}</td>
         <td><strong>${escapeHtml(record.truck)}</strong></td>
         <td>${escapeHtml(record.driver || "Unassigned")}</td>
         <td>${escapeHtml(formatPtaDate(record.pta))}</td>
@@ -1777,7 +1957,8 @@
         <td>${escapeHtml(record.action)}</td>
         <td>${escapeHtml(record.notes)}</td>
         <td><button class="driver-details-button" type="button" data-pta-index="${record.index}">OPEN</button></td>
-      </tr>`).join("") : '<tr><td colspan="13" class="empty-state">No records match this PTA view.</td></tr>';
+      </tr>`;
+    }).join("") : '<tr><td colspan="13" class="empty-state">No records match this PTA view.</td></tr>';
   }
 
   function openPtaModal(index) {
@@ -1826,6 +2007,15 @@
     }
   }
 
+  function loadStoredNotes(storageKey) {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(storageKey) || "{}");
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
   function persistPtaActionNotes() {
     try {
       localStorage.setItem(PTA_ACTION_NOTES_KEY, JSON.stringify(state.ptaActionNotes));
@@ -1839,6 +2029,32 @@
   function ptaTruckNoteKey(record) {
     const truck = text(record?.truck).toUpperCase().replace(/[^A-Z0-9]/g, "");
     return truck || "UNKNOWN-TRUCK";
+  }
+
+  function recentTruckWork(record, now = Date.now()) {
+    const notes = state.ptaActionNotes[ptaTruckNoteKey(record)];
+    if (!Array.isArray(notes) || !notes.length) return null;
+    const latestTime = Math.max(...notes.map((note) => new Date(note.savedAt).getTime()).filter(Number.isFinite));
+    const remainingMs = latestTime + 3600000 - now;
+    if (!Number.isFinite(latestTime) || remainingMs <= 0) return null;
+    const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60000));
+    return {
+      savedAt: new Date(latestTime),
+      remainingMs,
+      remainingMinutes,
+      remainingText: remainingMinutes === 60 ? "about 1 hour" : `${remainingMinutes} min`,
+    };
+  }
+
+  function updatePtaWorkStatusViews() {
+    if (!state.analysis?.pta) return;
+    renderPtaPulse(state.analysis.pta);
+    renderPtaTable();
+  }
+
+  function scheduleWorkedStatusRefresh() {
+    if (state.workedStatusTimer) window.clearInterval(state.workedStatusTimer);
+    state.workedStatusTimer = window.setInterval(updatePtaWorkStatusViews, 30000);
   }
 
   function currentPtaModalRecord() {
@@ -1876,6 +2092,7 @@
 
     els.ptaActionNoteInput.value = "";
     renderPtaActionNotes(record);
+    updatePtaWorkStatusViews();
     showToast(`Action note saved for Truck ${record.truck || "Unknown"}.`);
   }
 
@@ -1916,8 +2133,135 @@
     if (!state.ptaActionNotes[key].length) delete state.ptaActionNotes[key];
     if (persistPtaActionNotes()) {
       renderPtaActionNotes(record);
+      updatePtaWorkStatusViews();
       showToast(`Saved note removed for Truck ${record.truck || "Unknown"}.`);
     }
+  }
+
+  function driverNoteKey(driver) {
+    return normalizeIdentity(driver?.driverCode || driver?.driverName || "unknown-driver");
+  }
+
+  function currentDriverModalRecord() {
+    const index = state.activeDriverRecordIndex;
+    return Number.isInteger(index) ? state.analysis?.drivers?.records?.[index] : null;
+  }
+
+  function persistDriverActionNotes() {
+    try {
+      localStorage.setItem(DRIVER_ACTION_NOTES_KEY, JSON.stringify(state.driverActionNotes));
+      return true;
+    } catch (_) {
+      showToast("The browser could not save that driver note.", true);
+      return false;
+    }
+  }
+
+  function saveDriverActionNote() {
+    const driver = currentDriverModalRecord();
+    if (!driver) return showToast("Open a driver before saving a note.", true);
+    const noteText = text(els.driverActionNoteInput.value);
+    if (!noteText) {
+      showToast("Type a driver follow-up note first.", true);
+      els.driverActionNoteInput.focus();
+      return;
+    }
+    const key = driverNoteKey(driver);
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      text: noteText.slice(0, 2500),
+      savedAt: new Date().toISOString(),
+      driverName: driver.driverName || "",
+      driverCode: driver.driverCode || "",
+      dailyIdlePct: driver.dailyIdlePct,
+      idle7DayPct: driver.idle7DayPct,
+      idle28DayPct: driver.idle28DayPct,
+      estimatedCost: driver.estimatedCost,
+    };
+    const existing = Array.isArray(state.driverActionNotes[key]) ? state.driverActionNotes[key] : [];
+    state.driverActionNotes[key] = [entry, ...existing].slice(0, 75);
+    if (!persistDriverActionNotes()) return;
+    els.driverActionNoteInput.value = "";
+    renderDriverActionNotes(driver);
+    showToast(`Driver note saved for ${driver.driverName}.`);
+  }
+
+  function renderDriverActionNotes(driver) {
+    const key = driverNoteKey(driver);
+    const notes = Array.isArray(state.driverActionNotes[key]) ? state.driverActionNotes[key] : [];
+    const today = notes.filter((note) => isToday(note.savedAt));
+    els.driverActionNoteStatus.textContent = `${formatCount(today.length)} note${today.length === 1 ? "" : "s"} today · ${formatCount(notes.length)} total. Included in shift transition.`;
+    els.driverActionNoteHistory.innerHTML = notes.length ? notes.map((note) => {
+      const saved = new Date(note.savedAt);
+      const savedLabel = Number.isNaN(saved.getTime()) ? "Saved previously" : saved.toLocaleString([], { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+      return `<article class="pta-action-note-entry">
+        <div class="pta-action-note-entry-head"><strong>${escapeHtml(savedLabel)}</strong><button type="button" class="pta-note-delete" data-driver-note-delete="${escapeHtml(note.id)}">Delete</button></div>
+        <p>${escapeHtml(note.text).replace(/\n/g, "<br>")}</p>
+        <small>Idle: daily ${pct(note.dailyIdlePct, 1)} · 7-day ${pct(note.idle7DayPct, 1)} · 28-day ${pct(note.idle28DayPct, 1)} · Fuel cost ${money(note.estimatedCost, 0)}</small>
+      </article>`;
+    }).join("") : '<div class="pta-action-note-empty">Driver follow-up notes will appear here.</div>';
+  }
+
+  function handleDriverActionNoteHistoryClick(event) {
+    const button = event.target.closest("[data-driver-note-delete]");
+    if (!button) return;
+    const driver = currentDriverModalRecord();
+    if (!driver) return;
+    const key = driverNoteKey(driver);
+    state.driverActionNotes[key] = (state.driverActionNotes[key] || []).filter((note) => note.id !== button.dataset.driverNoteDelete);
+    if (!state.driverActionNotes[key].length) delete state.driverActionNotes[key];
+    if (persistDriverActionNotes()) renderDriverActionNotes(driver);
+  }
+
+  function isToday(value) {
+    const date = new Date(value);
+    return !Number.isNaN(date.getTime()) && dateKey(date) === dateKey(new Date());
+  }
+
+  function exportShiftTransition() {
+    if (!state.analysis) return showToast("Load dashboard data before exporting a transition.", true);
+    const now = new Date();
+    const lines = [
+      `${state.settings.brand} SHIFT TRANSITION`,
+      `Prepared: ${now.toLocaleString()}`,
+      "",
+      "PTA / TRUCK NOTES FROM TODAY",
+      "----------------------------",
+    ];
+    let ptaCount = 0;
+    Object.entries(state.ptaActionNotes).forEach(([truck, notes]) => {
+      (Array.isArray(notes) ? notes : []).filter((note) => isToday(note.savedAt)).reverse().forEach((note) => {
+        ptaCount += 1;
+        lines.push(`Truck ${truck} | ${note.driver || "No driver"} | ${new Date(note.savedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`);
+        lines.push(`PTA ${note.pta ? formatPtaDate(new Date(note.pta)) : "not captured"} | ${note.status || "No status"} | ${note.planStatus || "No plan status"} | ${note.destination || "No destination"}`);
+        lines.push(note.text, "");
+      });
+    });
+    if (!ptaCount) lines.push("No PTA truck notes were saved today.", "");
+
+    lines.push("HIGH FUEL COST DRIVERS", "----------------------");
+    let highCost = state.analysis.drivers.records.filter((driver) => driver.priority === "High");
+    if (!highCost.length) highCost = state.analysis.drivers.records.filter((driver) => driver.estimatedCost > 0).slice(0, 5);
+    highCost.forEach((driver) => {
+      lines.push(`${driver.driverName} (${driver.driverCode || "no code"}) | Fuel cost ${money(driver.estimatedCost, 0)}`);
+      lines.push(`Idle today ${pct(driver.dailyIdlePct, 1)} | 7-day ${pct(driver.idle7DayPct, 1)} | 28-day ${pct(driver.idle28DayPct, 1)}`);
+      const notes = (state.driverActionNotes[driverNoteKey(driver)] || []).filter((note) => isToday(note.savedAt)).reverse();
+      if (notes.length) notes.forEach((note) => lines.push(`Note ${new Date(note.savedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}: ${note.text}`));
+      else lines.push("Note: No driver follow-up note saved today.");
+      lines.push("");
+    });
+    if (!highCost.length) lines.push("No high fuel-cost drivers were identified.", "");
+
+    const content = lines.join("\r\n");
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Shift_Transition_${dateKey(now)}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    showToast("Shift transition exported.");
   }
 
   function formatPtaDate(value) {
@@ -1961,6 +2305,9 @@
     }
     const driverApu = findDriverApuRecord(driver);
     const driverPta = findDriverPtaRecord(driver);
+    state.activeDriverRecordIndex = index;
+    els.driverActionNoteInput.value = "";
+    renderDriverActionNotes(driver);
     els.modalDriverName.textContent = driver.driverName;
     els.modalDriverMeta.textContent = `${driver.driverCode || "No driver code"} · Leader: ${driver.driverLeader || "Unassigned"} · Latest rolling period`;
     els.modalReviewBadge.textContent = driver.reviewLabel;
@@ -1969,7 +2316,9 @@
       modalMetric("Possible 28-day savings", money(driver.estimatedCost, 0), "Estimated avoidable cost, not guaranteed savings", true),
       modalMetric("Estimated excess gallons", num(driver.excessGallons, 1), `Compared with ${num(state.analysis.drivers.targetMpg, 2)} MPG strong-peer target`, true),
       modalMetric("Fuel MPG", num(driver.dispatchMpg, 2), `${driver.dispatchMpg >= state.analysis.drivers.targetMpg ? "At or above" : "Below"} ${num(state.analysis.drivers.targetMpg, 2)} target`),
-      modalMetric("Engine idle", pct(driver.idlePct, 1), `${driver.idlePct > state.analysis.drivers.idleThreshold ? "Above" : "At or below"} ${pct(state.analysis.drivers.idleThreshold, 1)} fleet review level`),
+      modalMetric("Idle today", pct(driver.dailyIdlePct, 1), "Most recent daily idle value"),
+      modalMetric("7-day idle", pct(driver.idle7DayPct, 1), "Rolling seven-day average"),
+      modalMetric("28-day idle", pct(driver.idle28DayPct, 1), `${driver.idlePct > state.analysis.drivers.idleThreshold ? "Above" : "At or below"} ${pct(state.analysis.drivers.idleThreshold, 1)} fleet review level`),
       modalMetric("Out-of-route", pct(driver.oorPct, 1), `${driver.oorPct > state.analysis.drivers.oorThreshold ? "Above" : "At or below"} ${pct(state.analysis.drivers.oorThreshold, 1)} fleet review level`),
       modalMetric("MPG while moving", num(driver.movingMpg, 2), `${driver.movingMpg < state.analysis.drivers.movingThreshold ? "Below" : "At or above"} ${num(state.analysis.drivers.movingThreshold, 2)} fleet middle`),
       modalMetric("Possible yearly cost", money(driver.annualizedCost, 0), "If the same gap repeats for 13 rolling periods"),
@@ -2001,6 +2350,7 @@
   function closeDriverModal() {
     if (typeof els.driverModal.close === "function" && els.driverModal.open) els.driverModal.close();
     else els.driverModal.removeAttribute("open");
+    state.activeDriverRecordIndex = null;
   }
 
   function updateSourceStatus() {
@@ -2192,6 +2542,7 @@
   // Lightweight diagnostic hook used by the included validation script.
   window.VixenFuelDebug = {
     analyzeWorkbooks, analyzeApu, analyzePta, normalizePtaPasteRows,
-    parseDelimitedText, parseDate, parseDateTime, sourceLabel, ptaTruckNoteKey
+    parseDelimitedText, parseBasicDriverPdfLines, analyzePdfDrivers,
+    parseDate, parseDateTime, sourceLabel, ptaTruckNoteKey, driverNoteKey, recentTruckWork
   };
 })();
