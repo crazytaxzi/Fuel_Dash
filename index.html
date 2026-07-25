@@ -16,14 +16,15 @@
       <div class="connect-brand">VIXEN <span>FLEET OPS</span></div>
       <h1>Connect your fuel-report folder</h1>
       <p>
-        Choose the folder containing either the legacy <code>summary</code>,
-        <code>c1</code>, <code>Detail</code>, and <code>summary chart</code>
-        workbooks, or the four basic reports in XLSX/PDF format:
+        For the idle dashboard, choose the <code>data</code> folder containing
+        <code>summary</code>, <code>Detail</code>, <code>driver metrics detail</code>,
+        <code>Driver Details</code>, and <code>rolling 7 day</code>. The legacy
+        workbook set and the older four basic reports are also supported:
         <code>Driver Fuel Metrics</code>, <code>Fuel Compliance Analysis</code>,
         <code>Fuel Noncompliant Cost Analysis</code>, and <code>MPG by Driver</code>.
         Optional electric APU and PTA dispatch workbooks can be included too.
         The dashboard recognizes <code>Fleet PTA Finder</code> and <code>PTA Dispatch Tracker</code> files automatically.
-        XLSX, XLSM, and matching text-based PDFs are accepted and may be mixed.
+        XLSX and XLSM are accepted; the older basic set also accepts matching text-based PDFs.
       </p>
       <button id="connectFolderBtn" class="button button-primary">Choose Data Folder</button>
       <button id="fallbackFilesBtn" class="button button-secondary">Choose Files Instead</button>
@@ -139,12 +140,19 @@
           </article>
 
           <article class="panel coaching-panel">
-            <div class="panel-title purple-text"><span>✦</span> DRIVERS TO REVIEW FIRST</div>
+            <div class="panel-title purple-text"><span>✦</span> FIVE HIGHEST IDLERS</div>
             <button class="view-all" data-view-target="drivers">VIEW ALL</button>
-            <div class="mini-table header"><span>Driver</span><span>Possible savings</span><span>What stands out</span><span>Details</span></div>
+            <div class="mini-table header"><span>Driver</span><span>Current idle</span><span>28-day context</span><span>Details</span></div>
             <div id="topDriversList" class="mini-table-body empty-state">No driver data yet.</div>
           </article>
         </div>
+
+        <article class="panel coaching-panel idle-best-panel">
+          <div class="panel-title green-text"><span>✓</span> FIVE BEST IDLERS</div>
+          <button class="view-all" data-view-target="drivers">VIEW ALL</button>
+          <div class="mini-table header"><span>Driver</span><span>Current idle</span><span>28-day context</span><span>Details</span></div>
+          <div id="bestIdlersList" class="mini-table-body empty-state">No driver data yet.</div>
+        </article>
 
         <div class="secondary-grid">
           <article class="panel watch-panel">
@@ -192,7 +200,7 @@
 
       <section id="driversView" class="view table-view">
         <div class="view-heading"><div><span class="eyebrow">PEOPLE + PERFORMANCE</span><h2>Drivers to Review</h2></div><input class="table-search" data-table="driversTable" placeholder="Search drivers..." /></div>
-        <div class="table-explainer"><strong>How to read this:</strong> “Possible savings” is estimated avoidable cost. Higher means more money may be recoverable, so that driver should be reviewed sooner.</div>
+        <div class="table-explainer"><strong>How to read this:</strong> use the idle columns to identify the highest and best idlers. Cost fields are available only when the selected source reports provide enough driver-level detail.</div>
         <div class="table-shell"><table id="driversTable"><thead><tr><th>Review level</th><th>Driver</th><th>Leader</th><th>Fuel MPG</th><th>Idle today</th><th>7-day idle</th><th>28-day idle</th><th>Out-of-route</th><th>MPG while moving</th><th>Estimated excess gallons</th><th>Possible 28-day savings</th><th>Possible yearly cost</th><th>What stands out</th><th>What to check next</th><th>Details</th></tr></thead><tbody></tbody></table></div>
       </section>
 

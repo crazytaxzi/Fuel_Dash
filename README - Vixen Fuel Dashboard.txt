@@ -3,13 +3,28 @@ VIXEN FLEET OPS - LOCAL HTML COMMAND CENTER
 
 VERSION
 -------
-v3.4 dual XLSX/PDF basic reports + rolling idle review + shift-transition export
+Four-report idle ranking + rolling idle review + shift-transition export
 
 WHAT IT IS
 ----------
 A local, streamer-themed HTML dashboard that reads your fleet workbooks without
 rebuilding an Excel dashboard. Fuel, electric APU, and PTA dispatch work can live
 in one command center instead of breeding separate spreadsheets in the dark.
+
+PRIMARY SOURCE MODE - FIVE IDLE XLSX REPORTS
+--------------------------------------------
+Place these files in the data folder:
+
+- summary.xlsx
+- Detail.xlsx
+- driver metrics detail.xlsx
+- Driver Details.xlsx
+- rolling 7 day.xlsx
+
+The dashboard automatically joins the driver reports and ranks the five highest
+and five best current idlers using the latest 7-day idle percentage. The current
+28-day idle percentage appears beside it for context. Drivers without a current
+7-day value fall back to their 28-day value instead of using stale 7-day data.
 
 SOURCE MODE 1 - LEGACY WORKBOOKS
 --------------------------------
@@ -41,6 +56,15 @@ basic reports provide compliance, driver MPG/idle/OOR, overall noncompliant
 cost, and available MPG history. They do not contain transaction-level fueling
 events or unit-level cost details; those panels explain this when basic mode is
 active.
+
+In basic-report mode, the Overview is centered on two lists:
+
+- Five highest idlers, sorted from highest idle percentage down
+- Five best idlers, sorted from lowest idle percentage up
+
+The older four-report set contains a 28-day idle value but not a 7-day value.
+The primary five-XLSX mode supplies both 7-day and 28-day idle. Dollar estimates
+are not used to rank drivers in either idle-focused mode.
 
 OPTIONAL PTA DISPATCH FILES
 ---------------------------
@@ -108,26 +132,23 @@ DRIVER DETAILS
 --------------
 Click a driver or Open Driver Details. The pop-up shows:
 
-- Possible 28-day savings
-- Estimated excess gallons
 - Fuel MPG and peer target
-- Engine idle and fleet review level
+- Daily, 7-day, and 28-day engine idle when supplied
 - Out-of-route percentage
 - MPG while moving
-- Possible yearly cost if the same gap repeats
 - What stands out
 - What to check next
 - Matched electric APU information
 - Matched PTA / dispatch information
 
-“Possible savings” is estimated avoidable cost, not a good-performance score.
-Higher means more cost to investigate, not better performance.
+Legacy detailed workbooks also show modeled cost fields. Basic-report mode
+keeps those fields blank and ranks drivers by idle percentage.
 
 HOW TO RUN IT
 -------------
 1. Extract the entire package to a normal Windows folder.
-2. Keep either the legacy workbooks beside the dashboard or the four basic
-   XLSX/PDF reports in the data folder.
+2. Keep the five idle XLSX reports in the data folder. The legacy workbooks and
+   older four-report set remain supported as alternatives.
 3. Add the PTA and APU files when available.
 4. Double-click "Launch Fuel Dashboard.cmd".
 5. The dashboard opens in your default browser.

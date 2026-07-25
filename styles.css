@@ -134,6 +134,7 @@ body::before {
 .chart-callout strong { display:block; color:var(--green); font-size:23px; margin-top:7px; text-shadow:0 0 12px rgba(57,255,99,.36); }
 
 .coaching-panel { min-height:280px; }
+.idle-best-panel { min-height:245px; margin-top:12px; border-color:rgba(57,255,99,.3); }
 .mini-table, .watch-table { display:grid; align-items:center; }
 .mini-table { grid-template-columns:1.55fr .65fr 1fr .55fr; }
 .watch-table { grid-template-columns:.65fr .9fr .8fr .7fr; }

@@ -13,13 +13,18 @@
     reportCost: /^fuel[ _-]*noncompliant[ _-]*cost[ _-]*analysis\.(xlsx|xlsm|xlsb|xls|pdf)$/i,
     reportMpg: /^mpg[ _-]*by[ _-]*driver\.(xlsx|xlsm|xlsb|xls|pdf)$/i,
   };
+  const IDLE_REPORT_FILES = {
+    driverMetricsDetail: /^driver[ _-]*metrics[ _-]*detail\.(xlsx|xlsm|xlsb|xls)$/i,
+    driverDetails: /^driver[ _-]*details\.(xlsx|xlsm|xlsb|xls)$/i,
+    rolling7Day: /^rolling[ _-]*7[ _-]*day\.(xlsx|xlsm|xlsb|xls)$/i,
+  };
   const OPTIONAL_FILES = {
     apu: /(?:^|[ _-])(?:electric[ _-]*)?apu(?:[ _-].*)?\.(xlsx|xlsm|xlsb|xls)$/i,
     ptaTracker: /pta[ _-]*dispatch[ _-]*tracker.*\.(xlsx|xlsm|xlsb|xls)$/i,
     ptaFinder: /fleet[ _-]*pta[ _-]*finder.*\.(xlsx|xlsm|xlsb|xls)$/i,
     driverPdf: /\.pdf$/i,
   };
-  const ALL_FILE_PATTERNS = { ...EXPECTED_FILES, ...BASIC_REPORT_FILES, ...OPTIONAL_FILES };
+  const ALL_FILE_PATTERNS = { ...EXPECTED_FILES, ...BASIC_REPORT_FILES, ...IDLE_REPORT_FILES, ...OPTIONAL_FILES };
   const PTA_PASTE_HEADERS = ["Truck #", "Div #", "Driver", "PTA", "Status", "Plans", "Plan", "Team", "Destination", "OM", "Count"];
   const PTA_PASTE_KEYS = {
     active: "vixenManualPtaActive",
@@ -81,7 +86,7 @@
       "kpiWeeklyCostBar", "kpiModeledSavings", "kpiModeledSavingsNote", "kpiModeledSavingsBar",
       "kpiAnnualExposure", "kpiAnnualNote", "kpiAnnualBar", "heroInsight", "heroSavings",
       "kpiIdle7Day", "kpiIdle7DayNote", "kpiIdle7DayBar", "kpiIdle28Day", "kpiIdle28DayNote", "kpiIdle28DayBar",
-      "topDriversList", "unitWatchList", "qualityAlerts", "nextActions", "trendWeekTotal", "trendWeekDelta",
+      "topDriversList", "bestIdlersList", "unitWatchList", "qualityAlerts", "nextActions", "trendWeekTotal", "trendWeekDelta",
       "planningPpgInput", "refreshIntervalSelect", "brandInput", "taglineInput", "saveSettingsBtn", "saveBrandBtn",
       "sourceStatusList", "qualityCards", "heroDriverDetailsBtn", "driverModal", "closeDriverModalBtn",
       "closeDriverModalFooterBtn", "openDriversTableBtn", "modalDriverName", "modalDriverMeta", "modalReviewBadge",
@@ -300,9 +305,10 @@
     try {
       const files = await collectSourceFiles();
       const legacyReady = Object.keys(EXPECTED_FILES).every((key) => files[key] || (key === "drivers" && files.driverPdf));
+      const idleReady = files.summary && files.detail && Object.keys(IDLE_REPORT_FILES).every((key) => files[key]);
       const basicMissing = Object.keys(BASIC_REPORT_FILES).filter((key) => !files[key]);
-      if (!legacyReady && basicMissing.length) {
-        throw new Error(`Choose either the legacy workbook set or all four basic reports. Missing basic report${basicMissing.length > 1 ? "s" : ""}: ${basicMissing.map(sourceLabel).join(", ")}`);
+      if (!legacyReady && !idleReady && basicMissing.length) {
+        throw new Error("Choose the five idle-report XLSX files, the legacy workbook set, or all four basic reports.");
       }
 
       const signatures = Object.fromEntries(Object.entries(files).map(([key, file]) => [key, `${file.name}|${file.size}|${file.lastModified}`]));
@@ -325,7 +331,11 @@
 
       state.sourceFiles = files;
       state.sourceSignatures = signatures;
-      state.analysis = legacyReady ? analyzeWorkbooks(workbooks, files) : analyzeBasicReports(workbooks, files);
+      state.analysis = idleReady
+        ? analyzeIdleReports(workbooks, files)
+        : legacyReady
+          ? analyzeWorkbooks(workbooks, files)
+          : analyzeBasicReports(workbooks, files);
       renderDashboard(state.analysis);
       updateSourceStatus();
       updateLastRefresh(new Date());
@@ -348,9 +358,9 @@
   async function attemptSameFolderFiles() {
     if (location.protocol !== "http:" && location.protocol !== "https:") return false;
     const candidates = {
-      summary: ["summary.xlsx", "summary.xlsm", "summary.xlsb", "summary.xls"],
+      summary: ["data/summary.xlsx", "summary.xlsx", "summary.xlsm", "summary.xlsb", "summary.xls"],
       drivers: ["c1.xlsx", "c1.xlsm", "c1.xlsb", "c1.xls"],
-      detail: ["Detail.xlsx", "Detail.xlsm", "detail.xlsx", "detail.xlsm"],
+      detail: ["data/Detail.xlsx", "Detail.xlsx", "Detail.xlsm", "detail.xlsx", "detail.xlsm"],
       trend: ["summary chart.xlsx", "summary chart.xlsm", "summary_chart.xlsx", "summary_chart.xlsm"],
       apu: ["APU.xlsx", "APU.xlsm", "apu.xlsx", "apu.xlsm", "Electric APU.xlsx", "Electric APU.xlsm", "electric_apu.xlsx", "electric_apu.xlsm"],
       ptaTracker: ["PTA_Dispatch_Tracker_Updated_FIXED.xlsx", "PTA Dispatch Tracker.xlsx", "PTA_Dispatch_Tracker.xlsx", "PTA Dispatch Tracker.xlsm"],
@@ -360,6 +370,9 @@
       reportCompliance: ["data/Fuel Compliance Analysis.xlsx", "data/Fuel Compliance Analysis.pdf", "Fuel Compliance Analysis.xlsx", "Fuel Compliance Analysis.pdf"],
       reportCost: ["data/Fuel Noncompliant Cost Analysis.xlsx", "data/Fuel Noncompliant Cost Analysis.pdf", "Fuel Noncompliant Cost Analysis.xlsx", "Fuel Noncompliant Cost Analysis.pdf"],
       reportMpg: ["data/MPG by Driver.xlsx", "data/MPG by Driver.pdf", "MPG by Driver.xlsx", "MPG by Driver.pdf"],
+      driverMetricsDetail: ["data/driver metrics detail.xlsx", "driver metrics detail.xlsx"],
+      driverDetails: ["data/Driver Details.xlsx", "Driver Details.xlsx"],
+      rolling7Day: ["data/rolling 7 day.xlsx", "rolling 7 day.xlsx"],
     };
     const found = {};
     for (const [key, names] of Object.entries(candidates)) {
@@ -379,7 +392,8 @@
     }
     const legacyReady = Object.keys(EXPECTED_FILES).every((key) => found[key] || (key === "drivers" && found.driverPdf));
     const basicReady = Object.keys(BASIC_REPORT_FILES).every((key) => found[key]);
-    if (!legacyReady && !basicReady) return false;
+    const idleReady = found.summary && found.detail && Object.keys(IDLE_REPORT_FILES).every((key) => found[key]);
+    if (!legacyReady && !basicReady && !idleReady) return false;
     state.staticFiles = found;
     state.directoryHandle = null;
     state.fallbackFiles = null;
@@ -410,7 +424,7 @@
         if (key && (!found[key] || shouldReplaceSource(found[key], file))) found[key] = file;
       }
     } else {
-      throw new Error("Choose the folder containing either the legacy workbook set or the four basic XLSX/PDF reports. Electric APU and PTA workbooks are optional.");
+      throw new Error("Choose the folder containing the five idle-report XLSX files, the legacy workbook set, or the four basic reports. Electric APU and PTA workbooks are optional.");
     }
     return found;
   }
@@ -437,7 +451,14 @@
       reportCompliance: "Fuel Compliance Analysis.xlsx/pdf",
       reportCost: "Fuel Noncompliant Cost Analysis.xlsx/pdf",
       reportMpg: "MPG by Driver.xlsx/pdf",
+      driverMetricsDetail: "driver metrics detail.xlsx",
+      driverDetails: "Driver Details.xlsx",
+      rolling7Day: "rolling 7 day.xlsx",
     })[key] || key;
+  }
+
+  function isIdleFocusedMode(analysis = state.analysis) {
+    return analysis?.sourceMode === "basic-reports" || analysis?.sourceMode === "idle-reports";
   }
 
   function analyzeWorkbooks(workbooks, files) {
@@ -527,6 +548,120 @@
       summary, drivers, detail, trend, apu: emptyApu, pta, quality, actions, files,
       settings: { ...state.settings }, generatedAt: new Date(), sourceMode: "basic-reports",
     };
+  }
+
+  function analyzeIdleReports(workbooks, files) {
+    const detail = analyzeDetail(workbookRows(workbooks.detail, 0));
+    const metrics = parseBasicDriverMetricsReport(workbooks.driverMetricsDetail);
+    const rolling7 = parseRolling7DayReport(workbooks.rolling7Day);
+    const rolling28 = parseRolling28DayHistory(workbooks.driverDetails);
+    const sevenByName = new Map(rolling7.map((record) => [normalizeIdentity(record.driverName), record]));
+    const twentyEightByName = new Map(rolling28.map((record) => [normalizeIdentity(record.driverName), record]));
+
+    const mergedMetrics = metrics.map((record) => {
+      const seven = sevenByName.get(normalizeIdentity(record.driverName));
+      const history28 = twentyEightByName.get(normalizeIdentity(record.driverName));
+      const embeddedCode = text(record.driverName).match(/^\s*(\d{4,})\b/)?.[1] || "";
+      return {
+        ...record,
+        driverCode: embeddedCode || record.driverCode,
+        idle7DayPct: seven?.idle7DayPct ?? null,
+        priorIdle7DayPct: seven?.history?.at(-2)?.idlePct ?? null,
+        priorIdlePct: history28?.history?.at(-2)?.idlePct ?? null,
+        movingMpg: history28?.movingMpg ?? null,
+        reportDate: seven?.reportDate || record.reportDate || history28?.reportDate || null,
+      };
+    });
+
+    const allDates = mergedMetrics.map((record) => record.reportDate).filter((date) => date instanceof Date && !Number.isNaN(date.getTime()));
+    const detailDates = detail.records.map((record) => record.actualFuelDate).filter((date) => date instanceof Date && !Number.isNaN(date.getTime()));
+    const latestDate = allDates.sort((a, b) => a - b).at(-1)
+      || detailDates.sort((a, b) => a - b).at(-1)
+      || new Date();
+    const complianceRows = detail.records.filter((record) => ["Y", "N"].includes(text(record.locationCompliant).toUpperCase()));
+    const compliance = complianceRows.length
+      ? complianceRows.filter((record) => text(record.locationCompliant).toUpperCase() === "Y").length / complianceRows.length
+      : 0;
+    const latest = { date: latestDate, compliance, marker: "*", recommendations: detail.records.length, followed: Math.round(detail.records.length * compliance) };
+    const summary = { completed: [latest], allDated: [latest], latest, previous: null, partialRows: [] };
+    const drivers = buildBasicReportDrivers(mergedMetrics, [], latestDate);
+    const week = {
+      date: latestDate,
+      compliance,
+      gallonCost: detail.totals.grossPositive,
+      locationCost: 0,
+      totalCost: detail.totals.netCost,
+    };
+    const trend = { weeks: [week], recent: [week], latest: week, previous: null, change: null, rollingAverage: [week.totalCost] };
+    const apu = analyzeApu([], drivers, null);
+    const pta = analyzePta(workbooks.ptaTracker || null, workbooks.ptaFinder || null, files, activeManualPtaRows());
+    const quality = buildDataQuality(detail, drivers, summary);
+    quality.findings.unshift({
+      severity: "Medium",
+      count: 0,
+      title: "Five-file idle mode",
+      impact: `${formatCount(drivers.records.length)} drivers joined across the rolling 7-day and 28-day reports.`,
+      fix: "Replace the same five XLSX exports each reporting week.",
+    });
+    const actions = buildActions(drivers, detail, quality, apu, pta);
+    return {
+      summary, drivers, detail, trend, apu, pta, quality, actions, files,
+      settings: { ...state.settings }, generatedAt: new Date(), sourceMode: "idle-reports",
+    };
+  }
+
+  function parseRolling7DayReport(workbook) {
+    const rows = workbookRows(workbook, 0);
+    const records = [];
+    let currentDriver = "";
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index] || [];
+      if (text(row[0]) && !/^grand total$/i.test(text(row[0]))) currentDriver = text(row[0]);
+      if (!currentDriver || normalizeHeader(row[1]) !== "idle") continue;
+      const history = [];
+      for (let cursor = index; cursor < rows.length; cursor += 1) {
+        const item = rows[cursor] || [];
+        if (cursor > index && text(item[1])) break;
+        const date = parseDate(item[2]);
+        const idlePct = item.slice(10).map(normalizePercent).find(isFiniteNumber) ?? null;
+        if (date && idlePct !== null) history.push({ date, idlePct });
+      }
+      history.sort((a, b) => a.date - b.date);
+      if (history.length) records.push({ driverName: currentDriver, history });
+    }
+    if (!records.length) throw new Error("rolling 7 day.xlsx did not contain recognizable driver idle history.");
+    const reportDate = records.flatMap((record) => record.history.map((item) => item.date)).sort((a, b) => a - b).at(-1);
+    return records.map((record) => {
+      const latest = record.history.at(-1);
+      return {
+        ...record,
+        idle7DayPct: latest && dateKey(latest.date) === dateKey(reportDate) ? latest.idlePct : null,
+        reportDate,
+      };
+    });
+  }
+
+  function parseRolling28DayHistory(workbook) {
+    const rows = workbookRows(workbook, 0);
+    const byDriver = new Map();
+    let currentDriver = "";
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index] || [];
+      if (text(row[1]) && !/^total$/i.test(text(row[1]))) currentDriver = text(row[1]);
+      const date = parseDate(row[2]);
+      if (!currentDriver || !date || normalizeHeader(row[13]) !== "cruise in time") continue;
+      const idleRow = rows[index + 5] || [];
+      const movingRow = rows[index + 9] || [];
+      const idlePct = idleRow.slice(14).map(normalizePercent).find(isFiniteNumber) ?? null;
+      const movingMpg = movingRow.slice(14).map(number).find(isFiniteNumber) ?? null;
+      if (idlePct === null) continue;
+      if (!byDriver.has(currentDriver)) byDriver.set(currentDriver, []);
+      byDriver.get(currentDriver).push({ date, idlePct, movingMpg });
+    }
+    return Array.from(byDriver.entries()).map(([driverName, history]) => {
+      history.sort((a, b) => a.date - b.date);
+      return { driverName, history, reportDate: history.at(-1)?.date || null, movingMpg: history.at(-1)?.movingMpg ?? null };
+    });
   }
 
   function basicReportRows(source) {
@@ -654,9 +789,9 @@
         dailyIdlePct: record.dailyIdlePct ?? null,
         idle7DayPct: record.idle7DayPct ?? null,
         idle28DayPct: record.idle28DayPct ?? null,
-        idlePct: record.idle28DayPct ?? null,
-        movingMpg: null, fuelGallons: null, dispatchMiles: null, drivingFuel: null, qualcommMiles: null,
-        oorPct: record.oorPct ?? null, priorIdlePct: null, priorOorPct: null,
+        idlePct: record.idle7DayPct ?? record.idle28DayPct ?? null,
+        movingMpg: record.movingMpg ?? null, fuelGallons: null, dispatchMiles: null, drivingFuel: null, qualcommMiles: null,
+        oorPct: record.oorPct ?? null, priorIdlePct: record.priorIdlePct ?? record.priorIdle7DayPct ?? null, priorOorPct: null,
       };
     });
     const mpgValues = raw.map((driver) => driver.dispatchMpg).filter(isFiniteNumber);
@@ -672,6 +807,7 @@
         priority: highIdle && lowMpg ? "High" : highIdle || lowMpg ? "Medium" : "Monitor",
         reviewLabel: highIdle && lowMpg ? "Talk first" : highIdle || lowMpg ? "Review" : "Watch",
         confidence: "Basic report", likelyDriver: highIdle ? "High idle" : lowMpg ? "Low dispatch MPG" : "Monitor",
+        managerMatch: "Unknown",
         focus: highIdle ? `Idle is above the fleet middle at ${pct(driver.idlePct, 1)}` : `Dispatch MPG is ${num(driver.dispatchMpg, 2)}`,
         action: "Review the basic report values and record any follow-up for the next shift.",
       };
@@ -1864,7 +2000,9 @@
       else if (pta.summary.availableSoon || pta.summary.dispatchedSoon) actions.push(`Plan ahead for ${pta.summary.availableSoon + pta.summary.dispatchedSoon} truck${pta.summary.availableSoon + pta.summary.dispatchedSoon === 1 ? "" : "s"} due soon without a preplan.`);
     }
     actions.push(
-      `Review the drivers with the largest possible savings: ${topDrivers.join(", ") || "none identified"}.`,
+      drivers.totals.modeledCost > 0
+        ? `Review the drivers with the largest possible savings: ${topDrivers.join(", ") || "none identified"}.`
+        : `Review the current highest idlers: ${topDrivers.join(", ") || "none identified"}.`,
       `Check units ${topUnits.join(" and ") || "with the highest added costs"}.`,
       `Confirm whether the fuel plan was practical at ${topStops.join(" and ") || "the highest-cost stops"}.`,
     );
@@ -1904,7 +2042,7 @@
     els.kpiWeeklyCostBar.style.width = `${clamp(100 - Math.abs((costChange || 0) * 100), 18, 100)}%`;
 
     els.kpiModeledSavings.textContent = moneyCompact(drivers.totals.modeledCost);
-    els.kpiModeledSavingsNote.textContent = analysis.sourceMode === "basic-reports"
+    els.kpiModeledSavingsNote.textContent = isIdleFocusedMode(analysis)
       ? "Driver-level cost and gallons are not supplied by the basic reports"
       : `${num(drivers.totals.excessGallons, 0)} estimated gallons above the strong-peer target`;
     els.kpiModeledSavingsBar.style.width = `${clamp(drivers.totals.topFourShare * 100, 12, 100)}%`;
@@ -1924,15 +2062,21 @@
     els.kpiIdle28DayNote.textContent = `${formatCount(idle28Values.length)} driver${idle28Values.length === 1 ? "" : "s"} with 28-day data`;
     els.kpiIdle28DayBar.style.width = `${clamp((idle28Average || 0) * 100, idle28Average === null ? 0 : 4, 100)}%`;
 
-    const topDriver = drivers.records[0];
+    const idleRecords = drivers.records.filter((driver) => isFiniteNumber(currentIdlePct(driver)));
+    const highestIdlers = [...idleRecords].sort((a, b) => currentIdlePct(b) - currentIdlePct(a)).slice(0, 5);
+    const bestIdlers = [...idleRecords].sort((a, b) => currentIdlePct(a) - currentIdlePct(b)).slice(0, 5);
+    const topDriver = isIdleFocusedMode(analysis) ? highestIdlers[0] : drivers.records[0];
     els.heroInsight.innerHTML = topDriver
-      ? analysis.sourceMode === "basic-reports"
-        ? `<strong>Basic XLSX/PDF report mode.</strong> ${escapeHtml(topDriver.driverName)} is first in the idle/MPG review order. ${escapeHtml(topDriver.focus)}. Transaction-level driver cost is not included in these reports.`
+      ? analysis.sourceMode === "idle-reports"
+        ? `<strong>Current idle review.</strong> ${escapeHtml(topDriver.driverName)} has the highest current 7-day idle at <strong>${pct(topDriver.idle7DayPct, 1)}</strong>, compared with ${pct(topDriver.idle28DayPct, 1)} over 28 days.`
+        : analysis.sourceMode === "basic-reports"
+          ? `<strong>Basic XLSX/PDF report mode.</strong> ${escapeHtml(topDriver.driverName)} is first in the idle/MPG review order. ${escapeHtml(topDriver.focus)}. Transaction-level driver cost is not included in these reports.`
         : `${escapeHtml(topDriver.driverName)} has the largest estimated cost gap to review. ${escapeHtml(topDriver.focus)}. The dashboard estimates <strong>${moneyCompact(topDriver.estimatedCost)}</strong> in possible 28-day savings if performance reaches the strong-peer target. Fleet-wide possible savings are <strong>${moneyCompact(drivers.totals.modeledCost)}</strong>.`
       : "No estimated driver cost gap was found.";
     els.heroSavings.textContent = moneyCompact(drivers.totals.modeledCost);
 
-    renderTopDrivers(drivers.records.slice(0, 5));
+    renderIdleDrivers(els.topDriversList, highestIdlers, "highest");
+    renderIdleDrivers(els.bestIdlersList, bestIdlers, "best");
     renderUnitWatch(detail.units.slice(0, 5));
     renderQualityAlerts(quality.findings.filter((item) => item.count > 0).slice(0, 3));
     renderActions(actions);
@@ -1943,15 +2087,26 @@
     els.trendWeekDelta.textContent = trend.change === null ? "No comparison" : deltaLabel(trend.change, "vs prior", false);
   }
 
-  function renderTopDrivers(drivers) {
-    if (!drivers.length) { els.topDriversList.innerHTML = '<div class="empty-state">No driver data.</div>'; return; }
-    els.topDriversList.innerHTML = drivers.map((driver, index) => `
+  function renderIdleDrivers(container, drivers, group) {
+    if (!drivers.length) { container.innerHTML = '<div class="empty-state">No idle data.</div>'; return; }
+    container.innerHTML = drivers.map((driver, rank) => {
+      const index = state.analysis?.drivers?.records?.indexOf(driver) ?? -1;
+      const idle = currentIdlePct(driver);
+      const context = group === "best"
+        ? `28-day ${pct(driver.idle28DayPct, 1)} · MPG ${num(driver.dispatchMpg, 2)}`
+        : `28-day ${pct(driver.idle28DayPct, 1)} · ${pct(idle - state.analysis.drivers.idleThreshold, 1)} vs middle`;
+      return `
       <div class="mini-row" data-driver-index="${index}" role="button" tabindex="0" aria-label="Open details for ${escapeHtml(driver.driverName)}">
-        <div class="driver-cell"><span class="rank-badge">${index + 1}</span><span class="driver-name">${escapeHtml(driver.driverName)}<small>${escapeHtml(driver.driverCode || "No code")}</small></span></div>
-        <span class="impact-value">${money(driver.estimatedCost, 0)}</span>
-        <span class="focus-value">${escapeHtml(driver.focus)}</span>
+        <div class="driver-cell"><span class="rank-badge">${rank + 1}</span><span class="driver-name">${escapeHtml(driver.driverName)}<small>${escapeHtml(driver.driverCode || "No code")}</small></span></div>
+        <span class="impact-value">${pct(idle, 1)}</span>
+        <span class="focus-value">${escapeHtml(context)}</span>
         <button class="action-pill" type="button" data-driver-index="${index}">OPEN</button>
-      </div>`).join("");
+      </div>`;
+    }).join("");
+  }
+
+  function currentIdlePct(driver) {
+    return driver?.idle7DayPct ?? driver?.idle28DayPct ?? driver?.idlePct ?? null;
   }
 
   function renderUnitWatch(units) {
@@ -2032,6 +2187,7 @@
 
   function renderDriversTable(records) {
     const tbody = $("driversTable").querySelector("tbody");
+    const basicMode = isIdleFocusedMode();
     tbody.innerHTML = records.map((driver, index) => `
       <tr data-driver-index="${index}">
         <td class="priority-${driver.priority.toLowerCase()}">${escapeHtml(driver.reviewLabel)}</td>
@@ -2039,15 +2195,15 @@
         <td class="numeric">${num(driver.dispatchMpg, 2)}</td>
         <td class="numeric">${pct(driver.dailyIdlePct, 1)}</td><td class="numeric">${pct(driver.idle7DayPct, 1)}</td><td class="numeric">${pct(driver.idle28DayPct, 1)}</td>
         <td class="numeric">${pct(driver.oorPct, 1)}</td><td class="numeric">${num(driver.movingMpg, 2)}</td>
-        <td class="numeric">${num(driver.excessGallons, 1)}</td><td class="numeric cost-positive">${money(driver.estimatedCost, 0)}</td>
-        <td class="numeric">${money(driver.annualizedCost, 0)}</td><td>${escapeHtml(driver.focus)}</td><td>${escapeHtml(driver.action)}</td>
+        <td class="numeric">${basicMode ? "--" : num(driver.excessGallons, 1)}</td><td class="numeric cost-positive">${basicMode ? "--" : money(driver.estimatedCost, 0)}</td>
+        <td class="numeric">${basicMode ? "--" : money(driver.annualizedCost, 0)}</td><td>${escapeHtml(driver.focus)}</td><td>${escapeHtml(driver.action)}</td>
         <td><button class="driver-details-button" type="button" data-driver-index="${index}">Open</button></td>
       </tr>`).join("");
   }
 
   function renderUnitsTable(units) {
     const tbody = $("unitsTable").querySelector("tbody");
-    if (!units.length && state.analysis?.sourceMode === "basic-reports") {
+    if (!units.length && isIdleFocusedMode()) {
       tbody.innerHTML = '<tr><td colspan="11" class="empty-state">Unit-level records are not included in the four basic XLSX/PDF reports.</td></tr>';
       return;
     }
@@ -2060,7 +2216,7 @@
 
   function renderExceptionsTable(records) {
     const tbody = $("exceptionsTable").querySelector("tbody");
-    if (!records.length && state.analysis?.sourceMode === "basic-reports") {
+    if (!records.length && isIdleFocusedMode()) {
       tbody.innerHTML = '<tr><td colspan="13" class="empty-state">Transaction-level fueling events are not included in the four basic XLSX/PDF reports.</td></tr>';
       return;
     }
@@ -2443,7 +2599,7 @@
       return `<article class="pta-action-note-entry">
         <div class="pta-action-note-entry-head"><strong>${escapeHtml(savedLabel)}</strong><button type="button" class="pta-note-delete" data-driver-note-delete="${escapeHtml(note.id)}">Delete</button></div>
         <p>${escapeHtml(note.text).replace(/\n/g, "<br>")}</p>
-        <small>Idle: daily ${pct(note.dailyIdlePct, 1)} · 7-day ${pct(note.idle7DayPct, 1)} · 28-day ${pct(note.idle28DayPct, 1)} · Fuel cost ${money(note.estimatedCost, 0)}</small>
+        <small>Idle: daily ${pct(note.dailyIdlePct, 1)} · 7-day ${pct(note.idle7DayPct, 1)} · 28-day ${pct(note.idle28DayPct, 1)}${isIdleFocusedMode() ? "" : ` · Fuel cost ${money(note.estimatedCost, 0)}`}</small>
       </article>`;
     }).join("") : '<div class="pta-action-note-empty">Driver follow-up notes will appear here.</div>';
   }
@@ -2485,18 +2641,30 @@
     });
     if (!ptaCount) lines.push("No PTA truck notes were saved today.", "");
 
-    lines.push("HIGH FUEL COST DRIVERS", "----------------------");
-    let highCost = state.analysis.drivers.records.filter((driver) => driver.priority === "High");
-    if (!highCost.length) highCost = state.analysis.drivers.records.filter((driver) => driver.estimatedCost > 0).slice(0, 5);
-    highCost.forEach((driver) => {
-      lines.push(`${driver.driverName} (${driver.driverCode || "no code"}) | Fuel cost ${money(driver.estimatedCost, 0)}`);
+    const idleSorted = state.analysis.drivers.records
+      .filter((driver) => isFiniteNumber(currentIdlePct(driver)))
+      .sort((a, b) => currentIdlePct(b) - currentIdlePct(a));
+    const transitionDrivers = isIdleFocusedMode()
+      ? idleSorted.slice(0, 5)
+      : state.analysis.drivers.records.filter((driver) => driver.priority === "High");
+    lines.push(isIdleFocusedMode() ? "FIVE HIGHEST IDLERS" : "HIGH FUEL COST DRIVERS", "----------------------");
+    transitionDrivers.forEach((driver) => {
+      lines.push(`${driver.driverName} (${driver.driverCode || "no code"})${isIdleFocusedMode() ? "" : ` | Fuel cost ${money(driver.estimatedCost, 0)}`}`);
       lines.push(`Idle today ${pct(driver.dailyIdlePct, 1)} | 7-day ${pct(driver.idle7DayPct, 1)} | 28-day ${pct(driver.idle28DayPct, 1)}`);
       const notes = (state.driverActionNotes[driverNoteKey(driver)] || []).filter((note) => isToday(note.savedAt)).reverse();
       if (notes.length) notes.forEach((note) => lines.push(`Note ${new Date(note.savedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}: ${note.text}`));
       else lines.push("Note: No driver follow-up note saved today.");
       lines.push("");
     });
-    if (!highCost.length) lines.push("No high fuel-cost drivers were identified.", "");
+    if (!transitionDrivers.length) lines.push("No driver idle records were identified.", "");
+
+    if (isIdleFocusedMode()) {
+      lines.push("FIVE BEST IDLERS", "----------------");
+      idleSorted.slice(-5).reverse().forEach((driver) => {
+        lines.push(`${driver.driverName} (${driver.driverCode || "no code"}) | 7-day idle ${pct(driver.idle7DayPct, 1)} | 28-day idle ${pct(driver.idle28DayPct, 1)} | MPG ${num(driver.dispatchMpg, 2)} | OOR ${pct(driver.oorPct, 1)}`);
+      });
+      lines.push("");
+    }
 
     const content = lines.join("\r\n");
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
@@ -2558,16 +2726,19 @@
     els.modalDriverMeta.textContent = `${driver.driverCode || "No driver code"} · Leader: ${driver.driverLeader || "Unassigned"} · Latest rolling period`;
     els.modalReviewBadge.textContent = driver.reviewLabel;
     els.modalReviewBadge.className = `modal-review-badge ${driver.priority.toLowerCase()}`;
+    const basicMode = isIdleFocusedMode();
     els.modalDriverMetrics.innerHTML = [
-      modalMetric("Possible 28-day savings", money(driver.estimatedCost, 0), "Estimated avoidable cost, not guaranteed savings", true),
-      modalMetric("Estimated excess gallons", num(driver.excessGallons, 1), `Compared with ${num(state.analysis.drivers.targetMpg, 2)} MPG strong-peer target`, true),
+      ...(basicMode ? [] : [
+        modalMetric("Possible 28-day savings", money(driver.estimatedCost, 0), "Estimated avoidable cost, not guaranteed savings", true),
+        modalMetric("Estimated excess gallons", num(driver.excessGallons, 1), `Compared with ${num(state.analysis.drivers.targetMpg, 2)} MPG strong-peer target`, true),
+      ]),
       modalMetric("Fuel MPG", num(driver.dispatchMpg, 2), `${driver.dispatchMpg >= state.analysis.drivers.targetMpg ? "At or above" : "Below"} ${num(state.analysis.drivers.targetMpg, 2)} target`),
       modalMetric("Idle today", pct(driver.dailyIdlePct, 1), "Most recent daily idle value"),
       modalMetric("7-day idle", pct(driver.idle7DayPct, 1), "Rolling seven-day average"),
       modalMetric("28-day idle", pct(driver.idle28DayPct, 1), `${driver.idlePct > state.analysis.drivers.idleThreshold ? "Above" : "At or below"} ${pct(state.analysis.drivers.idleThreshold, 1)} fleet review level`),
       modalMetric("Out-of-route", pct(driver.oorPct, 1), `${driver.oorPct > state.analysis.drivers.oorThreshold ? "Above" : "At or below"} ${pct(state.analysis.drivers.oorThreshold, 1)} fleet review level`),
       modalMetric("MPG while moving", num(driver.movingMpg, 2), `${driver.movingMpg < state.analysis.drivers.movingThreshold ? "Below" : "At or above"} ${num(state.analysis.drivers.movingThreshold, 2)} fleet middle`),
-      modalMetric("Possible yearly cost", money(driver.annualizedCost, 0), "If the same gap repeats for 13 rolling periods"),
+      ...(basicMode ? [] : [modalMetric("Possible yearly cost", money(driver.annualizedCost, 0), "If the same gap repeats for 13 rolling periods")]),
       modalMetric("MPG change", driver.mpgChange === null ? "No comparison" : `${driver.mpgChange >= 0 ? "+" : ""}${num(driver.mpgChange, 2)}`, "Compared with the prior available rolling period"),
     ].join("");
     els.modalDriverFocus.textContent = driver.focus;
@@ -2600,8 +2771,10 @@
   }
 
   function updateSourceStatus() {
-    const activePatterns = state.analysis?.sourceMode === "basic-reports"
-      ? { ...BASIC_REPORT_FILES, ...OPTIONAL_FILES }
+    const activePatterns = state.analysis?.sourceMode === "idle-reports"
+      ? { summary: EXPECTED_FILES.summary, detail: EXPECTED_FILES.detail, ...IDLE_REPORT_FILES, ...OPTIONAL_FILES }
+      : state.analysis?.sourceMode === "basic-reports"
+        ? { ...BASIC_REPORT_FILES, ...OPTIONAL_FILES }
       : { ...EXPECTED_FILES, ...OPTIONAL_FILES };
     const fileRows = Object.entries(activePatterns).map(([key]) => {
       const file = state.sourceFiles[key];
@@ -2790,9 +2963,10 @@
 
   // Lightweight diagnostic hook used by the included validation script.
   window.VixenFuelDebug = {
-    analyzeWorkbooks, analyzeBasicReports, analyzeApu, analyzePta, normalizePtaPasteRows,
+    analyzeWorkbooks, analyzeBasicReports, analyzeIdleReports, analyzeApu, analyzePta, normalizePtaPasteRows,
     parseDelimitedText, parseBasicDriverPdfLines, analyzePdfDrivers,
     parseBasicDriverMetricsReport, parseBasicComplianceReport, parseBasicCostReport, parseBasicMpgReport,
+    parseRolling7DayReport, parseRolling28DayHistory,
     parseDate, parseDateTime, sourceLabel, ptaTruckNoteKey, driverNoteKey, recentTruckWork
   };
 })();
