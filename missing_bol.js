@@ -3,33 +3,27 @@
 
   const DAY_MS = 86400000;
   const TRIP_PATTERN = /\b([A-Z]{2}\d{4})\b/i;
-  const DRIVER_CODE_PATTERN = /\b(?:[A-Z]{5}\d|[A-Z]{5,6}|\d{5,6})\b/i;
-  const EXPECTED_TRUCK_MIN = 200000;
-  const EXPECTED_TRUCK_MAX = 400000;
+  const DRIVER_CODE_PATTERN = /(?:^|\b)([A-Z]{5}\d|[A-Z]{5,6}|\d{5,6})(?:\b|$)/i;
   const state = {
     loading: false,
+    records: [],
+    candidate: null,
+    diagnostics: [],
     lastSignature: "",
     lastLoadedAt: 0,
-    records: [],
-    assignments: new Map(),
+    focusedOnce: false,
   };
 
+  window.VixenMissingBolLive = state;
   installUi();
+
   document.addEventListener("DOMContentLoaded", () => {
-    loadMissingBols(true);
-    const refreshButton = document.getElementById("refreshBtn");
-    refreshButton?.addEventListener("click", () => window.setTimeout(() => loadMissingBols(true), 250));
+    load(true);
+    document.getElementById("refreshBtn")?.addEventListener("click", () => window.setTimeout(() => load(true), 250));
     document.querySelector('[data-view="bols"]')?.addEventListener("click", () => {
-      if (Date.now() - state.lastLoadedAt > 60000) loadMissingBols(false);
+      state.focusedOnce = true;
+      if (Date.now() - state.lastLoadedAt > 60000) load(false);
     });
-    const lastRefresh = document.getElementById("lastRefresh");
-    if (lastRefresh && "MutationObserver" in window) {
-      let timer = null;
-      new MutationObserver(() => {
-        window.clearTimeout(timer);
-        timer = window.setTimeout(() => loadMissingBols(false), 400);
-      }).observe(lastRefresh, { childList: true, subtree: true, characterData: true });
-    }
   });
 
   function installUi() {
@@ -38,7 +32,7 @@
       const button = document.createElement("button");
       button.className = "nav-item";
       button.dataset.view = "bols";
-      button.innerHTML = "<span>▦</span>Missing BOLs";
+      button.innerHTML = '<span>▦</span><span class="bol-nav-label">Missing BOLs</span><strong class="bol-nav-count">0</strong>';
       const pta = nav.querySelector('[data-view="pta"]');
       if (pta) pta.insertAdjacentElement("afterend", button);
       else nav.append(button);
@@ -51,14 +45,14 @@
       section.innerHTML = `
         <div class="view-heading">
           <div><span class="eyebrow">MISSING PAPERWORK FOLLOW-UP</span><h2>Missing BOLs</h2></div>
-          <input class="table-search" data-table="missingBolTable" placeholder="Search trip, leader, driver, truck..." />
+          <input class="table-search" data-table="missingBolTable" placeholder="Search trip, leader, or driver code..." />
         </div>
-        <div class="table-explainer"><strong>Oldest first.</strong> The report is identified by an <code>Unbilled</code> column. Truck numbers are matched from the driver code in <code>Last Dispatched</code> against the other XLSX reports in the data folder.</div>
+        <div class="table-explainer"><strong>Oldest first.</strong> This export is recognized from its order fields, <code>Driver Leader</code>, <code>Last Dispatch Driver cd</code>, and <code>Empty Call Date</code>. The trip field is whichever order column actually contains values in the <code>LLDDDD</code> format.</div>
         <div id="missingBolSummary" class="bol-summary-grid"></div>
-        <div id="missingBolMessage" class="bol-message">Looking for an Unbilled workbook in the data folder…</div>
+        <div id="missingBolMessage" class="bol-message">Scanning XLSX files for the Missing BOL export…</div>
         <div id="missingBolTableShell" class="table-shell hidden">
           <table id="missingBolTable">
-            <thead><tr><th>Oldest first</th><th>Trip</th><th>Driver leader</th><th>Driver code</th><th>Truck</th><th>Match status</th><th>Source</th></tr></thead>
+            <thead><tr><th>Oldest first</th><th>Trip</th><th>Driver leader</th><th>Driver code</th><th>Source</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>`;
@@ -67,163 +61,151 @@
       else document.querySelector(".main-panel")?.append(section);
     }
 
-    if (!document.getElementById("missingBolStyles")) {
+    if (!document.getElementById("missingBolLiveStyles")) {
       const style = document.createElement("style");
-      style.id = "missingBolStyles";
+      style.id = "missingBolLiveStyles";
       style.textContent = `
+        .bol-nav-label{min-width:0}.bol-nav-count{margin-left:auto;min-width:22px;padding:2px 6px;border-radius:999px;background:rgba(255,181,46,.14);border:1px solid rgba(255,181,46,.38);color:var(--amber);font-size:9px;text-align:center}
         .bol-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
-        .bol-summary-card{padding:14px 16px;border:1px solid var(--line);background:rgba(8,16,22,.88)}
+        .bol-summary-card{padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-md,16px);background:rgba(8,16,22,.88)}
         .bol-summary-card span{display:block;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}
         .bol-summary-card strong{display:block;margin-top:5px;font-size:22px;color:var(--white)}
-        .bol-message{padding:24px;border:1px dashed rgba(168,85,247,.35);background:rgba(168,85,247,.05);color:var(--muted);text-align:center}
-        .bol-match{font-weight:850}.bol-match-ok{color:var(--green)}.bol-match-warning{color:var(--amber)}.bol-match-missing{color:var(--red)}
+        .bol-message{padding:24px;border:1px dashed rgba(168,85,247,.35);border-radius:var(--radius-md,16px);background:rgba(168,85,247,.05);color:var(--muted);text-align:center}
+        .bol-message.error{border-color:rgba(255,79,104,.5);color:#ff8797;background:rgba(255,79,104,.06)}
         .bol-secondary{display:block;margin-top:3px;color:var(--muted);font-size:10px}
-        @media(max-width:900px){.bol-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        @media(max-width:900px){.bol-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr)}}
         @media(max-width:520px){.bol-summary-grid{grid-template-columns:1fr}}
       `;
       document.head.append(style);
     }
   }
 
-  async function loadMissingBols(force) {
+  async function load(force) {
     if (state.loading) return;
     state.loading = true;
-    setMessage("Scanning XLSX files for the Unbilled report and driver-to-truck assignments…");
+    setMessage("Scanning XLSX files for order fields, Driver Leader, Last Dispatch Driver cd, and Empty Call Date…");
     try {
       const manifestResponse = await fetch("data-manifest.json", { cache: "no-store" });
-      if (!manifestResponse.ok) throw new Error("The data-folder manifest is unavailable. Launch the dashboard with the normal PowerShell launcher.");
+      if (!manifestResponse.ok) throw new Error("The data-folder manifest is unavailable. Launch the dashboard with the included PowerShell launcher.");
       const manifest = (await manifestResponse.json()).filter((item) => /\.xlsx$/i.test(item?.name || ""));
       const signature = manifest.map((item) => `${item.path}|${item.size}|${item.lastModified}`).join("||");
-      if (!force && state.lastSignature === signature && state.records.length) {
-        state.loading = false;
-        return;
-      }
+      if (!force && signature === state.lastSignature && state.lastLoadedAt) return;
       state.lastSignature = signature;
       if (!manifest.length) throw new Error("No XLSX files were found in the data folder.");
 
-      const workbooks = [];
+      const candidates = [];
+      state.diagnostics = [];
       for (const item of manifest) {
         try {
           const response = await fetch(encodeURI(item.path), { cache: "no-store" });
-          if (!response.ok) continue;
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const workbook = XLSX.read(await response.arrayBuffer(), {
             type: "array", raw: true, cellDates: false, cellText: false, cellNF: false, dense: false,
           });
-          workbooks.push({ item, workbook });
+          const candidate = inspectWorkbook(item, workbook);
+          if (candidate) candidates.push(candidate);
+          else state.diagnostics.push(`${item.name}: no matching Missing BOL header signature`);
         } catch (error) {
-          console.warn(`[Missing BOLs] Could not inspect ${item.name}`, error);
+          state.diagnostics.push(`${item.name}: ${error?.message || error}`);
         }
       }
 
-      const candidates = workbooks.map(findUnbilledCandidate).filter(Boolean)
-        .sort((a, b) => b.score - a.score || modifiedTime(b.item) - modifiedTime(a.item));
+      candidates.sort((a, b) => b.score - a.score || modifiedTime(b.item) - modifiedTime(a.item));
       if (!candidates.length) {
-        render([], { sourceName: "Not found", assignmentCount: 0, datedCount: 0 });
-        setMessage("No worksheet with Unbilled, Driver Leader, and Last Dispatched columns was recognized.");
+        state.records = [];
+        state.candidate = null;
+        render();
+        setMessage("No Missing BOL export was recognized. Expected Driver Leader, Last Dispatch Driver cd, Empty Call Date, and at least one order-number column.", true);
+        maybeFocus(true);
         return;
       }
 
-      const source = candidates[0];
-      const wantedCodes = collectUnbilledDriverCodes(source);
-      const assignments = buildAssignmentLookup(
-        workbooks.filter((entry) => entry.item.path !== source.item.path),
-        wantedCodes,
-      );
-      const records = parseUnbilledRecords(source, assignments);
-      state.records = records;
-      state.assignments = assignments;
+      state.candidate = candidates[0];
+      state.records = parseRecords(state.candidate);
       state.lastLoadedAt = Date.now();
-      render(records, {
-        sourceName: source.item.name,
-        assignmentCount: assignments.size,
-        datedCount: records.filter((record) => record.sortDate).length,
-      });
-      if (!records.length) setMessage(`The Unbilled worksheet was found in ${source.item.name}, but no trip rows matching LLDDDD were recognized.`);
-      else hideMessage();
+      render();
+      if (!state.records.length) {
+        setMessage(`The report layout was recognized in ${state.candidate.item.name}, but none of the order columns contained trips matching LLDDDD.`, true);
+      } else {
+        hideMessage();
+      }
+      maybeFocus(false);
     } catch (error) {
-      console.error("[Missing BOLs]", error);
       state.records = [];
-      render([], { sourceName: "Unavailable", assignmentCount: 0, datedCount: 0 });
-      setMessage(error.message || "The Missing BOL report could not be loaded.", true);
+      state.candidate = null;
+      render();
+      setMessage(error?.message || "The Missing BOL report could not be loaded.", true);
+      maybeFocus(true);
     } finally {
       state.loading = false;
     }
   }
 
-  function findUnbilledCandidate(entry) {
+  function inspectWorkbook(item, workbook) {
     let best = null;
-    for (const sheetName of entry.workbook.SheetNames.slice(0, 12)) {
-      const rows = sheetRows(entry.workbook, sheetName);
-      for (let rowIndex = 0; rowIndex < Math.min(rows.length, 60); rowIndex += 1) {
-        const headers = rows[rowIndex] || [];
-        const unbilled = findHeader(headers, ["unbilled"]);
+    for (const sheetName of workbook.SheetNames.slice(0, 15)) {
+      const rows = sheetRows(workbook, sheetName);
+      const context = normalize(`${sheetName}\n${rows.slice(0, 20).flat().join("\n")}`);
+      for (let headerRow = 0; headerRow < Math.min(rows.length, 100); headerRow += 1) {
+        const headers = rows[headerRow] || [];
         const leader = findHeader(headers, ["driver leader"]);
-        const dispatched = findHeader(headers, ["last dispatched"]);
-        if (unbilled < 0 || leader < 0 || dispatched < 0) continue;
-        let trip = findHeader(headers, ["trip number", "trip #", "trip no", "trip"]);
-        if (trip < 0) trip = inferTripColumn(rows, rowIndex + 1);
-        const tripHits = trip >= 0 ? sampleTripHits(rows, rowIndex + 1, trip) : 0;
-        const score = 22 + (trip >= 0 ? 5 : 0) + Math.min(8, tripHits * 2);
-        if (!best || score > best.score) {
-          best = { ...entry, sheetName, rows, headerRow: rowIndex, columns: { unbilled, leader, dispatched, trip }, score };
+        const driverCode = findHeader(headers, ["last dispatch driver cd", "last dispatch driver code", "last dispatched driver cd", "last dispatched"]);
+        const date = findHeader(headers, ["empty call date", "unbilled date", "trip date", "delivery date", "created date"]);
+        const orderColumns = uniqueIndexes([
+          findHeader(headers, ["order #", "order number"]),
+          findHeader(headers, ["tmex order #", "tmex order number"]),
+          findHeader(headers, ["logistics order#", "logistics order #", "logistics order number"]),
+        ]);
+        if (leader < 0 || driverCode < 0 || date < 0 || !orderColumns.length) continue;
+
+        const tripScores = orderColumns.map((column) => ({ column, hits: sampleTripHits(rows, headerRow + 1, column) }));
+        tripScores.sort((a, b) => b.hits - a.hits);
+        let trip = tripScores[0]?.column ?? -1;
+        let tripHits = tripScores[0]?.hits ?? 0;
+        if (!tripHits) {
+          const inferred = inferTripColumn(rows, headerRow + 1);
+          trip = inferred.column;
+          tripHits = inferred.hits;
         }
+
+        const hasUnbilledContext = context.includes("unbilled");
+        const score = 40 + Math.min(20, tripHits * 3) + (hasUnbilledContext ? 12 : 0) + (normalize(item.name).includes("last refresh") ? 2 : 0);
+        const candidate = {
+          item, workbook, sheetName, rows, headerRow,
+          columns: { leader, driverCode, date, trip, orderColumns },
+          tripHits, hasUnbilledContext, score,
+        };
+        if (!best || candidate.score > best.score) best = candidate;
       }
     }
     return best;
   }
 
-  function inferTripColumn(rows, startRow) {
-    const width = Math.max(0, ...rows.slice(startRow, startRow + 50).map((row) => row?.length || 0));
-    let best = -1;
-    let bestHits = 0;
-    for (let column = 0; column < width; column += 1) {
-      const hits = sampleTripHits(rows, startRow, column);
-      if (hits > bestHits) { bestHits = hits; best = column; }
-    }
-    return bestHits >= 2 ? best : -1;
-  }
-
-  function sampleTripHits(rows, startRow, column) {
-    return rows.slice(startRow, startRow + 80).reduce((count, row) => count + (TRIP_PATTERN.test(String(row?.[column] ?? "")) ? 1 : 0), 0);
-  }
-
-  function parseUnbilledRecords(source, assignments) {
-    const { rows, headerRow, columns } = source;
-    const headers = rows[headerRow] || [];
-    const fallbackDateColumn = findHeader(headers, ["unbilled date", "trip date", "delivery date", "completed date", "created date", "date"]);
+  function parseRecords(source) {
     const records = [];
-    for (let rowIndex = headerRow + 1; rowIndex < rows.length; rowIndex += 1) {
-      const row = rows[rowIndex] || [];
-      const trip = extractTrip(columns.trip >= 0 ? row[columns.trip] : row.join(" "));
+    const maxRows = Math.min(source.rows.length, 50000);
+    for (let rowIndex = source.headerRow + 1; rowIndex < maxRows; rowIndex += 1) {
+      const row = source.rows[rowIndex] || [];
+      const trip = extractTrip(source.columns.trip >= 0 ? row[source.columns.trip] : source.columns.orderColumns.map((column) => row[column]).join(" "));
       if (!trip) continue;
-      const driverLeader = cleanText(row[columns.leader]);
-      const driverCode = extractDriverCode(row[columns.dispatched]);
-      const unbilledRaw = row[columns.unbilled];
-      const unbilledDate = parseDateValue(unbilledRaw) || (fallbackDateColumn >= 0 ? parseDateValue(row[fallbackDateColumn]) : null);
-      const ageDays = unbilledDate ? null : parseAgeDays(unbilledRaw);
-      const match = driverCode ? assignments.get(driverCode) : null;
-      const selected = match?.candidates?.[0] || null;
-      const distinctTrucks = match ? [...new Set(match.candidates.map((candidate) => candidate.truck))] : [];
+      const driverLeader = cleanText(row[source.columns.leader]) || "Not listed";
+      const driverCode = extractDriverCode(row[source.columns.driverCode]) || "Not recognized";
+      const rawDate = row[source.columns.date];
+      const date = parseDateValue(rawDate);
       records.push({
-        sourceRow: rowIndex + 1,
         trip,
-        driverLeader: driverLeader || "Not listed",
-        driverCode: driverCode || "Not recognized",
-        unbilledRaw: cleanText(unbilledRaw),
-        unbilledDate,
-        ageDays,
-        sortDate: unbilledDate || (ageDays !== null ? new Date(Date.now() - ageDays * DAY_MS) : null),
-        truck: selected?.truck || "Not matched",
-        assignmentSource: selected?.source || "No driver-to-truck match",
-        assignmentDate: selected?.date || null,
-        conflict: distinctTrucks.length > 1,
-        outsideExpectedRange: Boolean(selected && !selected.expectedRange),
+        driverLeader,
+        driverCode,
+        rawDate: cleanText(rawDate),
+        date,
+        sourceRow: rowIndex + 1,
         sourceName: source.item.name,
+        sheetName: source.sheetName,
       });
     }
     records.sort((a, b) => {
-      const aTime = a.sortDate?.getTime();
-      const bTime = b.sortDate?.getTime();
+      const aTime = a.date?.getTime();
+      const bTime = b.date?.getTime();
       if (Number.isFinite(aTime) && Number.isFinite(bTime)) return aTime - bTime || a.sourceRow - b.sourceRow;
       if (Number.isFinite(aTime)) return -1;
       if (Number.isFinite(bTime)) return 1;
@@ -232,119 +214,53 @@
     return records;
   }
 
-  function collectUnbilledDriverCodes(source) {
-    const codes = new Set();
-    for (let rowIndex = source.headerRow + 1; rowIndex < source.rows.length; rowIndex += 1) {
-      const code = extractDriverCode(source.rows[rowIndex]?.[source.columns.dispatched]);
-      if (code) codes.add(code);
-    }
-    return codes;
-  }
-
-  function buildAssignmentLookup(entries, wantedCodes) {
-    const lookup = new Map();
-    for (const entry of entries) {
-      for (const sheetName of entry.workbook.SheetNames.slice(0, 15)) {
-        const rows = sheetRows(entry.workbook, sheetName);
-        const mapping = findAssignmentColumns(rows, wantedCodes);
-        if (!mapping) continue;
-        const maxRows = Math.min(rows.length, 30000);
-        for (let rowIndex = mapping.headerRow + 1; rowIndex < maxRows; rowIndex += 1) {
-          const row = rows[rowIndex] || [];
-          const code = extractDriverCode(row[mapping.driver]);
-          const truck = extractTruck(row[mapping.truck]);
-          if (!code || !truck || (wantedCodes.size && !wantedCodes.has(code))) continue;
-          const date = mapping.date >= 0 ? parseDateValue(row[mapping.date]) : null;
-          const candidate = {
-            code,
-            truck,
-            date,
-            expectedRange: isExpectedTruck(truck),
-            source: `${entry.item.name} · ${sheetName} · row ${rowIndex + 1}`,
-            fileModified: modifiedTime(entry.item),
-            rowIndex,
-          };
-          if (!lookup.has(code)) lookup.set(code, { candidates: [] });
-          lookup.get(code).candidates.push(candidate);
-        }
-      }
-    }
-    for (const match of lookup.values()) {
-      match.candidates.sort((a, b) => {
-        if (a.expectedRange !== b.expectedRange) return a.expectedRange ? -1 : 1;
-        const aDate = a.date?.getTime() || 0;
-        const bDate = b.date?.getTime() || 0;
-        return bDate - aDate || b.fileModified - a.fileModified || b.rowIndex - a.rowIndex;
-      });
-    }
-    return lookup;
-  }
-
-  function findAssignmentColumns(rows, wantedCodes) {
-    for (let rowIndex = 0; rowIndex < Math.min(rows.length, 50); rowIndex += 1) {
-      const headers = rows[rowIndex] || [];
-      const truck = findHeader(headers, ["truck number", "truck #", "truck", "tractor number", "tractor #", "tractor", "unit number", "unit #", "unit", "power unit"]);
-      if (truck < 0 || /status|type|count/.test(normalizeHeader(headers[truck]))) continue;
-      let driver = findHeader(headers, ["driver code", "driver id", "employee code", "employee id", "driver current position code", "last dispatched"]);
-      if (driver < 0) {
-        const generic = findHeader(headers, ["driver"]);
-        if (generic >= 0) {
-          const samples = rows.slice(rowIndex + 1, rowIndex + 61)
-            .map((row) => extractDriverCode(row?.[generic]))
-            .filter((code) => code && wantedCodes.has(code));
-          if (samples.length >= 1) driver = generic;
-        }
-      }
-      if (driver < 0 || driver === truck) continue;
-      const date = findHeader(headers, ["assignment date", "dispatch date", "report date", "week ending", "week end", "date"]);
-      return { headerRow: rowIndex, driver, truck, date };
-    }
-    return null;
-  }
-
-  function render(records, meta) {
-    const summary = document.getElementById("missingBolSummary");
-    const tableShell = document.getElementById("missingBolTableShell");
+  function render() {
     const tbody = document.querySelector("#missingBolTable tbody");
-    if (!summary || !tableShell || !tbody) return;
-    const matched = records.filter((record) => record.truck !== "Not matched").length;
-    const unmatched = records.length - matched;
-    const conflicts = records.filter((record) => record.conflict || record.outsideExpectedRange).length;
-    summary.innerHTML = [
-      ["Missing BOL trips", records.length],
-      ["Truck matched", matched],
-      ["Needs matching", unmatched],
-      ["Assignment warnings", conflicts],
-    ].map(([label, value]) => `<article class="bol-summary-card"><span>${escapeHtml(label)}</span><strong>${Number(value).toLocaleString("en-US")}</strong></article>`).join("");
+    const shell = document.getElementById("missingBolTableShell");
+    const summary = document.getElementById("missingBolSummary");
+    if (!tbody || !shell || !summary) return;
 
-    tbody.innerHTML = records.map((record) => {
-      const statusClass = record.truck === "Not matched" ? "bol-match-missing" : record.conflict || record.outsideExpectedRange ? "bol-match-warning" : "bol-match-ok";
-      const status = record.truck === "Not matched"
-        ? "No truck match"
-        : record.conflict
-          ? "Multiple trucks found; newest used"
-          : record.outsideExpectedRange
-            ? "Matched outside normal 200000–400000 range"
-            : "Matched";
-      return `<tr>
-        <td>${escapeHtml(formatUnbilled(record))}</td>
+    const recognizedCodes = state.records.filter((record) => DRIVER_CODE_PATTERN.test(record.driverCode)).length;
+    const dated = state.records.filter((record) => record.date).length;
+    const sourceName = state.candidate?.item?.name || "Not found";
+    summary.innerHTML = [
+      ["Missing BOL trips", state.records.length],
+      ["Driver codes found", recognizedCodes],
+      ["Rows with date", dated],
+      ["Source", sourceName],
+    ].map(([label, value]) => `<article class="bol-summary-card"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
+
+    updateNavCount(state.records.length);
+    tbody.innerHTML = state.records.map((record) => `
+      <tr>
+        <td>${escapeHtml(formatDate(record.date) || record.rawDate || "Date not recognized")}</td>
         <td><strong>${escapeHtml(record.trip)}</strong></td>
         <td>${escapeHtml(record.driverLeader)}</td>
         <td>${escapeHtml(record.driverCode)}</td>
-        <td><strong>${escapeHtml(record.truck)}</strong></td>
-        <td><span class="bol-match ${statusClass}">${escapeHtml(status)}</span><small class="bol-secondary">${escapeHtml(record.assignmentSource)}</small></td>
-        <td>${escapeHtml(record.sourceName)}<small class="bol-secondary">row ${record.sourceRow}</small></td>
-      </tr>`;
-    }).join("");
-    tableShell.classList.toggle("hidden", records.length === 0);
-    document.getElementById("missingBolMessage")?.classList.toggle("hidden", records.length > 0);
-    console.info("[Missing BOLs]", { source: meta.sourceName, trips: records.length, assignments: meta.assignmentCount });
+        <td>${escapeHtml(record.sourceName)}<span class="bol-secondary">${escapeHtml(record.sheetName)} · row ${record.sourceRow}</span></td>
+      </tr>`).join("");
+    shell.classList.toggle("hidden", !state.records.length);
   }
 
-  function formatUnbilled(record) {
-    if (record.unbilledDate) return record.unbilledDate.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-    if (record.ageDays !== null) return `${record.ageDays.toLocaleString("en-US")} day${record.ageDays === 1 ? "" : "s"}`;
-    return record.unbilledRaw || "Date not recognized";
+  function maybeFocus(settledError) {
+    if (state.focusedOnce || !window.VixenAuxiliaryMode?.active) return;
+    if (!state.records.length && !settledError) return;
+    state.focusedOnce = true;
+    const target = document.getElementById("bolsView");
+    if (!target) return;
+    document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active-view", view === target));
+    document.querySelectorAll(".nav-item").forEach((button) => button.classList.toggle("active", button.dataset.view === "bols"));
+    const reportingWeek = document.getElementById("reportingWeek");
+    if (reportingWeek) reportingWeek.textContent = "Missing BOLs";
+    window.requestAnimationFrame(() => target.scrollIntoView({ block: "start" }));
+  }
+
+  function updateNavCount(count) {
+    const badge = document.querySelector('[data-view="bols"] .bol-nav-count');
+    if (badge) {
+      badge.textContent = String(count);
+      badge.title = `${count} missing BOL trip${count === 1 ? "" : "s"}`;
+    }
   }
 
   function setMessage(message, error = false) {
@@ -352,32 +268,43 @@
     if (!element) return;
     element.textContent = message;
     element.classList.remove("hidden");
-    element.style.borderColor = error ? "rgba(255,79,104,.55)" : "";
+    element.classList.toggle("error", error);
   }
 
   function hideMessage() {
     document.getElementById("missingBolMessage")?.classList.add("hidden");
   }
 
-  function sheetRows(workbook, sheetName) {
-    return XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, raw: true, defval: "", blankrows: true });
+  function inferTripColumn(rows, startRow) {
+    const width = Math.max(0, ...rows.slice(startRow, startRow + 100).map((row) => row?.length || 0));
+    let column = -1;
+    let hits = 0;
+    for (let index = 0; index < width; index += 1) {
+      const value = sampleTripHits(rows, startRow, index);
+      if (value > hits) { hits = value; column = index; }
+    }
+    return { column, hits };
+  }
+
+  function sampleTripHits(rows, startRow, column) {
+    return rows.slice(startRow, startRow + 250).reduce((count, row) => count + (TRIP_PATTERN.test(String(row?.[column] ?? "")) ? 1 : 0), 0);
   }
 
   function findHeader(headers, aliases) {
-    const normalized = headers.map(normalizeHeader);
-    for (const alias of aliases.map(normalizeHeader)) {
+    const normalized = headers.map(normalize);
+    for (const alias of aliases.map(normalize)) {
       const exact = normalized.findIndex((header) => header === alias);
       if (exact >= 0) return exact;
     }
-    for (const alias of aliases.map(normalizeHeader)) {
-      const partial = normalized.findIndex((header) => header.includes(alias));
-      if (partial >= 0) return partial;
+    for (const alias of aliases.map(normalize)) {
+      const contains = normalized.findIndex((header) => header.includes(alias));
+      if (contains >= 0) return contains;
     }
     return -1;
   }
 
-  function normalizeHeader(value) {
-    return String(value ?? "").toLowerCase().replace(/[%#]/g, " ").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+  function uniqueIndexes(values) {
+    return [...new Set(values.filter((value) => Number.isInteger(value) && value >= 0))];
   }
 
   function extractTrip(value) {
@@ -385,45 +312,47 @@
   }
 
   function extractDriverCode(value) {
-    return String(value ?? "").trim().toUpperCase().match(DRIVER_CODE_PATTERN)?.[0] || "";
-  }
-
-  function extractTruck(value) {
-    const matches = String(value ?? "").match(/\b\d{6}\b/g) || [];
-    const expected = matches.find(isExpectedTruck);
-    return expected || matches[0] || "";
-  }
-
-  function isExpectedTruck(value) {
-    const truck = Number(value);
-    return Number.isInteger(truck) && truck >= EXPECTED_TRUCK_MIN && truck <= EXPECTED_TRUCK_MAX;
+    return String(value ?? "").trim().toUpperCase().match(DRIVER_CODE_PATTERN)?.[1] || "";
   }
 
   function parseDateValue(value) {
     if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
-    if (typeof value === "number" && value > 20000 && value < 80000) {
-      const date = new Date(Date.UTC(1899, 11, 30) + value * DAY_MS);
-      return Number.isNaN(date.getTime()) ? null : date;
+    if (typeof value === "number" && Number.isFinite(value)) {
+      if (value > 20000 && value < 80000) return new Date(Date.UTC(1899, 11, 30) + value * DAY_MS);
+      if (value > 1000000000000) return new Date(value);
     }
     const text = cleanText(value);
-    if (!text || TRIP_PATTERN.test(text)) return null;
-    if (!/[\/-]|[A-Za-z]{3,}/.test(text)) return null;
-    const date = new Date(text);
+    if (!text) return null;
+    const parsed = new Date(text);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+    const match = text.match(/\b(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})\b/);
+    if (!match) return null;
+    const year = Number(match[3]) < 100 ? 2000 + Number(match[3]) : Number(match[3]);
+    const date = new Date(year, Number(match[1]) - 1, Number(match[2]));
     return Number.isNaN(date.getTime()) ? null : date;
   }
 
-  function parseAgeDays(value) {
-    if (typeof value === "number" && value >= 0 && value < 10000) return Math.round(value);
-    const match = cleanText(value).match(/\b(\d+(?:\.\d+)?)\s*(?:day|days|d)\b/i);
-    return match ? Math.round(Number(match[1])) : null;
+  function formatDate(date) {
+    return date instanceof Date && !Number.isNaN(date.getTime())
+      ? date.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" })
+      : "";
+  }
+
+  function sheetRows(workbook, sheetName) {
+    return XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, raw: true, defval: null, blankrows: true });
   }
 
   function modifiedTime(item) {
-    return Date.parse(item?.lastModified || "") || 0;
+    const value = new Date(item?.lastModified || 0).getTime();
+    return Number.isFinite(value) ? value : 0;
   }
 
   function cleanText(value) {
     return String(value ?? "").replace(/\s+/g, " ").trim();
+  }
+
+  function normalize(value) {
+    return cleanText(value).toLowerCase().replace(/[\r\n]+/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
   }
 
   function escapeHtml(value) {
