@@ -1,40 +1,36 @@
 # Fuel Dash Beta
 
-Release: `v2026.07.26-beta.3`
+Release: `v2026.07.26-beta.4`
 
 This is a beta build from the `testing` branch. It is intended for hands-on testing before anything is promoted to `main`.
 
-## Fixed in beta 3
+## Fixed in beta 4
 
-- In partial-data mode, a recognized Missing BOL report now becomes the active view automatically.
-- The app no longer leaves the operator staring at an empty fuel overview while the BOL results sit on another page.
-- The Missing BOL navigation item displays the current trip count.
-- Clicking Missing BOLs directly activates that view even when the dashboard started without a complete fuel-report set.
-- The reporting-period chip changes to `Missing BOLs` when the BOL workflow is opened.
+- The Missing BOL parser now recognizes the live export header layout instead of requiring a literal `Unbilled` column.
+- The report signature uses `Driver Leader`, `Last Dispatch Driver cd`, `Empty Call Date`, and the available order-number fields.
+- The trip column is selected by actual values matching `LLDDDD` across `Order #`, `TMEX Order #`, and `Logistics Order#`.
+- Missing BOL rows are sorted oldest to newest using `Empty Call Date`.
+- Driver codes are read from `Last Dispatch Driver cd` using the company and owner-operator code rules.
+- The four-file idle set shown in normal operations is now accepted when `driver metrics detail.xlsx` is absent.
+- A derived driver index is built locally from `rolling 7 day.xlsx` and `Driver Details.xlsx`, allowing `summary.xlsx` and `Detail.xlsx` to populate the rest of the dashboard.
+- Exact filenames are used only as a fallback when content classification misses one of the known core files.
+- Added a regression test for the exact 29-column Missing BOL export header.
 
-## Fixed in beta 2
+## Earlier beta fixes retained
 
-- Removed the effective complete-bundle startup requirement when the local `data` folder contains only auxiliary or partial reports.
-- A Missing BOL workbook can open the dashboard by itself.
-- Incomplete fuel panels display blank values and a clear Partial Data Mode banner instead of reporting invented zero-performance results.
-- The old “choose the five idle-report XLSX files, the legacy workbook set, or all four basic reports” error is suppressed when usable auxiliary data is present.
-
-## Included
-
-- Content-based loading for `.xlsx` and text-based `.pdf` reports placed in the local `data` folder.
-- Report recognition based on worksheet headers, values, and structure rather than filenames.
-- Missing BOL view that recognizes a worksheet containing `Unbilled`, `Driver Leader`, and `Last Dispatched`.
-- Missing BOL trip extraction using the `LLDDDD` pattern, oldest-to-newest ordering, and driver codes read directly from `Last Dispatched`.
-- Existing fuel, idle, data-quality, electric APU, PTA, notes, and shift-transition dashboard functions from the `testing` branch.
+- Content-based loading for XLSX and text-based PDF reports in the local `data` folder.
+- Partial-data startup without the obsolete complete-report bundle gate.
+- Missing BOL navigation with trip counts.
+- Blank unavailable KPIs instead of synthetic performance.
+- Local-only processing and an empty packaged `data` folder.
 
 ## Beta cautions
 
 - Launch through the included PowerShell dashboard launcher. Opening `index.html` directly cannot enumerate the local `data` folder.
 - PDFs must contain selectable text. Image-only scans still require OCR.
-- The content classifier is deterministic and may need tuning when a new report layout uses unfamiliar headings.
-- Partial Data Mode keeps the application usable, but a report can only populate metrics that its contents actually supply.
-- The Missing BOL parser still needs validation against the live BOL workbook.
-- Keep the production workflow on the current stable build until this beta has been checked with normal weekly files.
+- The derived driver index does not invent dispatch MPG, out-of-route, leader assignments, or fuel cost. Those fields remain unavailable unless a source report supplies them.
+- The live workbooks still need hands-on validation because only the header layout, not the operating file itself, was provided here.
+- Keep the production workflow on the stable build until this beta has been checked with normal weekly files.
 
 ## Data handling
 
