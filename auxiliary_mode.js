@@ -135,7 +135,8 @@
       if (topbar) topbar.insertAdjacentElement("afterend", banner);
     }
     if (banner) {
-      banner.innerHTML = `<strong>PARTIAL DATA MODE</strong><span>${escapeHtml(state.reason)} Fuel KPIs stay blank rather than manufacturing performance.</span>`;
+      const bannerHtml = `<strong>PARTIAL DATA MODE</strong><span>${escapeHtml(state.reason)} Fuel KPIs stay blank rather than manufacturing performance.</span>`;
+      if (banner.innerHTML !== bannerHtml) banner.innerHTML = bannerHtml;
       banner.style.cssText = "margin:0 0 14px;padding:12px 16px;border:1px solid rgba(245,158,11,.45);background:rgba(245,158,11,.08);color:var(--white);display:flex;gap:12px;align-items:center;flex-wrap:wrap";
       const strong = banner.querySelector("strong");
       if (strong) strong.style.cssText = "color:var(--amber);font-size:11px;letter-spacing:.08em";
