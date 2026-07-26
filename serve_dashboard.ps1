@@ -65,10 +65,16 @@ function Get-DataManifestJson {
 function Get-ServedFileBytes([string]$Candidate) {
     if ([IO.Path]::GetFileName($Candidate) -ieq "index.html") {
         $Html = [IO.File]::ReadAllText($Candidate)
+        $ScriptTags = @()
         if ($Html -notmatch 'smart_data_loader\.js') {
-            $Replacement = '<script src="smart_data_loader.js"></script>' + "`r`n  " + '<script src="app.js"></script>'
-            $Html = $Html.Replace('<script src="app.js"></script>', $Replacement)
+            $ScriptTags += '<script src="smart_data_loader.js"></script>'
         }
+        if ($Html -notmatch 'missing_bol\.js') {
+            $ScriptTags += '<script src="missing_bol.js"></script>'
+        }
+        $ScriptTags += '<script src="app.js"></script>'
+        $Replacement = $ScriptTags -join ("`r`n  ")
+        $Html = $Html.Replace('<script src="app.js"></script>', $Replacement)
         return [Text.Encoding]::UTF8.GetBytes($Html)
     }
     return [IO.File]::ReadAllBytes($Candidate)
