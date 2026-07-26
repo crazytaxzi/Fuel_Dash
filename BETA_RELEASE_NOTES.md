@@ -1,5 +1,7 @@
 # Fuel Dash Beta
 
+Release: `v2026.07.26-beta.1`
+
 This is a beta build from the `testing` branch. It is intended for hands-on testing before anything is promoted to `main`.
 
 ## Included
