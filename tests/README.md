@@ -1,0 +1,1 @@
+Run `node tests/auxiliary_mode_smoke.js` from the repository root to verify that auxiliary-only startup receives neutral fallback reports and activates Partial Data Mode instead of the legacy complete-bundle error.
