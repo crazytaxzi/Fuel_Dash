@@ -69,6 +69,9 @@ function Get-ServedFileBytes([string]$Candidate) {
         if ($Html -notmatch 'smart_data_loader\.js') {
             $ScriptTags += '<script src="smart_data_loader.js"></script>'
         }
+        if ($Html -notmatch 'auxiliary_mode\.js') {
+            $ScriptTags += '<script src="auxiliary_mode.js"></script>'
+        }
         if ($Html -notmatch 'missing_bol\.js') {
             $ScriptTags += '<script src="missing_bol.js"></script>'
         }
