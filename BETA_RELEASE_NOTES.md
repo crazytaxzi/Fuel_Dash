@@ -1,13 +1,21 @@
 # Fuel Dash Beta
 
-Release: `v2026.07.26-beta.2`
+Release: `v2026.07.26-beta.3`
 
 This is a beta build from the `testing` branch. It is intended for hands-on testing before anything is promoted to `main`.
+
+## Fixed in beta 3
+
+- In partial-data mode, a recognized Missing BOL report now becomes the active view automatically.
+- The app no longer leaves the operator staring at an empty fuel overview while the BOL results sit on another page.
+- The Missing BOL navigation item displays the current trip count.
+- Clicking Missing BOLs directly activates that view even when the dashboard started without a complete fuel-report set.
+- The reporting-period chip changes to `Missing BOLs` when the BOL workflow is opened.
 
 ## Fixed in beta 2
 
 - Removed the effective complete-bundle startup requirement when the local `data` folder contains only auxiliary or partial reports.
-- A Missing BOL workbook can now open the dashboard by itself.
+- A Missing BOL workbook can open the dashboard by itself.
 - Incomplete fuel panels display blank values and a clear Partial Data Mode banner instead of reporting invented zero-performance results.
 - The old “choose the five idle-report XLSX files, the legacy workbook set, or all four basic reports” error is suppressed when usable auxiliary data is present.
 
