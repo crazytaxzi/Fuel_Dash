@@ -1,8 +1,15 @@
 # Fuel Dash Beta
 
-Release: `v2026.07.26-beta.1`
+Release: `v2026.07.26-beta.2`
 
 This is a beta build from the `testing` branch. It is intended for hands-on testing before anything is promoted to `main`.
+
+## Fixed in beta 2
+
+- Removed the effective complete-bundle startup requirement when the local `data` folder contains only auxiliary or partial reports.
+- A Missing BOL workbook can now open the dashboard by itself.
+- Incomplete fuel panels display blank values and a clear Partial Data Mode banner instead of reporting invented zero-performance results.
+- The old “choose the five idle-report XLSX files, the legacy workbook set, or all four basic reports” error is suppressed when usable auxiliary data is present.
 
 ## Included
 
@@ -17,7 +24,8 @@ This is a beta build from the `testing` branch. It is intended for hands-on test
 - Launch through the included PowerShell dashboard launcher. Opening `index.html` directly cannot enumerate the local `data` folder.
 - PDFs must contain selectable text. Image-only scans still require OCR.
 - The content classifier is deterministic and may need tuning when a new report layout uses unfamiliar headings.
-- The Missing BOL parser has not yet been validated against the live BOL workbook.
+- Partial Data Mode keeps the application usable, but a report can only populate metrics that its contents actually supply.
+- The Missing BOL parser still needs validation against the live BOL workbook.
 - Keep the production workflow on the current stable build until this beta has been checked with normal weekly files.
 
 ## Data handling
