@@ -1,0 +1,37 @@
+name: Content discovery migration
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.event.issue.number == 2 && github.event.comment.body == '/remove-report-filename-dependencies'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out testing branch
+        uses: actions/checkout@v4
+        with:
+          ref: testing
+          fetch-depth: 0
+
+      - name: Rewrite report discovery
+        run: python tools/rewrite_data_discovery.py
+
+      - name: Validate dashboard
+        run: |
+          node validate_dashboard.js
+          node tests/auxiliary_mode_smoke.js
+          node tests/live_bol_export_smoke.js
+          git diff --check
+
+      - name: Commit migration
+        run: |
+          git config user.name "Fuel Dash Migration"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Remove report filename dependencies"
+          git push origin HEAD:testing
