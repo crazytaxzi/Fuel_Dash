@@ -6,6 +6,9 @@ on:
       - testing
     paths:
       - BETA_VERSION
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -20,8 +23,10 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Check out testing branch
+      - name: Check out beta source
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Read beta version
         id: version
@@ -53,6 +58,8 @@ jobs:
       - name: Build clean beta package
         id: package
         shell: pwsh
+        env:
+          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           $version = '${{ steps.version.outputs.value }}'
           $dist = Join-Path $PWD 'dist'
@@ -78,7 +85,7 @@ Do not place confidential files in a package you intend to redistribute.
           @"
 Fuel Dash Beta
 Version: $version
-Commit: $env:GITHUB_SHA
+Commit: $env:TARGET_SHA
 Branch: testing
 Built: $([DateTime]::UtcNow.ToString('u')) UTC
 
@@ -110,6 +117,7 @@ This is a beta build. Validate it with normal operating files before promoting i
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           $version = '${{ steps.version.outputs.value }}'
           $repo = '${{ github.repository }}'
@@ -123,7 +131,7 @@ This is a beta build. Validate it with normal operating files before promoting i
             '${{ steps.package.outputs.zip }}' `
             '${{ steps.package.outputs.checksum }}' `
             --repo $repo `
-            --target $env:GITHUB_SHA `
+            --target $env:TARGET_SHA `
             --title "Fuel Dash $version" `
             --notes-file BETA_RELEASE_NOTES.md `
             --prerelease
