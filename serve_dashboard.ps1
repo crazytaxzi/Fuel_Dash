@@ -52,7 +52,7 @@ function Get-DataManifestJson {
         } | Sort-Object Name | ForEach-Object {
             [PSCustomObject]@{
                 name = $_.Name
-                path = "data/$($_.Name)"
+                path = "data-file/$($_.Name).bin"
                 size = $_.Length
                 lastModified = $_.LastWriteTimeUtc.ToString("o")
                 extension = $_.Extension.ToLowerInvariant()
@@ -116,6 +116,21 @@ try {
             if ($RequestPath -eq "data-manifest.json") {
                 $Manifest = Get-DataManifestJson
                 Send-Response $Stream 200 "OK" "application/json; charset=utf-8" ([Text.Encoding]::UTF8.GetBytes($Manifest))
+                continue
+            }
+
+            if ($RequestPath.StartsWith("data-file/", [StringComparison]::OrdinalIgnoreCase) -and $RequestPath.EndsWith(".bin", [StringComparison]::OrdinalIgnoreCase)) {
+                $StoredName = $RequestPath.Substring(10, $RequestPath.Length - 14)
+                $DataRoot = [IO.Path]::GetFullPath((Join-Path $Root "data") + [IO.Path]::DirectorySeparatorChar)
+                $Candidate = [IO.Path]::GetFullPath((Join-Path $DataRoot $StoredName))
+                $AllowedExtension = [IO.Path]::GetExtension($Candidate).ToLowerInvariant() -in @(".xlsx", ".pdf")
+                if ([IO.Path]::GetFileName($StoredName) -ne $StoredName -or -not $Candidate.StartsWith($DataRoot, [StringComparison]::OrdinalIgnoreCase) -or -not $AllowedExtension -or -not (Test-Path -LiteralPath $Candidate -PathType Leaf)) {
+                    Send-Response $Stream 404 "Not Found" "text/plain; charset=utf-8" ([Text.Encoding]::UTF8.GetBytes("Data file not found"))
+                    continue
+                }
+                $Body = [IO.File]::ReadAllBytes($Candidate)
+                $LastModified = (Get-Item -LiteralPath $Candidate).LastWriteTimeUtc.ToString("R")
+                Send-Response $Stream 200 "OK" (Get-ContentType $Candidate) $Body $LastModified
                 continue
             }
 
