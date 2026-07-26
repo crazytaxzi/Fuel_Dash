@@ -3,6 +3,7 @@ VIXEN FLEET OPS - LOCAL HTML COMMAND CENTER
 
 VERSION
 -------
+3.6.0 - Worked tab + simplified shift transition export
 Four-report idle ranking + rolling idle review + shift-transition export
 
 WHAT IT IS

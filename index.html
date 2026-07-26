@@ -59,6 +59,7 @@
         <button class="nav-item" data-view="units"><span>♜</span>Unit Watchlist</button>
         <button class="nav-item" data-view="apu"><span>⚡</span>Electric APU</button>
         <button class="nav-item" data-view="pta"><span>◷</span>PTA Dispatch</button>
+        <button class="nav-item" data-view="worked"><span>✓</span>Worked</button>
         <button class="nav-item" data-view="exceptions"><span>▤</span>Fueling Events</button>
         <button class="nav-item" data-view="quality"><span>⚙</span>Data Quality</button>
         <button class="nav-item" data-view="settings"><span>✦</span>Settings</button>
@@ -275,6 +276,16 @@
             <tbody></tbody>
           </table>
         </div>
+      </section>
+
+      <section id="workedView" class="view table-view">
+        <div class="view-heading">
+          <div><span class="eyebrow">RECENT ACTION NOTES</span><h2>Worked Recently</h2></div>
+          <div class="worked-window-note">Showing the last hour</div>
+        </div>
+        <div class="table-explainer"><strong>How to read this:</strong> this view shows trucks and drivers with an action note saved within the last hour. Open an item to review its details or add another note.</div>
+        <div id="workedEmptyState" class="worked-empty-state">No trucks or drivers have been worked in the last hour.</div>
+        <div id="workedList" class="worked-list"></div>
       </section>
 
       <section id="exceptionsView" class="view table-view">

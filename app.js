@@ -99,7 +99,7 @@
       "copyPtaHeaderBtn", "ptaPasteMessage", "ptaActionNoteInput", "savePtaActionNoteBtn",
       "clearPtaActionNoteBtn", "ptaActionNoteStatus", "ptaActionNoteHistory", "exportTransitionBtn",
       "driverActionNoteInput", "saveDriverActionNoteBtn", "clearDriverActionNoteBtn",
-      "driverActionNoteStatus", "driverActionNoteHistory"
+      "driverActionNoteStatus", "driverActionNoteHistory", "workedEmptyState", "workedList"
     ].forEach((id) => { els[id] = $(id); });
   }
 
@@ -2024,6 +2024,7 @@
     renderExceptionsTable(analysis.detail.records);
     renderApu(analysis.apu);
     renderPta(analysis.pta);
+    renderWorkedView();
     renderQuality(analysis.quality.findings);
   }
 
@@ -2449,9 +2450,11 @@
   }
 
   function updatePtaWorkStatusViews() {
-    if (!state.analysis?.pta) return;
-    renderPtaPulse(state.analysis.pta);
-    renderPtaTable();
+    if (state.analysis?.pta) {
+      renderPtaPulse(state.analysis.pta);
+      renderPtaTable();
+    }
+    renderWorkedView();
   }
 
   function scheduleWorkedStatusRefresh() {
@@ -2585,6 +2588,7 @@
     if (!persistDriverActionNotes()) return;
     els.driverActionNoteInput.value = "";
     renderDriverActionNotes(driver);
+    renderWorkedView();
     showToast(`Driver note saved for ${driver.driverName}.`);
   }
 
@@ -2612,12 +2616,58 @@
     const key = driverNoteKey(driver);
     state.driverActionNotes[key] = (state.driverActionNotes[key] || []).filter((note) => note.id !== button.dataset.driverNoteDelete);
     if (!state.driverActionNotes[key].length) delete state.driverActionNotes[key];
-    if (persistDriverActionNotes()) renderDriverActionNotes(driver);
+    if (persistDriverActionNotes()) {
+      renderDriverActionNotes(driver);
+      renderWorkedView();
+    }
   }
 
   function isToday(value) {
     const date = new Date(value);
     return !Number.isNaN(date.getTime()) && dateKey(date) === dateKey(new Date());
+  }
+
+  function recentNote(notes, now = Date.now()) {
+    if (!Array.isArray(notes) || !notes.length) return null;
+    const recent = notes
+      .map((note) => ({ note, time: new Date(note.savedAt).getTime() }))
+      .filter((entry) => Number.isFinite(entry.time) && entry.time + 3600000 > now)
+      .sort((a, b) => b.time - a.time)[0];
+    return recent ? { ...recent.note, savedAtDate: new Date(recent.time), remainingMinutes: Math.max(1, Math.ceil((recent.time + 3600000 - now) / 60000)) } : null;
+  }
+
+  function renderWorkedView() {
+    if (!els.workedList || !els.workedEmptyState) return;
+    const now = Date.now();
+    const items = [];
+    const ptaRecords = state.analysis?.pta?.allRecords || [];
+    const seenTrucks = new Set();
+    ptaRecords.forEach((record) => {
+      const key = ptaTruckNoteKey(record);
+      if (seenTrucks.has(key)) return;
+      const note = recentNote(state.ptaActionNotes[key], now);
+      if (!note) return;
+      seenTrucks.add(key);
+      items.push({ type: "pta", label: `Truck ${record.truck || "Unknown"}`, meta: `${record.driver || "No driver"} · ${record.destination || "No destination"}`, note, index: record.index });
+    });
+    (state.analysis?.drivers?.records || []).forEach((driver, index) => {
+      const note = recentNote(state.driverActionNotes[driverNoteKey(driver)], now);
+      if (!note) return;
+      items.push({ type: "driver", label: driver.driverName || "Unknown driver", meta: `Driver follow-up · ${driver.driverCode || "No code"}`, note, index });
+    });
+    items.sort((a, b) => new Date(b.note.savedAt).getTime() - new Date(a.note.savedAt).getTime());
+    els.workedEmptyState.classList.toggle("hidden", items.length > 0);
+    els.workedList.innerHTML = items.map((item) => `<button class="worked-card" type="button" data-${item.type}-index="${item.index}">
+      <span class="worked-card-icon">✓</span>
+      <span class="worked-card-copy"><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.meta)} · worked ${escapeHtml(formatWorkedAge(item.note.savedAtDate))}</small><em>${escapeHtml(item.note.text)}</em></span>
+      <span class="worked-card-time">${formatCount(item.note.remainingMinutes)} min left</span>
+    </button>`).join("");
+  }
+
+  function formatWorkedAge(value) {
+    if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "recently";
+    const minutes = Math.max(0, Math.floor((Date.now() - value.getTime()) / 60000));
+    return minutes < 1 ? "just now" : `${minutes} min ago`;
   }
 
   function exportShiftTransition() {
@@ -2627,44 +2677,23 @@
       `${state.settings.brand} SHIFT TRANSITION`,
       `Prepared: ${now.toLocaleString()}`,
       "",
-      "PTA / TRUCK NOTES FROM TODAY",
-      "----------------------------",
     ];
-    let ptaCount = 0;
+    const actions = [];
     Object.entries(state.ptaActionNotes).forEach(([truck, notes]) => {
       (Array.isArray(notes) ? notes : []).filter((note) => isToday(note.savedAt)).reverse().forEach((note) => {
-        ptaCount += 1;
-        lines.push(`Truck ${truck} | ${note.driver || "No driver"} | ${new Date(note.savedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`);
-        lines.push(`PTA ${note.pta ? formatPtaDate(new Date(note.pta)) : "not captured"} | ${note.status || "No status"} | ${note.planStatus || "No plan status"} | ${note.destination || "No destination"}`);
-        lines.push(note.text, "");
+        actions.push({ time: new Date(note.savedAt).getTime(), label: `Truck ${truck}`, text: note.text });
       });
     });
-    if (!ptaCount) lines.push("No PTA truck notes were saved today.", "");
-
-    const idleSorted = state.analysis.drivers.records
-      .filter((driver) => isFiniteNumber(currentIdlePct(driver)))
-      .sort((a, b) => currentIdlePct(b) - currentIdlePct(a));
-    const transitionDrivers = isIdleFocusedMode()
-      ? idleSorted.slice(0, 5)
-      : state.analysis.drivers.records.filter((driver) => driver.priority === "High");
-    lines.push(isIdleFocusedMode() ? "FIVE HIGHEST IDLERS" : "HIGH FUEL COST DRIVERS", "----------------------");
-    transitionDrivers.forEach((driver) => {
-      lines.push(`${driver.driverName} (${driver.driverCode || "no code"})${isIdleFocusedMode() ? "" : ` | Fuel cost ${money(driver.estimatedCost, 0)}`}`);
-      lines.push(`Idle today ${pct(driver.dailyIdlePct, 1)} | 7-day ${pct(driver.idle7DayPct, 1)} | 28-day ${pct(driver.idle28DayPct, 1)}`);
-      const notes = (state.driverActionNotes[driverNoteKey(driver)] || []).filter((note) => isToday(note.savedAt)).reverse();
-      if (notes.length) notes.forEach((note) => lines.push(`Note ${new Date(note.savedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}: ${note.text}`));
-      else lines.push("Note: No driver follow-up note saved today.");
-      lines.push("");
+    (state.analysis.drivers.records || []).forEach((driver) => {
+      (Array.isArray(state.driverActionNotes[driverNoteKey(driver)]) ? state.driverActionNotes[driverNoteKey(driver)] : [])
+        .filter((note) => isToday(note.savedAt))
+        .forEach((note) => {
+          const pta = findDriverPtaRecord(driver);
+          actions.push({ time: new Date(note.savedAt).getTime(), label: pta?.truck ? `Truck ${pta.truck}` : driver.driverName || "Driver", text: note.text });
+        });
     });
-    if (!transitionDrivers.length) lines.push("No driver idle records were identified.", "");
-
-    if (isIdleFocusedMode()) {
-      lines.push("FIVE BEST IDLERS", "----------------");
-      idleSorted.slice(-5).reverse().forEach((driver) => {
-        lines.push(`${driver.driverName} (${driver.driverCode || "no code"}) | 7-day idle ${pct(driver.idle7DayPct, 1)} | 28-day idle ${pct(driver.idle28DayPct, 1)} | MPG ${num(driver.dispatchMpg, 2)} | OOR ${pct(driver.oorPct, 1)}`);
-      });
-      lines.push("");
-    }
+    actions.sort((a, b) => a.time - b.time);
+    lines.push(...(actions.length ? actions.map((action) => `${action.label} - ${action.text}`) : ["No worked actions were saved today."]));
 
     const content = lines.join("\r\n");
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
