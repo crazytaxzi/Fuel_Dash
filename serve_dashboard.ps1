@@ -27,6 +27,8 @@ function Get-ContentType([string]$Path) {
         ".svg"  { "image/svg+xml" }
         ".json" { "application/json; charset=utf-8" }
         ".txt"  { "text/plain; charset=utf-8" }
+        ".pdf"  { "application/pdf" }
+        ".xlsx" { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
         default  { "application/octet-stream" }
     }
 }
@@ -39,6 +41,37 @@ function Send-Response {
     $Stream.Write($headerBytes, 0, $headerBytes.Length)
     if ($Body.Length -gt 0) { $Stream.Write($Body, 0, $Body.Length) }
     $Stream.Flush()
+}
+
+function Get-DataManifestJson {
+    $DataRoot = Join-Path $Root "data"
+    $Items = @()
+    if (Test-Path -LiteralPath $DataRoot -PathType Container) {
+        $Items = @(Get-ChildItem -LiteralPath $DataRoot -File | Where-Object {
+            $_.Extension.ToLowerInvariant() -in @(".xlsx", ".pdf")
+        } | Sort-Object Name | ForEach-Object {
+            [PSCustomObject]@{
+                name = $_.Name
+                path = "data/$($_.Name)"
+                size = $_.Length
+                lastModified = $_.LastWriteTimeUtc.ToString("o")
+                extension = $_.Extension.ToLowerInvariant()
+            }
+        })
+    }
+    return ConvertTo-Json -InputObject @($Items) -Compress
+}
+
+function Get-ServedFileBytes([string]$Candidate) {
+    if ([IO.Path]::GetFileName($Candidate) -ieq "index.html") {
+        $Html = [IO.File]::ReadAllText($Candidate)
+        if ($Html -notmatch 'smart_data_loader\.js') {
+            $Replacement = '<script src="smart_data_loader.js"></script>' + "`r`n  " + '<script src="app.js"></script>'
+            $Html = $Html.Replace('<script src="app.js"></script>', $Replacement)
+        }
+        return [Text.Encoding]::UTF8.GetBytes($Html)
+    }
+    return [IO.File]::ReadAllBytes($Candidate)
 }
 
 try {
@@ -74,6 +107,12 @@ try {
                 continue
             }
 
+            if ($RequestPath -eq "data-manifest.json") {
+                $Manifest = Get-DataManifestJson
+                Send-Response $Stream 200 "OK" "application/json; charset=utf-8" ([Text.Encoding]::UTF8.GetBytes($Manifest))
+                continue
+            }
+
             $Candidate = [IO.Path]::GetFullPath((Join-Path $Root $RequestPath))
             $RootFull = [IO.Path]::GetFullPath($Root + [IO.Path]::DirectorySeparatorChar)
             if (-not $Candidate.StartsWith($RootFull, [StringComparison]::OrdinalIgnoreCase) -or -not (Test-Path -LiteralPath $Candidate -PathType Leaf)) {
@@ -81,7 +120,7 @@ try {
                 continue
             }
 
-            $Body = [IO.File]::ReadAllBytes($Candidate)
+            $Body = Get-ServedFileBytes $Candidate
             $LastModified = (Get-Item -LiteralPath $Candidate).LastWriteTimeUtc.ToString("R")
             Send-Response $Stream 200 "OK" (Get-ContentType $Candidate) $Body $LastModified
         }
