@@ -78,6 +78,7 @@
     bindEvents();
     applyBranding();
     populateSettings();
+    applyPerformanceMode();
     configureCharts();
     scheduleWorkedStatusRefresh();
     await attemptRestoreDirectory();
@@ -109,6 +110,7 @@
   }
 
   function bindEvents() {
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     els.connectFolderBtn.addEventListener("click", chooseDirectory);
     els.fallbackFilesBtn.addEventListener("click", () => els.fallbackFilesInput.click());
     els.fallbackFilesInput.addEventListener("change", handleFallbackFiles);
@@ -2481,7 +2483,20 @@
 
   function scheduleWorkedStatusRefresh() {
     if (state.workedStatusTimer) window.clearInterval(state.workedStatusTimer);
-    state.workedStatusTimer = window.setInterval(updatePtaWorkStatusViews, 30000);
+    if (!document.hidden) state.workedStatusTimer = window.setInterval(updatePtaWorkStatusViews, 30000);
+  }
+
+  function handleVisibilityChange() {
+    if (document.hidden) {
+      if (state.refreshTimer) window.clearInterval(state.refreshTimer);
+      if (state.workedStatusTimer) window.clearInterval(state.workedStatusTimer);
+      state.refreshTimer = null;
+      state.workedStatusTimer = null;
+      return;
+    }
+    scheduleWorkedStatusRefresh();
+    scheduleAutoRefresh();
+    if (state.analysis && (state.directoryHandle || state.staticFiles)) refreshData(false);
   }
 
   function currentPtaModalRecord() {
@@ -2883,9 +2898,17 @@
 
   function scheduleAutoRefresh() {
     if (state.refreshTimer) window.clearInterval(state.refreshTimer);
-    if (state.settings.refreshSeconds > 0 && (state.directoryHandle || state.staticFiles)) {
-      state.refreshTimer = window.setInterval(() => refreshData(false), state.settings.refreshSeconds * 1000);
+    if (!document.hidden && state.settings.refreshSeconds > 0 && (state.directoryHandle || state.staticFiles)) {
+      state.refreshTimer = window.setInterval(() => {
+        if (!document.hidden) refreshData(false);
+      }, state.settings.refreshSeconds * 1000);
     }
+  }
+
+  function applyPerformanceMode() {
+    const constrained = (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2)
+      || (navigator.deviceMemory && navigator.deviceMemory <= 4);
+    document.documentElement.classList.toggle("low-power", Boolean(constrained));
   }
 
   function setBusy(busy) {

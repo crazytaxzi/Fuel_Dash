@@ -58,6 +58,7 @@ body::before {
 
 .portrait-frame { position: relative; margin: 0 8px 16px; aspect-ratio: 1 / 1.02; padding: 8px; background: linear-gradient(135deg, rgba(168,85,247,.5), transparent 30%, rgba(57,255,99,.45)); clip-path: polygon(10% 0, 90% 0, 100% 10%, 100% 90%, 90% 100%, 10% 100%, 0 90%, 0 10%); }
 .portrait-frame::before { content:""; position:absolute; inset:3px; background:#070d12; clip-path: inherit; }
+.portrait-frame picture { position:relative; width:100%; height:100%; display:block; z-index:2; }
 .portrait-frame img { position: relative; width: 100%; height: 100%; object-fit: cover; clip-path: inherit; filter: saturate(1.12) contrast(1.05); z-index: 2; }
 .portrait-glow { position:absolute; inset: 8%; background: radial-gradient(circle, rgba(57,255,99,.18), transparent 65%); z-index:1; filter: blur(18px); }
 .portrait-corner { position:absolute; width:48px; height:48px; z-index:3; }
@@ -113,6 +114,7 @@ body::before {
 .primary-grid { margin-top:12px; display:grid; grid-template-columns:minmax(0,1.75fr) minmax(360px,.9fr); gap:12px; }
 .secondary-grid { margin-top:12px; display:grid; grid-template-columns:1.15fr 1.1fr .82fr .88fr; gap:12px; align-items:stretch; }
 .panel { position:relative; background:linear-gradient(145deg,rgba(7,14,20,.98),rgba(4,10,14,.96)); border:1px solid rgba(130,98,255,.31); box-shadow:var(--shadow), inset 0 0 32px rgba(168,85,247,.025); overflow:hidden; }
+.primary-grid > .panel, .secondary-grid > .panel, .pta-pulse-panel { content-visibility:auto; contain-intrinsic-size:320px; }
 .panel::before { content:""; position:absolute; inset:0; pointer-events:none; background:linear-gradient(125deg,rgba(255,255,255,.025),transparent 24%,transparent 76%,rgba(57,255,99,.02)); }
 .panel-title { position:relative; z-index:2; font-size:12px; font-weight:900; letter-spacing:.7px; padding:16px 18px 8px; }
 .green-text { color:var(--green); }
@@ -262,6 +264,22 @@ tbody tr:hover { background:rgba(168,85,247,.075); }
 
 /* Plain-English + driver detail modal + optional electric APU review */
 .hidden { display:none !important; }
+
+html.low-power .ambient,
+html.low-power .portrait-glow { display:none; }
+html.low-power .panel,
+html.low-power .kpi-card,
+html.low-power .table-shell,
+html.low-power .quality-card,
+html.low-power .sidebar { box-shadow:none; }
+html.low-power .portrait-frame img { filter:none; }
+html.low-power .connect-overlay,
+html.low-power .driver-modal::backdrop { backdrop-filter:none; }
+html.low-power .kpi-bar i { transition:none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; transition-duration:.01ms !important; }
+}
 .plain-english-note, .table-explainer, .settings-help {
   color:#aebbc4;
   font-size:11px;

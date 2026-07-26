@@ -3,7 +3,7 @@ VIXEN FLEET OPS - LOCAL HTML COMMAND CENTER
 
 VERSION
 -------
-3.7.0 - Low-end PC performance pass
+3.8.0 - Low-end PC lifecycle and asset optimization
 Four-report idle ranking + rolling idle review + shift-transition export
 
 WHAT IT IS

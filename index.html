@@ -43,7 +43,10 @@
 
       <div class="portrait-frame">
         <div class="portrait-glow"></div>
-        <img src="assets/vixen.png" alt="Neon Swift semi truck sipping diesel" />
+        <picture>
+          <source srcset="assets/vixen.webp" type="image/webp" />
+          <img src="assets/vixen.png" alt="Neon Swift semi truck sipping diesel" decoding="async" fetchpriority="low" />
+        </picture>
         <div class="portrait-corner corner-a"></div>
         <div class="portrait-corner corner-b"></div>
       </div>
