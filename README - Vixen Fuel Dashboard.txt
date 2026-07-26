@@ -3,7 +3,7 @@ VIXEN FLEET OPS - LOCAL HTML COMMAND CENTER
 
 VERSION
 -------
-3.6.1 - Grouped shift transition actions by truck
+3.6.2 - Keep worked items visible after the active window
 Four-report idle ranking + rolling idle review + shift-transition export
 
 WHAT IT IS

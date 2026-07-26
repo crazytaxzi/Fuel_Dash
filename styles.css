@@ -765,13 +765,18 @@ tbody tr:hover { background:rgba(168,85,247,.075); }
 .worked-list { display:grid; gap:10px; }
 .worked-card { width:100%; display:grid; grid-template-columns:42px minmax(0,1fr) auto; gap:13px; align-items:center; padding:15px 17px; border:1px solid rgba(255,205,74,.38); background:linear-gradient(110deg,rgba(255,190,35,.12),rgba(7,14,20,.92)); color:var(--white); text-align:left; cursor:pointer; transition:.18s ease; }
 .worked-card:hover { transform:translateX(3px); border-color:var(--amber); box-shadow:0 0 24px rgba(255,181,46,.13); }
+.worked-card-expired { border-color:rgba(255,79,104,.58); background:linear-gradient(110deg,rgba(255,79,104,.15),rgba(24,8,14,.94)); }
+.worked-card-expired:hover { border-color:var(--red); box-shadow:0 0 24px rgba(255,79,104,.16); }
 .worked-card-icon { width:34px; height:34px; display:grid; place-items:center; border-radius:50%; color:#07100a; background:var(--amber); font-weight:950; box-shadow:0 0 16px rgba(255,181,46,.3); }
+.worked-card-expired .worked-card-icon { color:#fff; background:var(--red); box-shadow:0 0 16px rgba(255,79,104,.3); }
 .worked-card-copy { min-width:0; }
 .worked-card-copy strong, .worked-card-copy small, .worked-card-copy em { display:block; }
 .worked-card-copy strong { font-size:14px; }
 .worked-card-copy small { margin-top:3px; color:var(--muted); font-size:10px; }
 .worked-card-copy em { margin-top:8px; color:#f5d98c; font-size:12px; font-style:normal; white-space:pre-wrap; overflow-wrap:anywhere; }
+.worked-card-expired .worked-card-copy em { color:#ffadb9; }
 .worked-card-time { color:var(--amber); font-size:10px; font-weight:900; white-space:nowrap; }
+.worked-card-expired .worked-card-time { color:#ff7f91; }
 .pta-overview-row.worked-recently {
   border-color:rgba(255,205,74,.58);
   background:linear-gradient(100deg,rgba(255,190,35,.16),rgba(80,59,13,.12));

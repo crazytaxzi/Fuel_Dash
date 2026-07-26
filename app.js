@@ -2627,13 +2627,20 @@
     return !Number.isNaN(date.getTime()) && dateKey(date) === dateKey(new Date());
   }
 
-  function recentNote(notes, now = Date.now()) {
+  function latestWorkedNote(notes, now = Date.now()) {
     if (!Array.isArray(notes) || !notes.length) return null;
-    const recent = notes
+    const latest = notes
       .map((note) => ({ note, time: new Date(note.savedAt).getTime() }))
-      .filter((entry) => Number.isFinite(entry.time) && entry.time + 3600000 > now)
+      .filter((entry) => Number.isFinite(entry.time))
       .sort((a, b) => b.time - a.time)[0];
-    return recent ? { ...recent.note, savedAtDate: new Date(recent.time), remainingMinutes: Math.max(1, Math.ceil((recent.time + 3600000 - now) / 60000)) } : null;
+    if (!latest) return null;
+    const remainingMs = latest.time + 3600000 - now;
+    return {
+      ...latest.note,
+      savedAtDate: new Date(latest.time),
+      active: remainingMs > 0,
+      remainingMinutes: Math.max(1, Math.ceil(remainingMs / 60000)),
+    };
   }
 
   function renderWorkedView() {
@@ -2645,22 +2652,22 @@
     ptaRecords.forEach((record) => {
       const key = ptaTruckNoteKey(record);
       if (seenTrucks.has(key)) return;
-      const note = recentNote(state.ptaActionNotes[key], now);
+      const note = latestWorkedNote(state.ptaActionNotes[key], now);
       if (!note) return;
       seenTrucks.add(key);
       items.push({ type: "pta", label: `Truck ${record.truck || "Unknown"}`, meta: `${record.driver || "No driver"} · ${record.destination || "No destination"}`, note, index: record.index });
     });
     (state.analysis?.drivers?.records || []).forEach((driver, index) => {
-      const note = recentNote(state.driverActionNotes[driverNoteKey(driver)], now);
+      const note = latestWorkedNote(state.driverActionNotes[driverNoteKey(driver)], now);
       if (!note) return;
       items.push({ type: "driver", label: driver.driverName || "Unknown driver", meta: `Driver follow-up · ${driver.driverCode || "No code"}`, note, index });
     });
     items.sort((a, b) => new Date(b.note.savedAt).getTime() - new Date(a.note.savedAt).getTime());
     els.workedEmptyState.classList.toggle("hidden", items.length > 0);
-    els.workedList.innerHTML = items.map((item) => `<button class="worked-card" type="button" data-${item.type}-index="${item.index}">
+    els.workedList.innerHTML = items.map((item) => `<button class="worked-card ${item.note.active ? "" : "worked-card-expired"}" type="button" data-${item.type}-index="${item.index}">
       <span class="worked-card-icon">✓</span>
       <span class="worked-card-copy"><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.meta)} · worked ${escapeHtml(formatWorkedAge(item.note.savedAtDate))}</small><em>${escapeHtml(item.note.text)}</em></span>
-      <span class="worked-card-time">${formatCount(item.note.remainingMinutes)} min left</span>
+      <span class="worked-card-time">${item.note.active ? `${formatCount(item.note.remainingMinutes)} min left` : "Needs attention"}</span>
     </button>`).join("");
   }
 
