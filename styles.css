@@ -94,7 +94,7 @@ body::before {
 .icon-button { width:42px; height:42px; background:rgba(10,18,25,.9); border:1px solid rgba(168,85,247,.35); color:#fff; font-size:21px; cursor:pointer; transition:.18s ease; }
 .icon-button:hover { border-color:var(--purple); box-shadow:0 0 18px rgba(168,85,247,.3); transform:translateY(-1px); }
 
-.view { display:none; }
+.view { display:none; content-visibility:auto; contain-intrinsic-size:900px; }
 .active-view { display:block; }
 .kpi-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
 .kpi-card { min-height:132px; position:relative; display:grid; grid-template-columns:72px 1fr; gap:6px; padding:20px 18px 17px; background:linear-gradient(140deg,rgba(15,25,33,.96),rgba(5,12,17,.95)); border:1px solid var(--line); box-shadow:var(--shadow), inset 0 0 28px rgba(168,85,247,.03); overflow:hidden; }

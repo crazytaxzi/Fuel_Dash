@@ -65,6 +65,11 @@
     },
   };
 
+  const countFormatter = new Intl.NumberFormat("en-US");
+  const compactCurrencyFormatter = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 });
+  const currencyFormatters = new Map();
+  const numberFormatters = new Map();
+
   const els = {};
   const $ = (id) => document.getElementById(id);
 
@@ -122,7 +127,10 @@
       button.addEventListener("click", () => switchView(button.dataset.viewTarget));
     });
     document.querySelectorAll(".table-search").forEach((input) => {
-      input.addEventListener("input", () => filterTable(input.dataset.table, input.value));
+      input.addEventListener("input", () => {
+        window.clearTimeout(input.filterTimer);
+        input.filterTimer = window.setTimeout(() => filterTable(input.dataset.table, input.value), 120);
+      });
     });
     els.heroDriverDetailsBtn.addEventListener("click", () => openDriverModal(0));
     els.closeDriverModalBtn.addEventListener("click", closeDriverModal);
@@ -325,7 +333,7 @@
           const pdfLines = await extractPdfTextLines(buffer);
           workbooks[key] = key === "driverPdf" ? parseBasicDriverPdfLines(pdfLines) : { pdfLines };
         } else {
-          workbooks[key] = XLSX.read(buffer, { type: "array", cellDates: false, raw: true, dense: false });
+          workbooks[key] = XLSX.read(buffer, { type: "array", cellDates: false, raw: true, cellText: false, cellNF: false, dense: false });
         }
       }
 
@@ -2143,35 +2151,49 @@
     const actual = trend.weeks.map((week) => week.totalCost);
     const rolling = trend.rollingAverage;
 
-    if (state.heroChart) state.heroChart.destroy();
-    state.heroChart = new Chart($("heroChart"), {
-      type: "line",
-      data: {
-        labels,
-        datasets: [
-          { label: "Actual Cost", data: actual, borderColor: "#b55cff", backgroundColor: "rgba(168,85,247,.2)", fill: true, tension: .28, pointRadius: 3, pointBackgroundColor: "#d9a2ff", borderWidth: 2 },
-          { label: "4-Week Avg", data: rolling, borderColor: "#39ff63", backgroundColor: "transparent", borderDash: [7,5], tension: .25, pointRadius: 0, borderWidth: 2 },
-        ],
-      },
-      options: chartOptions({ legend: true, compact: false }),
-    });
+    const location = trend.weeks.map((week) => week.locationCost);
+    if (!state.heroChart) {
+      state.heroChart = new Chart($("heroChart"), {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            { label: "Actual Cost", data: actual, borderColor: "#b55cff", backgroundColor: "rgba(168,85,247,.2)", fill: true, tension: .28, pointRadius: 3, pointBackgroundColor: "#d9a2ff", borderWidth: 2 },
+            { label: "4-Week Avg", data: rolling, borderColor: "#39ff63", backgroundColor: "transparent", borderDash: [7,5], tension: .25, pointRadius: 0, borderWidth: 2 },
+          ],
+        },
+        options: chartOptions({ legend: true, compact: false }),
+      });
+    } else {
+      state.heroChart.data.labels = labels;
+      state.heroChart.data.datasets[0].data = actual;
+      state.heroChart.data.datasets[1].data = rolling;
+      state.heroChart.update("none");
+    }
 
-    if (state.weeklyChart) state.weeklyChart.destroy();
-    state.weeklyChart = new Chart($("weeklyChart"), {
-      type: "line",
-      data: {
-        labels,
-        datasets: [
-          { label: "Total", data: actual, borderColor: "#b55cff", backgroundColor: "rgba(168,85,247,.14)", fill: true, tension: .3, pointRadius: 3, borderWidth: 2 },
-          { label: "Location", data: trend.weeks.map((week) => week.locationCost), borderColor: "#39ff63", borderDash: [6,4], tension: .25, pointRadius: 0, borderWidth: 2 },
-        ],
-      },
-      options: chartOptions({ legend: true, compact: true }),
-    });
+    if (!state.weeklyChart) {
+      state.weeklyChart = new Chart($("weeklyChart"), {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            { label: "Total", data: actual, borderColor: "#b55cff", backgroundColor: "rgba(168,85,247,.14)", fill: true, tension: .3, pointRadius: 3, borderWidth: 2 },
+            { label: "Location", data: location, borderColor: "#39ff63", borderDash: [6,4], tension: .25, pointRadius: 0, borderWidth: 2 },
+          ],
+        },
+        options: chartOptions({ legend: true, compact: true }),
+      });
+    } else {
+      state.weeklyChart.data.labels = labels;
+      state.weeklyChart.data.datasets[0].data = actual;
+      state.weeklyChart.data.datasets[1].data = location;
+      state.weeklyChart.update("none");
+    }
   }
 
   function chartOptions({ legend, compact }) {
     return {
+      animation: false,
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
@@ -2849,7 +2871,7 @@
     document.querySelectorAll(".nav-item").forEach((button) => button.classList.toggle("active", button.dataset.view === view));
     const target = $(`${view}View`);
     if (target) target.classList.add("active-view");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: "auto" });
   }
 
   function filterTable(tableId, query) {
@@ -2967,12 +2989,19 @@
   function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
   function shallowEqual(a, b) { const keys = Object.keys(a); return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]); }
 
-  function money(value, decimals = 0) { return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(Number(value) || 0); }
-  function moneyCompact(value) { return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 }).format(Number(value) || 0); }
-  function num(value, decimals = 0) { return value === null || value === undefined ? "--" : Number(value).toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }); }
+  function money(value, decimals = 0) {
+    if (!currencyFormatters.has(decimals)) currencyFormatters.set(decimals, new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: decimals, maximumFractionDigits: decimals }));
+    return currencyFormatters.get(decimals).format(Number(value) || 0);
+  }
+  function moneyCompact(value) { return compactCurrencyFormatter.format(Number(value) || 0); }
+  function num(value, decimals = 0) {
+    if (value === null || value === undefined) return "--";
+    if (!numberFormatters.has(decimals)) numberFormatters.set(decimals, new Intl.NumberFormat("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }));
+    return numberFormatters.get(decimals).format(Number(value));
+  }
   function nullableNum(value, decimals = 0) { return value === null || value === undefined ? "" : num(value, decimals); }
   function pct(value, decimals = 1) { return value === null || value === undefined ? "--" : `${(value * 100).toFixed(decimals)}%`; }
-  function formatCount(value) { return Number(value || 0).toLocaleString("en-US"); }
+  function formatCount(value) { return countFormatter.format(Number(value || 0)); }
   function formatBytes(bytes) { if (!bytes) return "0 B"; const units = ["B", "KB", "MB", "GB"]; const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1); return `${(bytes / (1024 ** index)).toFixed(index ? 1 : 0)} ${units[index]}`; }
   function deltaLabel(value, suffix, positiveIsGood = true) {
     if (value === null || value === undefined || !Number.isFinite(value)) return suffix;
