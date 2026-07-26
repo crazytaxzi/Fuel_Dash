@@ -1,0 +1,5 @@
+Fuel Dash Beta
+Version: v2026.07.26-beta.2
+Branch: testing
+
+This build fixes auxiliary-only startup. A Missing BOL workbook can open the dashboard without a complete fuel-report bundle. Incomplete fuel KPIs remain blank and are labeled Partial Data Mode.
