@@ -2681,7 +2681,7 @@
     const actions = [];
     Object.entries(state.ptaActionNotes).forEach(([truck, notes]) => {
       (Array.isArray(notes) ? notes : []).filter((note) => isToday(note.savedAt)).reverse().forEach((note) => {
-        actions.push({ time: new Date(note.savedAt).getTime(), label: `Truck ${truck}`, text: note.text });
+        actions.push({ time: new Date(note.savedAt).getTime(), label: truck, text: note.text, isTruck: true });
       });
     });
     (state.analysis.drivers.records || []).forEach((driver) => {
@@ -2689,11 +2689,24 @@
         .filter((note) => isToday(note.savedAt))
         .forEach((note) => {
           const pta = findDriverPtaRecord(driver);
-          actions.push({ time: new Date(note.savedAt).getTime(), label: pta?.truck ? `Truck ${pta.truck}` : driver.driverName || "Driver", text: note.text });
+          actions.push({ time: new Date(note.savedAt).getTime(), label: pta?.truck || driver.driverName || "Driver", text: note.text, isTruck: Boolean(pta?.truck) });
         });
     });
     actions.sort((a, b) => a.time - b.time);
-    lines.push(...(actions.length ? actions.map((action) => `${action.label} - ${action.text}`) : ["No worked actions were saved today."]));
+    const groupedActions = [];
+    const groupedByTruck = new Map();
+    actions.forEach((action) => {
+      const key = action.isTruck ? normalizeIdentity(action.label) : `individual-${groupedActions.length}`;
+      if (!groupedByTruck.has(key)) {
+        const group = { label: action.label, texts: [] };
+        groupedByTruck.set(key, group);
+        groupedActions.push(group);
+      }
+      groupedByTruck.get(key).texts.push(action.text);
+    });
+    lines.push(...(groupedActions.length
+      ? groupedActions.map((group) => `${group.label} - ${group.texts.join("; ")}`)
+      : ["No worked actions were saved today."]));
 
     const content = lines.join("\r\n");
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
