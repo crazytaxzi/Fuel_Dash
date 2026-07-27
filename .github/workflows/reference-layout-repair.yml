@@ -1,0 +1,42 @@
+name: Repair reference layouts
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.event.issue.number == 2 && github.event.comment.body == '/repair-reference-layout'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out testing
+        uses: actions/checkout@v4
+        with:
+          ref: testing
+          fetch-depth: 0
+
+      - name: Apply guarded repair
+        run: python tools/repair_reference_layout.py
+
+      - name: Validate repaired application
+        run: |
+          node --check app.js
+          node --check smart_data_loader.js
+          node --check auxiliary_mode.js
+          node --check missing_bol.js
+          node tests/auxiliary_mode_smoke.js
+          node tests/operating_layout_smoke.js
+          node tests/live_bol_export_smoke.js
+          node validate_dashboard.js
+          git diff --check
+
+      - name: Commit repaired beta
+        run: |
+          git config user.name "Fuel Dash Reference Repair"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Repair parser for supplied operating layouts"
+          git push origin HEAD:testing
