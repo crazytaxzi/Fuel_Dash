@@ -1,6 +1,10 @@
 VIXEN FUEL DASHBOARD
 ====================
 
+VERSION
+-------
+3.9.0 - Stable main release
+
 Fuel Dash reads supported XLSX and text-based PDF reports from the local data folder. Report roles are determined from worksheet headers, values, layout, and cross-field structure. The filename is ignored.
 
 START
