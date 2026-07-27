@@ -5,6 +5,7 @@
     "smart_data_loader.js",
     "auxiliary_mode.js",
     "database/exclusion-manager.js",
+    "database/idle-history-ui.js",
     "missing_bol.js",
     "missing_bol_driver_only.js",
     "worked_workflow.js",
