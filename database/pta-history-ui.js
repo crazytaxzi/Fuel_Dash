@@ -219,15 +219,23 @@
   }
 
   function updateDatabaseStatusCopy() {
-    const message = document.getElementById("ptaPasteMessage");
-    const noteStatus = document.getElementById("ptaActionNoteStatus");
-    const driverStatus = document.getElementById("driverActionNoteStatus");
-    if (message) message.textContent = "The current paste and every saved snapshot are stored in the dashboard database.";
-    if (noteStatus) noteStatus.textContent = noteStatus.textContent.replace(/Saved only in this browser\.|Notes stay in this browser\./g, "Saved in the dashboard database.");
-    if (driverStatus) driverStatus.textContent = driverStatus.textContent.replace(/browser/gi, "dashboard database");
+  const message = document.getElementById("ptaPasteMessage");
+  const noteStatus = document.getElementById("ptaActionNoteStatus");
+  const driverStatus = document.getElementById("driverActionNoteStatus");
+  setTextIfChanged(message, "The current paste and every saved snapshot are stored in the dashboard database.");
+  if (noteStatus) {
+    setTextIfChanged(noteStatus, noteStatus.textContent.replace(/Saved only in this browser\.|Notes stay in this browser\./g, "Saved in the dashboard database."));
   }
+  if (driverStatus) {
+    setTextIfChanged(driverStatus, driverStatus.textContent.replace(/browser/gi, "dashboard database"));
+  }
+}
 
-  function installStatusCopyObserver() {
+function setTextIfChanged(element, value) {
+  if (element && element.textContent !== value) element.textContent = value;
+}
+
+function installStatusCopyObserver() {
     const targets = [
       document.getElementById("ptaPasteMessage"),
       document.getElementById("ptaActionNoteStatus"),

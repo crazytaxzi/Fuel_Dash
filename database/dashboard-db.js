@@ -488,22 +488,28 @@
   }
 
   function findHeader(headers, aliases, fallback) {
-    const normalizedHeaders = headers.map(normalize);
-    const found = normalizedHeaders.findIndex((header) => aliases.some((alias) => header === normalize(alias) || header.includes(normalize(alias))));
-    return found >= 0 ? found : fallback;
-  }
+  const normalizedHeaders = headers.map(normalize);
+  const normalizedAliases = aliases.map(normalize);
+  const exact = normalizedHeaders.findIndex((header) => normalizedAliases.includes(header));
+  if (exact >= 0) return exact;
+  const partial = normalizedHeaders.findIndex((header) => {
+    const words = header.split(" ").filter(Boolean);
+    return normalizedAliases.some((alias) => alias.includes(" ") ? header.includes(alias) : words.includes(alias));
+  });
+  return partial >= 0 ? partial : fallback;
+}
 
-  function parseDate(value) {
-    if (!value) return null;
-    const direct = new Date(value);
-    if (!Number.isNaN(direct.getTime())) return direct;
-    const excel = Number(value);
-    if (Number.isFinite(excel) && excel > 20000 && excel < 100000) {
-      const date = new Date(Math.round((excel - 25569) * 86400000));
-      return Number.isNaN(date.getTime()) ? null : date;
-    }
-    return null;
+function parseDate(value) {
+  if (!value) return null;
+  const numericText = String(value).trim();
+  const excel = Number(numericText);
+  if (/^-?\d+(?:\.\d+)?$/.test(numericText) && Number.isFinite(excel) && excel > 20000 && excel < 100000) {
+    const date = new Date(Math.round((excel - 25569) * 86400000));
+    return Number.isNaN(date.getTime()) ? null : date;
   }
+  const direct = new Date(value);
+  return Number.isNaN(direct.getTime()) ? null : direct;
+}
 
   function normalize(value) {
     return String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
