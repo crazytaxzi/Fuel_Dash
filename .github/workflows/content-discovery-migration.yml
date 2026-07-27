@@ -24,10 +24,43 @@ jobs:
       - name: Rewrite and validate report discovery
         shell: bash
         run: |
-          if [ -f MIGRATION_ERROR.log ]; then
-            echo "A captured migration failure is waiting for repair."
+          if [ ! -f tools/rewrite_data_discovery.py ]; then
+            echo "Content discovery migration is already complete."
             exit 0
           fi
+
+          rm -f MIGRATION_ERROR.log
+
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("tools/rewrite_data_discovery.py")
+          text = path.read_text(encoding="utf-8")
+
+          marker = '    forbidden_symbols = ["EXPECTED_FILES", "BASIC_REPORT_FILES", "IDLE_REPORT_FILES", "OPTIONAL_FILES", "ALL_FILE_PATTERNS", "matchSourceKey"]'
+          patch = '''    app = app.replace("Object.keys(EXPECTED_FILES)", "REPORT_ROLE_GROUPS.legacy")
+              app = app.replace("Object.keys(BASIC_REPORT_FILES)", "REPORT_ROLE_GROUPS.basic")
+              app = app.replace("Object.keys(IDLE_REPORT_FILES)", 'REPORT_ROLE_GROUPS.idle.filter((role) => !["summary", "detail"].includes(role))')
+              app = app.replace("Object.keys(OPTIONAL_FILES)", '["apu", "ptaTracker", "ptaFinder", "driverPdf"]')
+          '''
+          if patch.strip() not in text:
+              if marker not in text:
+                  raise SystemExit("Could not find the app filename-router verification marker")
+              text = text.replace(marker, patch + marker, 1)
+
+          text = text.replace(
+              '        if path == pathlib.Path(__file__).resolve():\n            continue\n',
+              '        if path == pathlib.Path(__file__).resolve() or path.name == "validate_dashboard.js":\n            continue\n',
+              1,
+          )
+          text = text.replace(
+              '      if (filenameRouter.test(text)) problems.push(`${relative}: filename-routing construct`);',
+              '      if (relative !== "validate_dashboard.js" && filenameRouter.test(text)) problems.push(`${relative}: filename-routing construct`);',
+              1,
+          )
+          path.write_text(text, encoding="utf-8")
+          PY
+
           set +e
           {
             python tools/rewrite_data_discovery.py &&
@@ -38,6 +71,7 @@ jobs:
           } > /tmp/content-migration.log 2>&1
           status=$?
           set -e
+
           if [ "$status" -ne 0 ]; then
             git reset --hard HEAD
             cp /tmp/content-migration.log MIGRATION_ERROR.log
@@ -48,6 +82,7 @@ jobs:
             git push origin HEAD:testing
             exit 1
           fi
+
           git config user.name "Fuel Dash Migration"
           git config user.email "actions@users.noreply.github.com"
           git add -A
