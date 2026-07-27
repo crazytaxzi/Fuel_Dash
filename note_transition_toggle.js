@@ -133,8 +133,11 @@
 
   function isComplete(type, noteId, completions = readObject(COMPLETE_KEY)) {
     if (!noteId) return false;
-    const value = completions[completionKey(type, noteId)];
-    return value === true || Boolean(value?.completedAt);
+    const key = completionKey(type, noteId);
+    if (!Object.prototype.hasOwnProperty.call(completions, key)) return true;
+    const value = completions[key];
+    if (value === false || value?.complete === false) return false;
+    return value === true || value?.complete === true || Boolean(value?.completedAt);
   }
 
   function setComplete(type, noteId, complete) {
@@ -142,8 +145,8 @@
     if (!id) return false;
     const values = readObject(COMPLETE_KEY);
     const key = completionKey(type, id);
-    if (complete) values[key] = { completedAt: new Date().toISOString() };
-    else delete values[key];
+    if (complete) values[key] = { complete: true, completedAt: new Date().toISOString() };
+    else values[key] = { complete: false, completedAt: null };
     return writeObject(COMPLETE_KEY, values);
   }
 

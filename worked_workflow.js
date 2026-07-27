@@ -148,9 +148,12 @@
   function completionState(type, note, completions = readObject(COMPLETE_KEY)) {
     const noteId = String(note?.id ?? "").trim();
     if (!noteId) return { done: false, completedAt: null };
-    const value = completions[noteStateKey(type, noteId)];
+    const key = noteStateKey(type, noteId);
+    if (!Object.prototype.hasOwnProperty.call(completions, key)) return { done: true, completedAt: null };
+    const value = completions[key];
+    if (value === false || value?.complete === false) return { done: false, completedAt: null };
     const completedAt = value === true ? null : value?.completedAt || null;
-    return { done: value === true || Boolean(completedAt), completedAt };
+    return { done: value === true || value?.complete === true || Boolean(completedAt), completedAt };
   }
 
   function setNoteComplete(type, noteId, complete) {
@@ -158,8 +161,8 @@
     if (!id) return false;
     const completions = readObject(COMPLETE_KEY);
     const key = noteStateKey(type, id);
-    if (complete) completions[key] = { completedAt: new Date().toISOString() };
-    else delete completions[key];
+    if (complete) completions[key] = { complete: true, completedAt: new Date().toISOString() };
+    else completions[key] = { complete: false, completedAt: null };
     const saved = writeObject(COMPLETE_KEY, completions);
     if (saved) renderWorkedView();
     return saved;
