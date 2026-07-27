@@ -1,1 +1,1 @@
-Beta 9 keeps the repaired operating-file parser and Worked workflow, then adds a per-note shift-transition toggle beside every PTA and driver note. All notes default off and only explicitly selected notes appear in the grouped transition export.
+Beta 10 keeps the repaired operating-file parser and opt-in transition export, then moves Worked completion from the truck or driver level to the individual saved note. Every note now has separate transition and completion toggles, both defaulting off, and the Worked tab displays one independently colored card per note.
