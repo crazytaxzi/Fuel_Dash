@@ -1,5 +1,5 @@
 Fuel Dash Beta
-Version: v2026.07.27-beta.10
+Version: v2026.07.27-beta.11
 Source: testing
 Report discovery: content-based; validated against sanitized operating layouts
-Workflow: one Worked card and one completion toggle per saved note; transition selection remains per-note and defaults off
+Workflow: per-note Worked completion and transition selection with guarded note-history observers
