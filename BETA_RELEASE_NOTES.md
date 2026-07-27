@@ -1,30 +1,30 @@
 # Fuel Dash Beta
 
-Release: `v2026.07.27-beta.10`
+Release: `v2026.07.27-beta.11`
 
-## Operating-layout repair
+## Freeze repair
 
-- Validated the parser against the supplied operating workbook structures without committing or packaging the source files.
-- Prevented repeating Driver Details blocks from being misclassified as flat driver metrics or MPG reports.
-- Derived the driver index from rolling idle and driver-history data when a separate flat driver table is absent.
-- Missing BOL trips are read from whichever order column contains exactly three letters followed by four digits.
-- Dispatch driver codes are preserved directly from `Last Dispatch Driver cd`, including short legacy values.
+- Fixed a note-history `MutationObserver` feedback loop introduced with per-note controls.
+- The observer now disconnects before adding or refreshing note controls and reconnects afterward.
+- Status labels are updated only when their displayed text actually changes.
+- Saving a new PTA or driver note no longer causes the note-history observer to repeatedly trigger itself.
+- Opening a note from the Worked tab no longer freezes while the related popup rebuilds its note history.
+- Added a regression guard that requires the observer disconnect/reconnect pattern and conditional label updates.
 
-## Worked and transition workflow
+## Worked and transition workflow retained
 
-- The Worked tab now creates one card for every saved PTA or driver note instead of collapsing all notes for a truck or driver into one item.
-- Each note has its own `Follow-up complete` toggle beside its `Include in transition` toggle.
-- Both note-level toggles default off.
-- Recent unfinished notes remain yellow for one hour; older unfinished notes remain visible in red; individually completed notes turn blue.
-- Completing one note does not complete any other note for the same truck or driver.
-- The old truck-level and driver-level completion controls were removed from the popups.
-- Clicking a Worked card opens the related popup and focuses the matching saved note when the current record is available.
-- New and existing notes remain excluded from the transition until their individual transition toggle is explicitly switched on.
-- Selected notes saved today are grouped into one `{truck} - {all selected notes}` line per truck.
-- Selected high-idle driver notes appear in a separate `High Idles contacted:` section with one line per driver.
-- The Possible 28-Day Savings and Possible Yearly Cost cards remain removed from the Overview display.
-- Added sanitized regression tests proving completion is isolated per note and the Worked tab emits one item per note. No operating workbook is stored in the repository or package.
+- The Worked tab keeps one independently colored card per saved PTA or driver note.
+- Every note keeps separate `Include in transition` and `Follow-up complete` toggles, both defaulting off.
+- Recent unfinished notes remain yellow for one hour, older unfinished notes remain red, and completed notes turn blue.
+- Selected notes saved today remain grouped into one `{truck} - {all selected notes}` line per truck.
+- Selected high-idle notes remain in the separate `High Idles contacted:` section.
+
+## Parser and privacy
+
+- Keeps the operating-layout parser repairs and Missing BOL handling from earlier betas.
+- Supplied workbooks remain reference-only and are not committed or packaged.
+- The two unused Overview savings cards remain removed.
 
 ## Beta warning
 
-The Windows launcher and browser still get the final operating-computer test. Unsupported future export changes should appear as diagnostics rather than being forced into the wrong parser.
+The Windows launcher and browser still get the final operating-computer test. Beta 10 is superseded because its note-history observer can freeze the page.
