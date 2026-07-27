@@ -47,6 +47,7 @@ jobs:
             'auxiliary_mode.js',
             'missing_bol.js',
             'missing_bol_driver_only.js',
+            'worked_workflow.js',
             'pdf_converter.js'
           )
           foreach ($script in $scripts) {
@@ -55,6 +56,16 @@ jobs:
               if ($LASTEXITCODE -ne 0) { throw "JavaScript validation failed for $script" }
             }
           }
+
+      - name: Run regression tests
+        shell: pwsh
+        run: |
+          node tests/auxiliary_mode_smoke.js
+          node tests/operating_layout_smoke.js
+          node tests/live_bol_export_smoke.js
+          node tests/worked_workflow_smoke.js
+          node validate_dashboard.js
+          if ($LASTEXITCODE -ne 0) { throw "Fuel Dash regression validation failed" }
 
       - name: Build clean beta package
         id: package
