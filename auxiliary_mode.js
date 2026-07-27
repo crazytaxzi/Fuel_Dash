@@ -6,7 +6,7 @@
 
   const ROLE_GROUPS = Object.freeze({
     legacy: ["summary", "drivers", "detail", "trend"],
-    idle: ["summary", "detail", "driverMetricsDetail", "driverDetails", "rolling7Day"],
+    idle: ["detail", "driverMetricsDetail", "driverDetails", "rolling7Day"],
     basic: ["reportDriverMetrics", "reportCompliance", "reportCost", "reportMpg"],
   });
   const aux = {
@@ -42,7 +42,7 @@
     const normalized = result?.routes ? result : { routes: result || {}, diagnostics: {} };
     const routes = { ...normalized.routes };
 
-    if (routes.summary && routes.detail && routes.driverDetails && routes.rolling7Day && !routes.driverMetricsDetail) {
+    if (routes.detail && routes.driverDetails && routes.rolling7Day && !routes.driverMetricsDetail) {
       try {
         const derived = await buildDerivedDriverMetrics(routes.rolling7Day, routes.driverDetails);
         routes.driverMetricsDetail = derived.file;
@@ -161,7 +161,7 @@
         const item = rows[cursor] || [];
         if (cursor > index && text(item[1])) break;
         const date = parseDate(item[2]);
-        const idlePct = item.slice(8).map(normalizePercent).find((value) => Number.isFinite(value));
+        const idlePct = item.slice(10).map(normalizePercent).find((value) => Number.isFinite(value));
         if (date && Number.isFinite(idlePct)) values.push({ date, idlePct });
       }
       values.sort((a, b) => a.date - b.date);

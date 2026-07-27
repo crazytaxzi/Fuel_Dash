@@ -7,12 +7,12 @@
     summary: { threshold: 12, phrases: [["zz recommendation", 8], ["zz compliance", 8], ["re opt count", 4], ["primary rec compliance", 4]] },
     drivers: { threshold: 14, phrases: [["driver leader name", 8], ["fleet manager match", 6], ["rolling 28 day dispatch miles", 8], ["rolling 4 week dispatch mpg", 8]] },
     detail: { threshold: 14, phrases: [["actual fuel date", 7], ["rec gallons", 6], ["actual gallons", 6], ["location compliant", 6], ["purchase type", 4]] },
-    trend: { threshold: 14, phrases: [["date axis", 8], ["gallon over under cost", 7], ["location noncompliant cost", 7], ["total noncompliant cost", 7]] },
-    reportDriverMetrics: { threshold: 12, phrases: [["driver fuel metrics", 10], ["dispatch mpg", 6], ["idle", 3], ["oor", 4], ["driver current position code", 5]] },
-    driverMetricsDetail: { threshold: 12, phrases: [["driver metrics detail", 10], ["driver fuel metrics", 8], ["dispatch mpg", 6], ["idle", 3], ["oor", 4]] },
+    trend: { threshold: 14, xlsxThreshold: 24, phrases: [["date axis", 8], ["gallon over under cost", 7], ["location noncompliant cost", 7], ["total noncompliant cost", 7]] },
+    reportDriverMetrics: { threshold: 12, xlsxThreshold: 20, phrases: [["driver fuel metrics", 10], ["dispatch mpg", 6], ["idle", 3], ["oor", 4], ["driver current position code", 5]] },
+    driverMetricsDetail: { threshold: 12, xlsxThreshold: 20, phrases: [["driver metrics detail", 10], ["driver fuel metrics", 8], ["dispatch mpg", 6], ["idle", 3], ["oor", 4]] },
     reportCompliance: { threshold: 11, phrases: [["fuel compliance analysis", 10], ["compliance", 4], ["date range", 3], ["last refreshed", 2], ["recommendation", 2]] },
     reportCost: { threshold: 12, phrases: [["fuel noncompliant cost analysis", 10], ["gallon over under cost", 6], ["location noncompliant cost", 6], ["total noncompliant cost", 6]] },
-    reportMpg: { threshold: 11, phrases: [["mpg by driver", 10], ["dispatch mpg", 5], ["driver code", 4], ["driver name", 3], ["mpg", 2]] },
+    reportMpg: { threshold: 11, xlsxThreshold: 16, phrases: [["mpg by driver", 10], ["dispatch mpg", 5], ["driver code", 4], ["driver name", 3], ["mpg", 2]] },
     rolling7Day: { threshold: 12, phrases: [["rolling 7 day", 10], ["idle", 3], ["driver", 2]] },
     driverDetails: { threshold: 12, phrases: [["driver details", 8], ["cruise in time", 10], ["moving mpg", 4], ["idle", 3]] },
     apu: { threshold: 11, phrases: [["electric apu", 8], ["apu hours", 5], ["engine idle hours", 5], ["battery soc", 5], ["state of charge", 4], ["faults", 3]] },
@@ -26,6 +26,7 @@
     ready: null,
     classifyFiles,
     inspectFile,
+    test: { scoreInspection, structuralScore, roleThreshold, roleQualifies, normalize },
     supported: (file) => Boolean(file && SUPPORTED_REPORT.test(file.name || "")),
   };
 
@@ -79,7 +80,7 @@
     for (const [role, rule] of Object.entries(ROLE_RULES)) {
       const candidates = inspected
         .map((entry) => ({ ...entry, value: entry.scores[role] || 0 }))
-        .filter((entry) => entry.value >= rule.threshold)
+        .filter((entry) => entry.value >= roleThreshold(rule, entry.inspection.kind))
         .sort((a, b) => b.value - a.value || (b.file.lastModified || 0) - (a.file.lastModified || 0));
       if (candidates.length) {
         run.routes[role] = candidates[0].file;
@@ -160,6 +161,15 @@
         + structuralScore(role, inspection);
     }
     return result;
+  }
+
+  function roleThreshold(rule, kind) {
+    return rule?.[`${kind}Threshold`] ?? rule?.threshold ?? Number.POSITIVE_INFINITY;
+  }
+
+  function roleQualifies(role, inspection) {
+    const rule = ROLE_RULES[role];
+    return Boolean(rule) && (scoreInspection(inspection)[role] || 0) >= roleThreshold(rule, inspection.kind);
   }
 
   function structuralScore(role, inspection) {

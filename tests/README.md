@@ -1,1 +1,1 @@
-Run `node validate_dashboard.js`, `node tests/auxiliary_mode_smoke.js`, and `node tests/live_bol_export_smoke.js`. Tests enforce content-based report discovery and the live Missing BOL column contract.
+Run `node validate_dashboard.js`, `node tests/auxiliary_mode_smoke.js`, `node tests/operating_layout_smoke.js`, and `node tests/live_bol_export_smoke.js`. The fixtures are synthetic and contain no operating data.

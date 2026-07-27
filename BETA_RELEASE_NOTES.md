@@ -1,18 +1,19 @@
 # Fuel Dash Beta
 
-Release: `v2026.07.26-beta.5`
+Release: `v2026.07.26-beta.7`
 
-## Filename-independent report discovery
+## Reference-file repair
 
-- Every supported XLSX and text-based PDF in the local data folder is inspected.
-- Report roles are assigned from headers, values, worksheet structure, and cross-field patterns.
-- Folder selection, manual file selection, automatic local loading, partial-data handling, and auxiliary tools now use the same content classifier.
-- Explicit report-name aliases, filename regular expressions, fallback names, and fixed report-name instructions were removed.
-- The normal idle workflow can derive a driver index from compatible idle-history sources when a separate driver-index export is absent.
-- Missing BOL detection uses operational headers and trip-value patterns, not the workbook name.
-- Missing BOL trip numbers are recognized as exactly three letters followed by four digits, such as `ABC1234`.
-- A repository validator now rejects explicit report filenames and filename-routing constructs.
+- Validated the parser against the supplied operating workbook structures without committing or packaging the source files.
+- Removed the unused summary dependency from joined idle-report mode.
+- Prevented repeating Driver Details blocks from being misclassified as flat driver metrics or MPG reports.
+- Prevented transaction detail and one-period cost summaries from being misclassified as trend reports.
+- Derived the driver index from rolling idle and driver-history data when a separate flat driver table is absent.
+- Corrected rolling-idle extraction so the week-start date is not mistaken for a percentage.
+- Missing BOL trips are read from whichever order column contains exactly three letters followed by four digits, including the live `Order #` layout.
+- Dispatch driver codes are preserved directly from `Last Dispatch Driver cd`, including short legacy values such as four-letter codes.
+- Added sanitized structural regression tests. No supplied operating workbook is stored in the repository or beta package.
 
 ## Beta warning
 
-This is still a beta. New report layouts may need additional structural rules, but renaming a report should never be the fix.
+This build is intended for the supplied operating layouts. Unsupported future export changes should appear as diagnostics rather than being forced into the wrong parser.

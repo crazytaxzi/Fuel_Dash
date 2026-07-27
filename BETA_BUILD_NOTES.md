@@ -1,1 +1,1 @@
-Beta 5 removes report-filename dependencies and uses content-based discovery for all data-loading paths.
+Beta 7 corrects classifier false positives and validates the normal five-file operating layout with sanitized fixtures.

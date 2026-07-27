@@ -3,7 +3,7 @@
 
   const DAY_MS = 86400000;
   const TRIP_PATTERN = /\b([A-Z]{3}\d{4})\b/i;
-  const DRIVER_CODE_PATTERN = /(?:^|\b)([A-Z]{5}\d|[A-Z]{5,6}|\d{5,6})(?:\b|$)/i;
+  const DRIVER_CODE_PATTERN = /^(?:[A-Z]{5}\d|[A-Z]{4,6}|\d{5,6})$/i;
   const state = {
     loading: false,
     records: [],
@@ -189,7 +189,7 @@
       const trip = extractTrip(source.columns.trip >= 0 ? row[source.columns.trip] : source.columns.orderColumns.map((column) => row[column]).join(" "));
       if (!trip) continue;
       const driverLeader = cleanText(row[source.columns.leader]) || "Not listed";
-      const driverCode = extractDriverCode(row[source.columns.driverCode]) || "Not recognized";
+      const driverCode = extractDriverCode(row[source.columns.driverCode]) || "Not listed";
       const rawDate = row[source.columns.date];
       const date = parseDateValue(rawDate);
       records.push({
@@ -312,7 +312,7 @@
   }
 
   function extractDriverCode(value) {
-    return String(value ?? "").trim().toUpperCase().match(DRIVER_CODE_PATTERN)?.[1] || "";
+    return String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
   }
 
   function parseDateValue(value) {

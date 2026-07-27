@@ -13,8 +13,8 @@ const headers = [
 
 const rows = [
   headers,
-  ["100001", "ABC1234", "900001", "", "", "", "7/20/2026", "", "", "", "", "", "", "", "", "", "", "", "", "", "Leader A", "", "123456"],
-  ["100002", "DEF2345", "900002", "", "", "", "7/18/2026", "", "", "", "", "", "", "", "", "", "", "", "", "", "Leader B", "", "ABCDE1"],
+  ["ABC1234", "", "", "Customer A", "305", "Line Haul", "7/25/26", "City A", "City B", "", "", "", "", "N", "Unbilled", "", "", "", "", "", "Leader A", "Active", "336189"],
+  ["DEF2345", "", "", "Customer B", "305", "Line Haul", "7/20/26", "City C", "City D", "", "", "", "", "N", "Unbilled", "", "", "", "", "", "Leader B", "Active", "RATB"],
 ];
 
 const normalize = (value) => String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -27,30 +27,26 @@ const find = (aliases) => {
   return -1;
 };
 const tripPattern = /\b([A-Z]{3}\d{4})\b/i;
+const driverPattern = /^(?:[A-Z]{5}\d|[A-Z]{4,6}|\d{5,6})$/i;
+const cleanDriverCode = (value) => String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
 const sampleHits = (column) => rows.slice(1).filter((row) => tripPattern.test(String(row[column] ?? ""))).length;
-assert.equal(tripPattern.test("AB1234"), false, "two-letter trip numbers must not be accepted");
-assert.equal(tripPattern.test("ABC1234"), true, "three letters plus four digits must be accepted");
 
+assert.equal(tripPattern.test("AB1234"), false);
+assert.equal(tripPattern.test("ABC1234"), true);
 assert.equal(find(["empty call date"]), 6);
 assert.equal(find(["driver leader"]), 20);
 assert.equal(find(["last dispatch driver cd"]), 22);
 
-const orderColumns = [
-  find(["order #"]),
-  find(["tmex order #"]),
-  find(["logistics order#"]),
-];
+const orderColumns = [find(["order #"]), find(["tmex order #"]), find(["logistics order#"])];
 const selectedTripColumn = orderColumns
   .map((column) => ({ column, hits: sampleHits(column) }))
   .sort((a, b) => b.hits - a.hits)[0];
-
-assert.equal(selectedTripColumn.column, 1);
+assert.equal(selectedTripColumn.column, 0, "the live export stores trip numbers in Order #");
 assert.equal(selectedTripColumn.hits, 2);
-assert.equal(String(rows[1][selectedTripColumn.column]).match(tripPattern)[1], "ABC1234");
-assert.equal(String(rows[2][selectedTripColumn.column]).match(tripPattern)[1], "DEF2345");
+assert.equal(cleanDriverCode(rows[2][22]), "RATB", "short legacy dispatch codes must be preserved");
+assert.equal(driverPattern.test(cleanDriverCode(rows[2][22])), true);
 
 const oldestFirst = rows.slice(1).sort((a, b) => new Date(a[6]) - new Date(b[6]));
-assert.equal(oldestFirst[0][1], "DEF2345");
-assert.equal(oldestFirst[1][1], "ABC1234");
-
+assert.equal(oldestFirst[0][0], "DEF2345");
+assert.equal(oldestFirst[1][0], "ABC1234");
 console.log("Live Missing BOL export smoke test passed.");

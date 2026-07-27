@@ -3,7 +3,7 @@
 
   const REPORT_ROLE_GROUPS = Object.freeze({
     legacy: ["summary", "drivers", "detail", "trend"],
-    idle: ["summary", "detail", "driverMetricsDetail", "driverDetails", "rolling7Day"],
+    idle: ["detail", "driverMetricsDetail", "driverDetails", "rolling7Day"],
     basic: ["reportDriverMetrics", "reportCompliance", "reportCost", "reportMpg"],
   });
   const SUPPORTED_REPORT_FILE = /\.(?:xlsx|xlsm|xlsb|xls|pdf)$/i;
@@ -2740,7 +2740,7 @@
 
   function updateSourceStatus() {
     const activePatterns = state.analysis?.sourceMode === "idle-reports"
-      ? { summary: Object.fromEntries(REPORT_ROLE_GROUPS.legacy.map((role) => [role, true])).summary, detail: Object.fromEntries(REPORT_ROLE_GROUPS.legacy.map((role) => [role, true])).detail, ...Object.fromEntries(REPORT_ROLE_GROUPS.idle.filter((role) => !["summary", "detail"].includes(role)).map((role) => [role, true])), ...Object.fromEntries(["apu", "ptaTracker", "ptaFinder", "driverPdf"].map((role) => [role, true])) }
+      ? { ...Object.fromEntries(REPORT_ROLE_GROUPS.idle.map((role) => [role, true])), ...Object.fromEntries(["apu", "ptaTracker", "ptaFinder", "driverPdf"].map((role) => [role, true])) }
       : state.analysis?.sourceMode === "basic-reports"
         ? { ...Object.fromEntries(REPORT_ROLE_GROUPS.basic.map((role) => [role, true])), ...Object.fromEntries(["apu", "ptaTracker", "ptaFinder", "driverPdf"].map((role) => [role, true])) }
       : { ...Object.fromEntries(REPORT_ROLE_GROUPS.legacy.map((role) => [role, true])), ...Object.fromEntries(["apu", "ptaTracker", "ptaFinder", "driverPdf"].map((role) => [role, true])) };
