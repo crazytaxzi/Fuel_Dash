@@ -1,4 +1,5 @@
 Fuel Dash Beta
-Version: v2026.07.26-beta.7
+Version: v2026.07.27-beta.8
 Source: testing
 Report discovery: content-based; validated against sanitized operating layouts
+Workflow: Worked tab restored with blue completion state and compact shift transition export
