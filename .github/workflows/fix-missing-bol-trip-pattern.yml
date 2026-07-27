@@ -1,0 +1,93 @@
+name: Fix Missing BOL trip pattern
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.event.issue.number == 2 && github.event.comment.body == '/fix-missing-bol-trip-pattern'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out testing branch
+        uses: actions/checkout@v4
+        with:
+          ref: testing
+          fetch-depth: 0
+
+      - name: Correct trip format and validate
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          bol = Path('missing_bol.js')
+          text = bol.read_text(encoding='utf-8')
+          replacements = {
+              r'const TRIP_PATTERN = /\b([A-Z]{2}\d{4})\b/i;': r'const TRIP_PATTERN = /\b([A-Z]{3}\d{4})\b/i;',
+              'values in the <code>LLDDDD</code> format.': 'values containing exactly three letters followed by four digits, such as <code>ABC1234</code>.',
+              'trips matching LLDDDD.': 'trips containing exactly three letters followed by four digits, such as ABC1234.',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'missing_bol.js replacement target not found: {old}')
+              text = text.replace(old, new)
+          bol.write_text(text, encoding='utf-8')
+
+          test = Path('tests/live_bol_export_smoke.js')
+          text = test.read_text(encoding='utf-8')
+          replacements = {
+              '"AA1234"': '"ABC1234"',
+              '"BB2345"': '"DEF2345"',
+              r'const tripPattern = /\b([A-Z]{2}\d{4})\b/i;': r'const tripPattern = /\b([A-Z]{3}\d{4})\b/i;',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'test replacement target not found: {old}')
+              text = text.replace(old, new)
+          marker = 'const sampleHits = (column) => rows.slice(1).filter((row) => tripPattern.test(String(row[column] ?? ""))).length;'
+          negative = '\nassert.equal(tripPattern.test("AB1234"), false, "two-letter trip numbers must not be accepted");\nassert.equal(tripPattern.test("ABC1234"), true, "three letters plus four digits must be accepted");'
+          if negative.strip() not in text:
+              if marker not in text:
+                  raise SystemExit('trip-pattern test marker not found')
+              text = text.replace(marker, marker + negative)
+          test.write_text(text, encoding='utf-8')
+
+          notes = Path('BETA_RELEASE_NOTES.md')
+          text = notes.read_text(encoding='utf-8')
+          bullet = '- Missing BOL trip numbers are recognized as exactly three letters followed by four digits, such as `ABC1234`.\n'
+          if bullet not in text:
+              anchor = '- Missing BOL detection uses operational headers and trip-value patterns, not the workbook name.\n'
+              if anchor not in text:
+                  raise SystemExit('release-note anchor not found')
+              text = text.replace(anchor, anchor + bullet)
+          notes.write_text(text, encoding='utf-8')
+
+          version = Path('BETA_VERSION')
+          version.write_text('v2026.07.26-beta.6\n', encoding='utf-8')
+
+          build = Path('BETA_BUILD.txt')
+          text = build.read_text(encoding='utf-8').replace('v2026.07.26-beta.5', 'v2026.07.26-beta.6')
+          build.write_text(text, encoding='utf-8')
+
+          supersedes = Path('BETA_SUPERSEDES.txt')
+          supersedes.write_text('Betas 1 through 5 are superseded by v2026.07.26-beta.6.\n', encoding='utf-8')
+          PY
+
+          node --check missing_bol.js
+          node tests/live_bol_export_smoke.js
+          node tests/auxiliary_mode_smoke.js
+          node validate_dashboard.js
+          git diff --check
+
+      - name: Commit correction
+        shell: bash
+        run: |
+          git config user.name "Fuel Dash Repair"
+          git config user.email "actions@users.noreply.github.com"
+          git add missing_bol.js tests/live_bol_export_smoke.js BETA_RELEASE_NOTES.md BETA_VERSION BETA_BUILD.txt BETA_SUPERSEDES.txt
+          git commit -m "Correct Missing BOL trip number format"
+          git push origin HEAD:testing
