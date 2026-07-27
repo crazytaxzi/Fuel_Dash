@@ -1,0 +1,1 @@
+Activate the IndexedDB bootstrap loader in index.html.
