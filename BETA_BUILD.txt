@@ -1,4 +1,4 @@
 Fuel Dash Beta
-Version: v2026.07.26-beta.5
+Version: v2026.07.26-beta.6
 Source: testing
 Report discovery: content-based; filenames ignored

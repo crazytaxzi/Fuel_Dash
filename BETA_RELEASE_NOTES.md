@@ -10,6 +10,7 @@ Release: `v2026.07.26-beta.5`
 - Explicit report-name aliases, filename regular expressions, fallback names, and fixed report-name instructions were removed.
 - The normal idle workflow can derive a driver index from compatible idle-history sources when a separate driver-index export is absent.
 - Missing BOL detection uses operational headers and trip-value patterns, not the workbook name.
+- Missing BOL trip numbers are recognized as exactly three letters followed by four digits, such as `ABC1234`.
 - A repository validator now rejects explicit report filenames and filename-routing constructs.
 
 ## Beta warning

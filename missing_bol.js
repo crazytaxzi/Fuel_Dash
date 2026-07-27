@@ -2,7 +2,7 @@
   "use strict";
 
   const DAY_MS = 86400000;
-  const TRIP_PATTERN = /\b([A-Z]{2}\d{4})\b/i;
+  const TRIP_PATTERN = /\b([A-Z]{3}\d{4})\b/i;
   const DRIVER_CODE_PATTERN = /(?:^|\b)([A-Z]{5}\d|[A-Z]{5,6}|\d{5,6})(?:\b|$)/i;
   const state = {
     loading: false,
@@ -47,7 +47,7 @@
           <div><span class="eyebrow">MISSING PAPERWORK FOLLOW-UP</span><h2>Missing BOLs</h2></div>
           <input class="table-search" data-table="missingBolTable" placeholder="Search trip, leader, or driver code..." />
         </div>
-        <div class="table-explainer"><strong>Oldest first.</strong> This export is recognized from its order fields, <code>Driver Leader</code>, <code>Last Dispatch Driver cd</code>, and <code>Empty Call Date</code>. The trip field is whichever order column actually contains values in the <code>LLDDDD</code> format.</div>
+        <div class="table-explainer"><strong>Oldest first.</strong> This export is recognized from its order fields, <code>Driver Leader</code>, <code>Last Dispatch Driver cd</code>, and <code>Empty Call Date</code>. The trip field is whichever order column actually contains values containing exactly three letters followed by four digits, such as <code>ABC1234</code>.</div>
         <div id="missingBolSummary" class="bol-summary-grid"></div>
         <div id="missingBolMessage" class="bol-message">Scanning XLSX files for the Missing BOL export…</div>
         <div id="missingBolTableShell" class="table-shell hidden">
@@ -125,7 +125,7 @@
       state.lastLoadedAt = Date.now();
       render();
       if (!state.records.length) {
-        setMessage(`The report layout was recognized in ${state.candidate.item.name}, but none of the order columns contained trips matching LLDDDD.`, true);
+        setMessage(`The report layout was recognized in ${state.candidate.item.name}, but none of the order columns contained trips containing exactly three letters followed by four digits, such as ABC1234.`, true);
       } else {
         hideMessage();
       }
