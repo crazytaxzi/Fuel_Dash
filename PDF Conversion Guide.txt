@@ -4,46 +4,36 @@ PDF TO XLSX CONVERSION GUIDE
 WHAT IT DOES
 ------------
 
-The converter turns the four supported text-based PDFs into dashboard-ready
-XLSX files:
-
-- Driver Fuel Metrics.pdf -> Driver Fuel Metrics.xlsx
-- Fuel Compliance Analysis.pdf -> Fuel Compliance Analysis.xlsx
-- Fuel Noncompliant Cost Analysis.pdf -> Fuel Noncompliant Cost Analysis.xlsx
-- MPG by Driver.pdf -> MPG by Driver.xlsx
+The converter inspects selectable PDF text and identifies supported report structures from headings, columns, dates, percentages, totals, and row patterns. The uploaded filename is ignored.
 
 HOW TO USE IT
 -------------
 
 1. Extract the full Fuel Dashboard package.
-2. Double-click "Convert PDF Reports to XLSX.cmd".
-3. Click "Choose PDF files" or drag the PDFs onto the conversion page.
-4. Select any or all of the supported reports.
-5. If Edge or Chrome asks to allow multiple downloads, choose Allow.
-6. Copy the downloaded XLSX files into the dashboard's data folder.
-7. Launch the dashboard or click Refresh.
+2. Start the local PDF conversion page.
+3. Choose PDF files or drag them onto the page.
+4. Allow multiple downloads when converting several reports.
+5. Copy the converted workbooks into the dashboard data folder.
+6. Launch or refresh the dashboard.
 
 HOW IT WORKS
 ------------
 
-The report PDFs store many words and numbers as individually positioned
-characters. The converter reconstructs text using each character's page
-position, identifies the report's data rows, and creates the table structure
-expected by the dashboard.
+PDF text is reconstructed from page coordinates. The converter scores the reconstructed content against supported table structures, normalizes recognized rows, and creates a workbook containing:
 
-Each XLSX contains:
+- Table 1: normalized dashboard data
+- Extracted Text: reconstructed source text for troubleshooting
 
-- Table 1: normalized data consumed by the dashboard
-- Extracted Text: reconstructed PDF text for troubleshooting
+Output names are derived from the uploaded file only for convenience. They are not used to classify the report.
 
 PRIVACY
 -------
 
-Conversion happens locally at http://127.0.0.1:8765. Reports are not uploaded.
+Conversion runs on the local dashboard server. Reports are not uploaded.
 
 LIMITATIONS
 -----------
 
 - PDFs must contain selectable text. Scanned PDFs need OCR first.
-- The converter recognizes the current four report layouts.
-- A future report redesign may require parser adjustments.
+- A redesigned table may require another structural rule.
+- An ambiguous PDF is rejected instead of being forced into the wrong parser.
