@@ -42,6 +42,10 @@ jobs:
               app = app.replace("Object.keys(BASIC_REPORT_FILES)", "REPORT_ROLE_GROUPS.basic")
               app = app.replace("Object.keys(IDLE_REPORT_FILES)", 'REPORT_ROLE_GROUPS.idle.filter((role) => !["summary", "detail"].includes(role))')
               app = app.replace("Object.keys(OPTIONAL_FILES)", '["apu", "ptaTracker", "ptaFinder", "driverPdf"]')
+              app = app.replace("EXPECTED_FILES", 'Object.fromEntries(REPORT_ROLE_GROUPS.legacy.map((role) => [role, true]))')
+              app = app.replace("BASIC_REPORT_FILES", 'Object.fromEntries(REPORT_ROLE_GROUPS.basic.map((role) => [role, true]))')
+              app = app.replace("IDLE_REPORT_FILES", 'Object.fromEntries(REPORT_ROLE_GROUPS.idle.filter((role) => !["summary", "detail"].includes(role)).map((role) => [role, true]))')
+              app = app.replace("OPTIONAL_FILES", 'Object.fromEntries(["apu", "ptaTracker", "ptaFinder", "driverPdf"].map((role) => [role, true]))')
           '''
           if patch.strip() not in text:
               if marker not in text:
