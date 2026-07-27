@@ -1,1 +1,1 @@
-Beta 8 keeps the repaired operating-file parser, restores the Worked tab, adds blue completion toggles, simplifies the shift transition into grouped truck and contacted high-idle sections, and removes two unused Overview cards.
+Beta 9 keeps the repaired operating-file parser and Worked workflow, then adds a per-note shift-transition toggle beside every PTA and driver note. All notes default off and only explicitly selected notes appear in the grouped transition export.
