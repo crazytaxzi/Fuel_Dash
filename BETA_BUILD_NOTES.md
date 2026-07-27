@@ -1,1 +1,1 @@
-Beta 7 corrects classifier false positives and validates the normal five-file operating layout with sanitized fixtures.
+Beta 8 keeps the repaired operating-file parser, restores the Worked tab, adds blue completion toggles, simplifies the shift transition into grouped truck and contacted high-idle sections, and removes two unused Overview cards.
