@@ -6,7 +6,6 @@ Traceback (most recent call last):
 RuntimeError: PDF Conversion Guide.txt: explicit report filename
 app.js: explicit report filename
 index.html: explicit report filename
-pdf_to_xlsx.js: explicit report filename
 PTA Column Guide.txt: explicit report filename
 PDF Driver Report Guide.txt: explicit report filename
 APU Column Guide.txt: explicit report filename
