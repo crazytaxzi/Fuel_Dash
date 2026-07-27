@@ -1,6 +1,6 @@
 # Fuel Dash Beta
 
-Release: `v2026.07.27-beta.9`
+Release: `v2026.07.27-beta.10`
 
 ## Operating-layout repair
 
@@ -12,17 +12,18 @@ Release: `v2026.07.27-beta.9`
 
 ## Worked and transition workflow
 
-- Restored the Worked tab for PTA truck notes and driver follow-up notes.
-- Recent unfinished items remain yellow for one hour; older unfinished items remain visible in red.
-- Added a persistent popup toggle that marks the latest follow-up complete and turns the Worked item blue.
-- A newer note automatically reopens an item so an old completion state cannot hide new work.
-- Every saved PTA and driver note now has its own `Include in shift transition` toggle beside it.
-- New and existing notes default to excluded. A note appears in the transition only after its toggle is explicitly switched on.
-- Turning a note off removes only that note from the transition while keeping it in note history.
+- The Worked tab now creates one card for every saved PTA or driver note instead of collapsing all notes for a truck or driver into one item.
+- Each note has its own `Follow-up complete` toggle beside its `Include in transition` toggle.
+- Both note-level toggles default off.
+- Recent unfinished notes remain yellow for one hour; older unfinished notes remain visible in red; individually completed notes turn blue.
+- Completing one note does not complete any other note for the same truck or driver.
+- The old truck-level and driver-level completion controls were removed from the popups.
+- Clicking a Worked card opens the related popup and focuses the matching saved note when the current record is available.
+- New and existing notes remain excluded from the transition until their individual transition toggle is explicitly switched on.
 - Selected notes saved today are grouped into one `{truck} - {all selected notes}` line per truck.
 - Selected high-idle driver notes appear in a separate `High Idles contacted:` section with one line per driver.
-- Removed the Possible 28-Day Savings and Possible Yearly Cost cards from the Overview display.
-- Added sanitized regression tests for default-off note selection and compact transition output. No operating workbook is stored in the repository or package.
+- The Possible 28-Day Savings and Possible Yearly Cost cards remain removed from the Overview display.
+- Added sanitized regression tests proving completion is isolated per note and the Worked tab emits one item per note. No operating workbook is stored in the repository or package.
 
 ## Beta warning
 
