@@ -1,0 +1,166 @@
+name: Finalize Beta 11
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/finalize-beta-11.yml
+
+permissions:
+  contents: write
+
+env:
+  KEEP_BRANCH: Beta-11
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out merged main
+        uses: actions/checkout@v4
+
+      - name: Read release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '\r\n[:space:]' < BETA_VERSION)"
+          if [[ ! "$version" =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}-beta\.[0-9]+$ ]]; then
+            echo "Invalid BETA_VERSION: $version" >&2
+            exit 1
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Validate JavaScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          scripts=(
+            app.js
+            smart_data_loader.js
+            auxiliary_mode.js
+            missing_bol.js
+            missing_bol_driver_only.js
+            worked_workflow.js
+            note_transition_toggle.js
+            transition_export_v2.js
+            pdf_converter.js
+          )
+          for script in "${scripts[@]}"; do
+            [[ -f "$script" ]] && node --check "$script"
+          done
+
+      - name: Run regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/auxiliary_mode_smoke.js
+          node tests/operating_layout_smoke.js
+          node tests/live_bol_export_smoke.js
+          node tests/worked_workflow_smoke.js
+          node tests/note_transition_toggle_smoke.js
+          node tests/transition_export_v2_smoke.js
+          node validate_dashboard.js
+
+      - name: Build merged-main package
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          version='${{ steps.version.outputs.value }}'
+          dist="$GITHUB_WORKSPACE/dist"
+          package_root="$dist/Fuel_Dash-Beta"
+          rm -rf "$dist"
+          mkdir -p "$package_root"
+
+          while IFS= read -r -d '' item; do
+            name="$(basename "$item")"
+            case "$name" in
+              .git|.github|data|dist|Dashboard_Server_Log.txt) continue ;;
+            esac
+            cp -a "$item" "$package_root/"
+          done < <(find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -print0)
+
+          mkdir -p "$package_root/data"
+          cat > "$package_root/data/PLACE_REPORTS_HERE.txt" <<'TXT'
+Place the current XLSX and PDF report files in this folder.
+The beta identifies supported reports by their contents, not their filenames.
+Do not place confidential files in a package you intend to redistribute.
+TXT
+
+          cat > "$package_root/BETA_BUILD.txt" <<TXT
+Fuel Dash Beta
+Version: $version
+Commit: $GITHUB_SHA
+Branch: main
+Built: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+
+This package was built from merged main after Beta 11 promotion.
+TXT
+
+          zip_name="Fuel_Dash-$version.zip"
+          (
+            cd "$dist"
+            zip -rq "$zip_name" Fuel_Dash-Beta
+          )
+          sha256sum "$dist/$zip_name" > "$dist/$zip_name.sha256"
+
+          echo "zip=$dist/$zip_name" >> "$GITHUB_OUTPUT"
+          echo "checksum=$dist/$zip_name.sha256" >> "$GITHUB_OUTPUT"
+          echo "zip_name=$zip_name" >> "$GITHUB_OUTPUT"
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fuel-Dash-${{ steps.version.outputs.value }}
+          path: |
+            ${{ steps.package.outputs.zip }}
+            ${{ steps.package.outputs.checksum }}
+          if-no-files-found: error
+
+      - name: Publish Beta 11 prerelease from main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version='${{ steps.version.outputs.value }}'
+          repo="$GITHUB_REPOSITORY"
+
+          if gh release view "$version" --repo "$repo" >/dev/null 2>&1; then
+            gh release delete "$version" --repo "$repo" --yes --cleanup-tag
+          fi
+
+          gh release create "$version" \
+            '${{ steps.package.outputs.zip }}' \
+            '${{ steps.package.outputs.checksum }}' \
+            --repo "$repo" \
+            --target "$GITHUB_SHA" \
+            --title "Fuel Dash $version" \
+            --notes-file BETA_RELEASE_NOTES.md \
+            --prerelease
+
+      - name: Keep only main and Beta-11 branches
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+
+          if gh api "repos/$repo/git/ref/heads/$KEEP_BRANCH" >/dev/null 2>&1; then
+            gh api -X PATCH "repos/$repo/git/refs/heads/$KEEP_BRANCH" -f sha="$GITHUB_SHA" -F force=true >/dev/null
+          else
+            gh api -X POST "repos/$repo/git/refs" -f ref="refs/heads/$KEEP_BRANCH" -f sha="$GITHUB_SHA" >/dev/null
+          fi
+
+          mapfile -t branches < <(gh api --paginate "repos/$repo/branches?per_page=100" --jq '.[].name')
+          for branch in "${branches[@]}"; do
+            if [[ "$branch" == "main" || "$branch" == "$KEEP_BRANCH" ]]; then
+              continue
+            fi
+            echo "Deleting branch: $branch"
+            gh api -X DELETE "repos/$repo/git/refs/heads/$branch"
+          done
