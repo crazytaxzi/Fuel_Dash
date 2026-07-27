@@ -1,2 +1,2 @@
-Release v2026.07.26-beta.1 from testing commit 2b680075c9f48196abd60ce00d51b307af5ac1c2
-Requested: 2026-07-26
+Release v2026.07.27-beta.11 from merged main via testing snapshot 8c284f238b74e4721339edab8f9ec86529551d16
+Requested: 2026-07-27

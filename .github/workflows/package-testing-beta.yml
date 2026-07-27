@@ -136,3 +136,37 @@ This is a beta build. Validate it with normal operating files before promoting i
             --prerelease
 
           if ($LASTEXITCODE -ne 0) { throw "GitHub prerelease creation failed" }
+
+      - name: Keep only main and Beta-11 branches
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $repo = '${{ github.repository }}'
+          $targetSha = '${{ steps.metadata.outputs.target_sha }}'
+          $keepBranch = 'Beta-11'
+
+          gh api "repos/$repo/git/ref/heads/$keepBranch" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh api -X PATCH "repos/$repo/git/refs/heads/$keepBranch" -f sha=$targetSha -F force=true | Out-Null
+          } else {
+            gh api -X POST "repos/$repo/git/refs" -f ref="refs/heads/$keepBranch" -f sha=$targetSha | Out-Null
+          }
+          if ($LASTEXITCODE -ne 0) { throw "Could not create or update branch $keepBranch" }
+
+          $branches = @(gh api --paginate "repos/$repo/branches?per_page=100" --jq '.[].name')
+          if ($LASTEXITCODE -ne 0) { throw 'Could not list repository branches' }
+
+          foreach ($branch in $branches) {
+            if ($branch -eq 'main' -or $branch -eq $keepBranch) {
+              continue
+            }
+
+            Write-Host "Deleting branch: $branch"
+            gh api -X DELETE "repos/$repo/git/refs/heads/$branch" *> $null
+            if ($LASTEXITCODE -ne 0) {
+              $encodedBranch = [Uri]::EscapeDataString($branch)
+              gh api -X DELETE "repos/$repo/git/refs/heads/$encodedBranch" *> $null
+            }
+            if ($LASTEXITCODE -ne 0) { throw "Could not delete branch $branch" }
+          }
