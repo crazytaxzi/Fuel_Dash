@@ -1,6 +1,6 @@
 Traceback (most recent call last):
-  File "/home/runner/work/Fuel_Dash/Fuel_Dash/tools/rewrite_data_discovery.py", line 776, in <module>
+  File "/home/runner/work/Fuel_Dash/Fuel_Dash/tools/rewrite_data_discovery.py", line 780, in <module>
     migrate_app()
-  File "/home/runner/work/Fuel_Dash/Fuel_Dash/tools/rewrite_data_discovery.py", line 701, in migrate_app
+  File "/home/runner/work/Fuel_Dash/Fuel_Dash/tools/rewrite_data_discovery.py", line 705, in migrate_app
     raise RuntimeError(f"app.js still contains filename routers: {leftovers}")
 RuntimeError: app.js still contains filename routers: ['EXPECTED_FILES', 'BASIC_REPORT_FILES', 'IDLE_REPORT_FILES', 'OPTIONAL_FILES']
