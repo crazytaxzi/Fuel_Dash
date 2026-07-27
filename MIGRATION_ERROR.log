@@ -5,7 +5,6 @@ Traceback (most recent call last):
     raise RuntimeError("\n".join(problems))
 RuntimeError: app.js: explicit report filename
 index.html: explicit report filename
-PTA Column Guide.txt: explicit report filename
 PDF Driver Report Guide.txt: explicit report filename
 APU Column Guide.txt: explicit report filename
 tests/auxiliary_mode_smoke.js: filename router
