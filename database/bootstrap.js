@@ -20,6 +20,7 @@
       for (const src of OPTIONAL_MODULES) await loadOptionalScript(src);
       await loadScript("app.js");
       await loadScript("database/pta-history-ui.js");
+      await loadScript("database/worked-navigation-fix.js");
       document.dispatchEvent(new Event("DOMContentLoaded", { bubbles: true }));
       installPtaShortcutBridge();
     })
