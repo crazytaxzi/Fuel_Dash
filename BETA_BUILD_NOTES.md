@@ -1,1 +1,0 @@
-Beta 11 keeps the per-note Worked and transition controls from Beta 10, then fixes the note-history MutationObserver feedback loop that could freeze the page when saving a note or opening one from Worked. The observer is now disconnected during DOM enhancement, reconnected afterward, and labels are not rewritten when unchanged.
