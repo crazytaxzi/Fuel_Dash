@@ -1,5 +1,0 @@
-Fuel Dash Beta
-Version: v2026.07.27-beta.11
-Source: testing
-Report discovery: content-based; validated against sanitized operating layouts
-Workflow: per-note Worked completion and transition selection with guarded note-history observers
