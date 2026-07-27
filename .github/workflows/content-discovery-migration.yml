@@ -21,18 +21,33 @@ jobs:
           ref: testing
           fetch-depth: 0
 
-      - name: Rewrite report discovery
-        run: python tools/rewrite_data_discovery.py
-
-      - name: Validate dashboard
+      - name: Rewrite and validate report discovery
+        shell: bash
         run: |
-          node validate_dashboard.js
-          node tests/auxiliary_mode_smoke.js
-          node tests/live_bol_export_smoke.js
-          git diff --check
-
-      - name: Commit migration
-        run: |
+          if [ -f MIGRATION_ERROR.log ]; then
+            echo "A captured migration failure is waiting for repair."
+            exit 0
+          fi
+          set +e
+          {
+            python tools/rewrite_data_discovery.py &&
+            node validate_dashboard.js &&
+            node tests/auxiliary_mode_smoke.js &&
+            node tests/live_bol_export_smoke.js &&
+            git diff --check
+          } > /tmp/content-migration.log 2>&1
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            git reset --hard HEAD
+            cp /tmp/content-migration.log MIGRATION_ERROR.log
+            git config user.name "Fuel Dash Migration"
+            git config user.email "actions@users.noreply.github.com"
+            git add MIGRATION_ERROR.log
+            git commit -m "Capture content migration failure"
+            git push origin HEAD:testing
+            exit 1
+          fi
           git config user.name "Fuel Dash Migration"
           git config user.email "actions@users.noreply.github.com"
           git add -A
