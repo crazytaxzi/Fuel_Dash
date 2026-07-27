@@ -48,6 +48,7 @@ jobs:
             'missing_bol.js',
             'missing_bol_driver_only.js',
             'worked_workflow.js',
+            'note_transition_toggle.js',
             'transition_export_v2.js',
             'pdf_converter.js'
           )
@@ -65,6 +66,7 @@ jobs:
           node tests/operating_layout_smoke.js
           node tests/live_bol_export_smoke.js
           node tests/worked_workflow_smoke.js
+          node tests/note_transition_toggle_smoke.js
           node tests/transition_export_v2_smoke.js
           node validate_dashboard.js
           if ($LASTEXITCODE -ne 0) { throw "Fuel Dash regression validation failed" }
