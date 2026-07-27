@@ -1,5 +1,5 @@
 Fuel Dash Beta
-Version: v2026.07.27-beta.9
+Version: v2026.07.27-beta.10
 Source: testing
 Report discovery: content-based; validated against sanitized operating layouts
-Workflow: Worked tab, blue completion state, and per-note shift-transition selection defaulting off
+Workflow: one Worked card and one completion toggle per saved note; transition selection remains per-note and defaults off
