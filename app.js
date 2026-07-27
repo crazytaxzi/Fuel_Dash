@@ -1817,6 +1817,8 @@
     return text(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
   }
   function isIdleExcludedDriver(driver) {
+    const manager = window.VixenReportExclusions;
+    if (manager?.matches) return manager.matches(driver);
     const rawName = String(driver?.driverName ?? "");
     const rawCode = String(driver?.driverCode ?? "");
     const codeCandidates = [

@@ -66,7 +66,7 @@
         <div><span class="eyebrow">LOCAL REPORT CONTROLS</span><h2>Exclusions</h2></div>
         <div class="exclusion-summary"><strong id="exclusionEnabledCount">0</strong><span>active</span></div>
       </div>
-      <div class="table-explainer"><strong>What this does:</strong> exclude matching drivers from idle averages, idle thresholds, high/best-idler rankings, and idle-related APU coaching. Driver rows remain available for audit and non-idle review. Exclusions are saved only in this browser.</div>
+      <div class="table-explainer"><strong>What this does:</strong> exclude matching drivers from idle averages, idle thresholds, high/best-idler rankings, and idle-related APU coaching. Driver rows remain available for audit and non-idle review. Truck matching applies when the source record includes a truck or unit assignment. Exclusions are saved only in this browser.</div>
       <form id="exclusionForm" class="exclusion-form" autocomplete="off">
         <label><span>Driver name</span><input id="exclusionNameInput" type="text" placeholder="Example: Jason Lucas" /></label>
         <label><span>Driver code</span><input id="exclusionCodeInput" type="text" placeholder="Example: 242051" /></label>
@@ -186,7 +186,7 @@
   function matches(record) {
     if (!record || typeof record !== "object") return false;
     const names = collectNames(record);
-    const codes = collectIds(record, ["driverCode", "driverId", "employeeCode", "employeeId", "code"]);
+    const codes = collectIds(record, ["driverCode", "driverId", "employeeCode", "employeeId", "code"], true);
     const trucks = collectIds(record, ["truck", "truckNumber", "unit", "unitNumber", "tractor", "tractorNumber", "assignedTruck"]);
 
     return entries.some((entry) => {
@@ -203,13 +203,13 @@
     return values.map(normalizeName).filter(Boolean);
   }
 
-  function collectIds(record, fields) {
+  function collectIds(record, fields, includeDriverName = false) {
     const values = new Set();
     for (const field of fields) {
       const normalized = normalizeId(record?.[field]);
       if (normalized) values.add(normalized);
     }
-    const text = fields.map((field) => String(record?.[field] ?? "")).join(" ") + ` ${record.driverName || ""}`;
+    const text = fields.map((field) => String(record?.[field] ?? "")).join(" ") + (includeDriverName ? ` ${record.driverName || ""}` : "");
     for (const match of text.match(/\b[A-Z0-9-]{4,}\b/gi) || []) {
       const normalized = normalizeId(match);
       if (normalized) values.add(normalized);
