@@ -3,6 +3,7 @@
 
   const SELECTION_KEY = "vixenTransitionNoteSelectionV1";
   const COMPLETE_KEY = "vixenWorkedNoteCompletionV2";
+  const OBSERVER_OPTIONS = { childList: true, subtree: true };
   const api = {
     enhanceAll,
     enhanceHistory,
@@ -49,8 +50,24 @@
       const noteId = type === "pta" ? deleteButton.dataset.ptaNoteDelete : deleteButton.dataset.driverNoteDelete;
       cleanupNoteState(type, noteId);
     });
-    new MutationObserver(() => enhanceHistory(history, type)).observe(history, { childList: true, subtree: true });
+
+    // Enhance once before observing. During later refreshes, disconnect while
+    // changing the watched subtree so our own controls and labels cannot wake
+    // the observer repeatedly and freeze the page.
     enhanceHistory(history, type);
+    let refreshing = false;
+    const observer = new MutationObserver(() => {
+      if (refreshing) return;
+      refreshing = true;
+      observer.disconnect();
+      try {
+        enhanceHistory(history, type);
+      } finally {
+        observer.observe(history, OBSERVER_OPTIONS);
+        refreshing = false;
+      }
+    });
+    observer.observe(history, OBSERVER_OPTIONS);
   }
 
   function enhanceAll() {
@@ -83,13 +100,17 @@
         entry.append(row);
       }
       const transitionToggle = row.querySelector("[data-transition-note-toggle]");
-      transitionToggle.dataset.noteId = noteId;
-      transitionToggle.checked = isIncluded(type, noteId);
-      updateTransitionLabel(transitionToggle);
+      if (transitionToggle) {
+        transitionToggle.dataset.noteId = noteId;
+        transitionToggle.checked = isIncluded(type, noteId);
+        updateTransitionLabel(transitionToggle);
+      }
       const completeToggle = row.querySelector("[data-complete-note-toggle]");
-      completeToggle.dataset.noteId = noteId;
-      completeToggle.checked = isComplete(type, noteId);
-      updateCompleteLabel(completeToggle);
+      if (completeToggle) {
+        completeToggle.dataset.noteId = noteId;
+        completeToggle.checked = isComplete(type, noteId);
+        updateCompleteLabel(completeToggle);
+      }
     });
   }
 
@@ -166,12 +187,14 @@
 
   function updateTransitionLabel(toggle) {
     const label = toggle.closest(".note-state-choice")?.querySelector("b");
-    if (label) label.textContent = toggle.checked ? "Included in transition" : "Not in transition";
+    const nextText = toggle.checked ? "Included in transition" : "Not in transition";
+    if (label && label.textContent !== nextText) label.textContent = nextText;
   }
 
   function updateCompleteLabel(toggle) {
     const label = toggle.closest(".note-state-choice")?.querySelector("b");
-    if (label) label.textContent = toggle.checked ? "Follow-up complete" : "Follow-up open";
+    const nextText = toggle.checked ? "Follow-up complete" : "Follow-up open";
+    if (label && label.textContent !== nextText) label.textContent = nextText;
   }
 
   function installStyles() {
