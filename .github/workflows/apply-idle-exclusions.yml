@@ -24,9 +24,13 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
+          from textwrap import dedent
 
           path = Path("app.js")
           text = path.read_text(encoding="utf-8")
+
+          def block(value):
+              return dedent(value).lstrip("\n")
 
           def replace_once(old, new):
               global text
@@ -37,70 +41,75 @@ jobs:
 
           replace_once(
               '  const DRIVER_ACTION_NOTES_KEY = "vixenDriverActionNotesV1";\n',
-              '''  const DRIVER_ACTION_NOTES_KEY = "vixenDriverActionNotesV1";
-          const IDLE_EXCLUDED_DRIVER_NAME_TOKENS = Object.freeze([
-            Object.freeze(["kevin", "lammerding"]),
-            Object.freeze(["jason", "lucas"]),
-            Object.freeze(["ferris", "rust"]),
-            Object.freeze(["dion", "pajimola"]),
-            Object.freeze(["robert", "newson"]),
-            Object.freeze(["paul", "thibodo"]),
-            Object.freeze(["chris", "covington"]),
-          ]);
-          const IDLE_EXCLUDED_DRIVER_CODES = new Set(["242051"]);
-          window.VixenIdleExclusions = Object.freeze({
-            isExcluded: isIdleExcludedDriver,
-            names: Object.freeze([
-              "Kevin Lammerding",
-              "Jason Lucas",
-              "Ferris Rust",
-              "Dion Pajimola",
-              "Robert Newson",
-              "Paul Thibodo",
-              "Aaron (242051)",
-              "Chris Covington",
-            ]),
-            codes: Object.freeze([...IDLE_EXCLUDED_DRIVER_CODES]),
-          });
-          '''
+              block('''
+                const DRIVER_ACTION_NOTES_KEY = "vixenDriverActionNotesV1";
+                const IDLE_EXCLUDED_DRIVER_NAME_TOKENS = Object.freeze([
+                  Object.freeze(["kevin", "lammerding"]),
+                  Object.freeze(["jason", "lucas"]),
+                  Object.freeze(["ferris", "rust"]),
+                  Object.freeze(["dion", "pajimola"]),
+                  Object.freeze(["robert", "newson"]),
+                  Object.freeze(["paul", "thibodo"]),
+                  Object.freeze(["chris", "covington"]),
+                ]);
+                const IDLE_EXCLUDED_DRIVER_CODES = new Set(["242051"]);
+                window.VixenIdleExclusions = Object.freeze({
+                  isExcluded: isIdleExcludedDriver,
+                  names: Object.freeze([
+                    "Kevin Lammerding",
+                    "Jason Lucas",
+                    "Ferris Rust",
+                    "Dion Pajimola",
+                    "Robert Newson",
+                    "Paul Thibodo",
+                    "Aaron (242051)",
+                    "Chris Covington",
+                  ]),
+                  codes: Object.freeze([...IDLE_EXCLUDED_DRIVER_CODES]),
+                });
+              ''')
           )
 
           replace_once(
-              '''  function normalizeIdentity(value) {
-            return text(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
-          }
-          ''',
-              '''  function normalizeIdentity(value) {
-            return text(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
-          }
+              block('''
+                function normalizeIdentity(value) {
+                  return text(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
+                }
+              '''),
+              block('''
+                function normalizeIdentity(value) {
+                  return text(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
+                }
 
-          function isIdleExcludedDriver(driver) {
-            const rawName = String(driver?.driverName ?? "");
-            const rawCode = String(driver?.driverCode ?? "");
-            const codeCandidates = [
-              normalizeIdentity(rawCode),
-              ...((`${rawCode} ${rawName}`).match(/\\b\\d{4,}\\b/g) || []).map(normalizeIdentity),
-            ].filter(Boolean);
-            if (codeCandidates.some((code) => IDLE_EXCLUDED_DRIVER_CODES.has(code))) return true;
-            const nameTokens = new Set((rawName.toLowerCase().match(/[a-z]+/g) || []));
-            return IDLE_EXCLUDED_DRIVER_NAME_TOKENS.some((required) => required.every((token) => nameTokens.has(token)));
-          }
-          '''
+                function isIdleExcludedDriver(driver) {
+                  const rawName = String(driver?.driverName ?? "");
+                  const rawCode = String(driver?.driverCode ?? "");
+                  const codeCandidates = [
+                    normalizeIdentity(rawCode),
+                    ...((`${rawCode} ${rawName}`).match(/\\b\\d{4,}\\b/g) || []).map(normalizeIdentity),
+                  ].filter(Boolean);
+                  if (codeCandidates.some((code) => IDLE_EXCLUDED_DRIVER_CODES.has(code))) return true;
+                  const nameTokens = new Set((rawName.toLowerCase().match(/[a-z]+/g) || []));
+                  return IDLE_EXCLUDED_DRIVER_NAME_TOKENS.some((required) => required.every((token) => nameTokens.has(token)));
+                }
+              ''')
           )
 
           replace_once(
-              '''    const raw = base.map((record) => {
-            const mpg = mpgByCode.get(normalizeIdentity(record.driverCode)) || mpgByName.get(normalizeIdentity(record.driverName));
-            return {
-              ...record,
-          ''',
-              '''    const raw = base.map((record) => {
-            const mpg = mpgByCode.get(normalizeIdentity(record.driverCode)) || mpgByName.get(normalizeIdentity(record.driverName));
-            const idleExcluded = isIdleExcludedDriver(record);
-            return {
-              ...record,
-              idleExcluded,
-          '''
+              block('''
+                const raw = base.map((record) => {
+                  const mpg = mpgByCode.get(normalizeIdentity(record.driverCode)) || mpgByName.get(normalizeIdentity(record.driverName));
+                  return {
+                    ...record,
+              '''),
+              block('''
+                const raw = base.map((record) => {
+                  const mpg = mpgByCode.get(normalizeIdentity(record.driverCode)) || mpgByName.get(normalizeIdentity(record.driverName));
+                  const idleExcluded = isIdleExcludedDriver(record);
+                  return {
+                    ...record,
+                    idleExcluded,
+              ''')
           )
 
           replace_once(
@@ -119,15 +128,17 @@ jobs:
           )
 
           replace_once(
-              '''      return {
-                ...start,
-                dispatchMiles: metricValue("Rolling 28 Day Dispatch Miles"),
-          ''',
-              '''      return {
-                ...start,
-                idleExcluded: isIdleExcludedDriver(start),
-                dispatchMiles: metricValue("Rolling 28 Day Dispatch Miles"),
-          '''
+              block('''
+                return {
+                  ...start,
+                  dispatchMiles: metricValue("Rolling 28 Day Dispatch Miles"),
+              '''),
+              block('''
+                return {
+                  ...start,
+                  idleExcluded: isIdleExcludedDriver(start),
+                  dispatchMiles: metricValue("Rolling 28 Day Dispatch Miles"),
+              ''')
           )
 
           replace_once(
@@ -136,15 +147,17 @@ jobs:
           )
 
           replace_once(
-              '''      return {
-                driverLeader: "Not reported", driverCode: record.driverCode || "", driverName: record.driverName || record.unit || "Unknown driver",
-                managerMatch: "", dispatchMiles: null, drivingFuel: null, fuelGallons: null, qualcommMiles: null,
-          ''',
-              '''      return {
-                driverLeader: "Not reported", driverCode: record.driverCode || "", driverName: record.driverName || record.unit || "Unknown driver",
-                idleExcluded: isIdleExcludedDriver(record),
-                managerMatch: "", dispatchMiles: null, drivingFuel: null, fuelGallons: null, qualcommMiles: null,
-          '''
+              block('''
+                return {
+                  driverLeader: "Not reported", driverCode: record.driverCode || "", driverName: record.driverName || record.unit || "Unknown driver",
+                  managerMatch: "", dispatchMiles: null, drivingFuel: null, fuelGallons: null, qualcommMiles: null,
+              '''),
+              block('''
+                return {
+                  driverLeader: "Not reported", driverCode: record.driverCode || "", driverName: record.driverName || record.unit || "Unknown driver",
+                  idleExcluded: isIdleExcludedDriver(record),
+                  managerMatch: "", dispatchMiles: null, drivingFuel: null, fuelGallons: null, qualcommMiles: null,
+              ''')
           )
 
           replace_once(
@@ -158,35 +171,37 @@ jobs:
           )
 
           replace_once(
-              '''    const idle7Values = drivers.records.map((driver) => driver.idle7DayPct).filter(isFiniteNumber);
-              const idle28Values = drivers.records.map((driver) => driver.idle28DayPct).filter(isFiniteNumber);
-              const idle7Average = idle7Values.length ? average(idle7Values) : null;
-              const idle28Average = idle28Values.length ? average(idle28Values) : null;
-              els.kpiIdle7Day.textContent = pct(idle7Average, 1);
-              els.kpiIdle7DayNote.textContent = `${formatCount(idle7Values.length)} driver${idle7Values.length === 1 ? "" : "s"} with 7-day data`;
-              els.kpiIdle7DayBar.style.width = `${clamp((idle7Average || 0) * 100, idle7Average === null ? 0 : 4, 100)}%`;
-              els.kpiIdle28Day.textContent = pct(idle28Average, 1);
-              els.kpiIdle28DayNote.textContent = `${formatCount(idle28Values.length)} driver${idle28Values.length === 1 ? "" : "s"} with 28-day data`;
-              els.kpiIdle28DayBar.style.width = `${clamp((idle28Average || 0) * 100, idle28Average === null ? 0 : 4, 100)}%`;
+              block('''
+                const idle7Values = drivers.records.map((driver) => driver.idle7DayPct).filter(isFiniteNumber);
+                const idle28Values = drivers.records.map((driver) => driver.idle28DayPct).filter(isFiniteNumber);
+                const idle7Average = idle7Values.length ? average(idle7Values) : null;
+                const idle28Average = idle28Values.length ? average(idle28Values) : null;
+                els.kpiIdle7Day.textContent = pct(idle7Average, 1);
+                els.kpiIdle7DayNote.textContent = `${formatCount(idle7Values.length)} driver${idle7Values.length === 1 ? "" : "s"} with 7-day data`;
+                els.kpiIdle7DayBar.style.width = `${clamp((idle7Average || 0) * 100, idle7Average === null ? 0 : 4, 100)}%`;
+                els.kpiIdle28Day.textContent = pct(idle28Average, 1);
+                els.kpiIdle28DayNote.textContent = `${formatCount(idle28Values.length)} driver${idle28Values.length === 1 ? "" : "s"} with 28-day data`;
+                els.kpiIdle28DayBar.style.width = `${clamp((idle28Average || 0) * 100, idle28Average === null ? 0 : 4, 100)}%`;
 
-              const idleRecords = drivers.records.filter((driver) => isFiniteNumber(currentIdlePct(driver)));
-          ''',
-              '''    const idleEligibleRecords = drivers.records.filter((driver) => !driver.idleExcluded);
-              const idleExcludedCount = drivers.records.length - idleEligibleRecords.length;
-              const idleExclusionNote = idleExcludedCount ? ` · ${formatCount(idleExcludedCount)} excluded` : "";
-              const idle7Values = idleEligibleRecords.map((driver) => driver.idle7DayPct).filter(isFiniteNumber);
-              const idle28Values = idleEligibleRecords.map((driver) => driver.idle28DayPct).filter(isFiniteNumber);
-              const idle7Average = idle7Values.length ? average(idle7Values) : null;
-              const idle28Average = idle28Values.length ? average(idle28Values) : null;
-              els.kpiIdle7Day.textContent = pct(idle7Average, 1);
-              els.kpiIdle7DayNote.textContent = `${formatCount(idle7Values.length)} driver${idle7Values.length === 1 ? "" : "s"} with 7-day data${idleExclusionNote}`;
-              els.kpiIdle7DayBar.style.width = `${clamp((idle7Average || 0) * 100, idle7Average === null ? 0 : 4, 100)}%`;
-              els.kpiIdle28Day.textContent = pct(idle28Average, 1);
-              els.kpiIdle28DayNote.textContent = `${formatCount(idle28Values.length)} driver${idle28Values.length === 1 ? "" : "s"} with 28-day data${idleExclusionNote}`;
-              els.kpiIdle28DayBar.style.width = `${clamp((idle28Average || 0) * 100, idle28Average === null ? 0 : 4, 100)}%`;
+                const idleRecords = drivers.records.filter((driver) => isFiniteNumber(currentIdlePct(driver)));
+              '''),
+              block('''
+                const idleEligibleRecords = drivers.records.filter((driver) => !driver.idleExcluded);
+                const idleExcludedCount = drivers.records.length - idleEligibleRecords.length;
+                const idleExclusionNote = idleExcludedCount ? ` · ${formatCount(idleExcludedCount)} excluded` : "";
+                const idle7Values = idleEligibleRecords.map((driver) => driver.idle7DayPct).filter(isFiniteNumber);
+                const idle28Values = idleEligibleRecords.map((driver) => driver.idle28DayPct).filter(isFiniteNumber);
+                const idle7Average = idle7Values.length ? average(idle7Values) : null;
+                const idle28Average = idle28Values.length ? average(idle28Values) : null;
+                els.kpiIdle7Day.textContent = pct(idle7Average, 1);
+                els.kpiIdle7DayNote.textContent = `${formatCount(idle7Values.length)} driver${idle7Values.length === 1 ? "" : "s"} with 7-day data${idleExclusionNote}`;
+                els.kpiIdle7DayBar.style.width = `${clamp((idle7Average || 0) * 100, idle7Average === null ? 0 : 4, 100)}%`;
+                els.kpiIdle28Day.textContent = pct(idle28Average, 1);
+                els.kpiIdle28DayNote.textContent = `${formatCount(idle28Values.length)} driver${idle28Values.length === 1 ? "" : "s"} with 28-day data${idleExclusionNote}`;
+                els.kpiIdle28DayBar.style.width = `${clamp((idle28Average || 0) * 100, idle28Average === null ? 0 : 4, 100)}%`;
 
-              const idleRecords = idleEligibleRecords.filter((driver) => isFiniteNumber(currentIdlePct(driver)));
-          '''
+                const idleRecords = idleEligibleRecords.filter((driver) => isFiniteNumber(currentIdlePct(driver)));
+              ''')
           )
 
           path.write_text(text, encoding="utf-8")
@@ -200,12 +215,7 @@ jobs:
           node <<'NODE'
           const fs = require('fs');
           const vm = require('vm');
-          const document = {
-            addEventListener: () => {},
-            querySelector: () => null,
-            querySelectorAll: () => [],
-            getElementById: () => null,
-          };
+          const document = { addEventListener: () => {}, querySelector: () => null, querySelectorAll: () => [], getElementById: () => null };
           const localStorage = { getItem: () => null, setItem: () => {} };
           const window = { addEventListener: () => {}, setTimeout: () => {}, setInterval: () => {}, localStorage };
           const sandbox = { console, window, document, localStorage, location: { protocol: 'http:' }, File: function(){}, fetch: async () => ({ ok: false }) };
