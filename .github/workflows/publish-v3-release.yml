@@ -64,6 +64,7 @@ jobs:
             database/worked-navigation-fix.js
             database/worked-open-queue.js
             database/exclusion-manager.js
+            database/idle-history-ui.js
           )
           for script in "${scripts[@]}"; do
             if [[ -f "$script" ]]; then
@@ -135,7 +136,8 @@ jobs:
               "- Searchable PTA history and change alerts\n"
               "- Worked entries that open the correct truck or driver details and show only open follow-ups\n"
               "- Editable Exclusions tab for driver names, driver codes, and truck numbers\n"
-              "- Exclusions applied to fleet idle averages, thresholds, rankings, and idle-related APU coaching\n"
+              "- Exclusions applied to fleet idle averages, thresholds, rankings, historical charts, and idle-related APU coaching\n"
+              "- Four-week 7-day and 28-day fleet idle history in Hero Insight and Weekly Trend\n"
               "- Existing fuel, idle, APU, Missing BOL, and shift-transition tools\n\n"
               "## Privacy\n\n"
               "Operational PTA data, notes, and saved exclusions are not included in this release and are not uploaded to GitHub. They remain in the browser profile on the computer running the dashboard.\n\n"
