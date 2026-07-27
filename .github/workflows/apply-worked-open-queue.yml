@@ -1,0 +1,141 @@
+name: Apply Worked open-follow-up queue
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/apply-worked-open-queue.txt
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Hide completed Worked notes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("worked_workflow.js")
+          text = path.read_text(encoding="utf-8")
+          replacements = [
+              (
+                  '            <span class="worked-legend-done">Complete</span>\n',
+                  '',
+              ),
+              (
+                  '        <div class="table-explainer"><strong>At a glance:</strong> every saved note is tracked separately. Recent unfinished notes stay yellow for one hour, older unfinished notes turn red, and notes marked complete in their popup turn blue.</div>',
+                  '        <div class="table-explainer"><strong>At a glance:</strong> only open follow-ups appear here. Recent open notes stay yellow for one hour, older open notes turn red, and completed notes leave the queue until another follow-up is marked open.</div>',
+              ),
+              (
+                  '        <div id="workedEmptyState" class="worked-empty-state">No PTA or driver follow-up notes have been saved yet.</div>',
+                  '        <div id="workedEmptyState" class="worked-empty-state">No open PTA or driver follow-ups.</div>',
+              ),
+              (
+                  '''    return items
+      .map((item) => ({ ...item, overdue: !item.done && now - item.note.time > ONE_HOUR_MS }))
+      .sort((a, b) => Number(a.done) - Number(b.done) || Number(b.overdue) - Number(a.overdue) || b.note.time - a.note.time);''',
+                  '''    return items
+      .filter((item) => !item.done)
+      .map((item) => ({ ...item, overdue: now - item.note.time > ONE_HOUR_MS }))
+      .sort((a, b) => Number(b.overdue) - Number(a.overdue) || b.note.time - a.note.time);''',
+              ),
+              (
+                  '      const stateClass = item.done ? "worked-card-done" : item.overdue ? "worked-card-overdue" : "";',
+                  '      const stateClass = item.overdue ? "worked-card-overdue" : "";',
+              ),
+              (
+                  '      const stateLabel = item.done ? "Complete" : item.overdue ? "Needs follow-up" : `${Math.max(1, 60 - ageMinutes)} min left`;',
+                  '      const stateLabel = item.overdue ? "Needs follow-up" : `${Math.max(1, 60 - ageMinutes)} min left`;',
+              ),
+              (
+                  '        <span class="worked-card-icon">${item.done ? "✓" : item.overdue ? "!" : "•"}</span>',
+                  '        <span class="worked-card-icon">${item.overdue ? "!" : "•"}</span>',
+              ),
+              (
+                  '    if (badge) badge.textContent = String(items.filter((item) => !item.done).length);',
+                  '    if (badge) badge.textContent = String(items.length);',
+              ),
+          ]
+
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"Expected one match, found {count}: {old[:90]!r}")
+              text = text.replace(old, new, 1)
+
+          path.write_text(text, encoding="utf-8")
+          Path("VERSION").write_text("3.9.2\n", encoding="utf-8")
+
+      - name: Validate queue behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check worked_workflow.js
+          node <<'NODE'
+          const fs = require('fs');
+          const vm = require('vm');
+          const storage = new Map();
+          const localStorage = {
+            getItem: (key) => storage.has(key) ? storage.get(key) : null,
+            setItem: (key, value) => storage.set(key, String(value)),
+          };
+          const document = {
+            querySelector: () => null,
+            querySelectorAll: () => [],
+            getElementById: () => null,
+            addEventListener: () => {},
+            createElement: () => ({}),
+            head: { append: () => {} },
+          };
+          const window = {
+            addEventListener: () => {},
+            setTimeout: () => {},
+            setInterval: () => {},
+          };
+          const sandbox = { console, Date, localStorage, document, window };
+          window.document = document;
+          window.localStorage = localStorage;
+          vm.runInNewContext(fs.readFileSync('worked_workflow.js', 'utf8'), sandbox);
+          const api = window.VixenWorkedWorkflow;
+          const now = Date.now();
+          const notes = {
+            T100: [
+              { id: 'complete-note', savedAt: new Date(now - 1000).toISOString(), text: 'done' },
+              { id: 'open-note', savedAt: new Date(now - 2000).toISOString(), text: 'open' },
+            ],
+          };
+          const oneOpen = api.collectWorkedItems(now, notes, {}, {
+            'pta:complete-note': { complete: true, completedAt: new Date(now).toISOString() },
+            'pta:open-note': { complete: false, completedAt: null },
+          });
+          if (oneOpen.length !== 1 || oneOpen[0].noteId !== 'open-note') {
+            throw new Error('Worked must show only the open note.');
+          }
+          const allComplete = api.collectWorkedItems(now, notes, {}, {
+            'pta:complete-note': { complete: true },
+            'pta:open-note': { complete: true },
+          });
+          if (allComplete.length !== 0) throw new Error('All-complete follow-ups must leave Worked.');
+          const defaultComplete = api.collectWorkedItems(now, notes, {}, {});
+          if (defaultComplete.length !== 0) throw new Error('Missing completion state must remain complete by default.');
+          NODE
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add worked_workflow.js VERSION
+          git commit -m "Hide completed notes from Worked"
+          git push origin main
