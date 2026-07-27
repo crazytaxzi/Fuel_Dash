@@ -81,6 +81,9 @@ function Get-ServedFileBytes([string]$Candidate) {
         if ($Html -notmatch 'worked_workflow\.js') {
             $ScriptTags += '<script src="worked_workflow.js"></script>'
         }
+        if ($Html -notmatch 'note_transition_toggle\.js') {
+            $ScriptTags += '<script src="note_transition_toggle.js"></script>'
+        }
         if ($Html -notmatch 'transition_export_v2\.js') {
             $ScriptTags += '<script src="transition_export_v2.js"></script>'
         }
