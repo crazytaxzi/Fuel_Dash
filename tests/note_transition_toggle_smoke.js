@@ -3,6 +3,11 @@ const fs = require("fs");
 const vm = require("vm");
 const assert = require("node:assert/strict");
 
+const source = fs.readFileSync("note_transition_toggle.js", "utf8");
+assert.match(source, /observer\.disconnect\(\)/, "history observer must disconnect before enhancing its own subtree");
+assert.match(source, /label\.textContent !== nextText/, "status labels must not rewrite unchanged text nodes");
+assert.match(source, /observer\.observe\(history, OBSERVER_OPTIONS\)/, "history observer must resume after a guarded enhancement");
+
 const store = new Map();
 const localStorage = {
   getItem(key) { return store.get(key) ?? null; },
@@ -25,10 +30,10 @@ const context = {
   String,
   Object,
   Array,
-  MutationObserver: class { observe() {} },
+  MutationObserver: class { observe() {} disconnect() {} },
 };
 vm.createContext(context);
-vm.runInContext(fs.readFileSync("note_transition_toggle.js", "utf8"), context, { filename: "note_transition_toggle.js" });
+vm.runInContext(source, context, { filename: "note_transition_toggle.js" });
 
 const api = window.VixenNoteTransitionToggle;
 assert.ok(api);
@@ -43,4 +48,4 @@ assert.equal(api.isComplete("pta", "note-1"), true);
 assert.equal(api.isComplete("pta", "note-2"), false, "completion must be per-note");
 assert.equal(api.setComplete("pta", "note-1", false), true);
 assert.equal(api.isComplete("pta", "note-1"), false);
-console.log("Per-note transition and completion toggle smoke test passed.");
+console.log("Per-note controls and observer-loop guard smoke test passed.");
