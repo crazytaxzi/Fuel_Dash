@@ -2,8 +2,9 @@
   "use strict";
   const PTA_NOTES_KEY = "vixenPtaActionNotesV1";
   const DRIVER_NOTES_KEY = "vixenDriverActionNotesV1";
+  const NOTE_SELECTION_KEY = "vixenTransitionNoteSelectionV1";
 
-  const api = { buildTransition, aggregateToday, sameLocalDay };
+  const api = { buildTransition, aggregateToday, sameLocalDay, noteIncluded };
   window.VixenTransitionExport = api;
   window.addEventListener("click", intercept, true);
 
@@ -24,9 +25,14 @@
     window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   }
 
-  function buildTransition(now = new Date(), ptaNotes = readObject(PTA_NOTES_KEY), driverNotes = readObject(DRIVER_NOTES_KEY)) {
-    const truckLines = aggregateToday(ptaNotes, now, (key) => key);
-    const driverLines = aggregateToday(driverNotes, now, (key, notes) => notes[0]?.driverName || notes[0]?.driverCode || key);
+  function buildTransition(
+    now = new Date(),
+    ptaNotes = readObject(PTA_NOTES_KEY),
+    driverNotes = readObject(DRIVER_NOTES_KEY),
+    selections = readObject(NOTE_SELECTION_KEY),
+  ) {
+    const truckLines = aggregateToday(ptaNotes, now, (key) => key, "pta", selections);
+    const driverLines = aggregateToday(driverNotes, now, (key, notes) => notes[0]?.driverName || notes[0]?.driverCode || key, "driver", selections);
     return [
       "SHIFT TRANSITION",
       `Prepared: ${now.toLocaleString()}`,
@@ -40,15 +46,21 @@
     ].join("\r\n");
   }
 
-  function aggregateToday(groups, now, labelFor) {
+  function aggregateToday(groups, now, labelFor, type, selections = {}) {
     return Object.entries(groups || {}).map(([key, values]) => {
       const notes = (Array.isArray(values) ? values : [])
-        .filter((note) => sameLocalDay(note.savedAt, now))
+        .filter((note) => sameLocalDay(note.savedAt, now) && noteIncluded(type, note, selections))
         .sort((a, b) => new Date(a.savedAt) - new Date(b.savedAt));
       if (!notes.length) return null;
       const combined = notes.map((note) => cleanLine(note.text)).filter(Boolean).join(" | ");
       return `${labelFor(key, notes)} - ${combined || "Note saved without text"}`;
     }).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }
+
+  function noteIncluded(type, note, selections = {}) {
+    const noteId = String(note?.id ?? "").trim();
+    if (!noteId) return false;
+    return selections[`${type}:${noteId}`] === true;
   }
 
   function sameLocalDay(value, reference) {
