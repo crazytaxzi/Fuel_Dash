@@ -25,6 +25,180 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - name: Apply designated idle exclusions
+        id: patch_commit
+        shell: python
+        run: |
+          from pathlib import Path
+          from textwrap import dedent
+          import subprocess
+
+          path = Path("app.js")
+          text = path.read_text(encoding="utf-8")
+
+          def once(old, new):
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"Expected one match, found {count}: {old[:120]!r}")
+              text = text.replace(old, new, 1)
+
+          if "IDLE_EXCLUDED_DRIVER_NAME_TOKENS" not in text:
+              once(
+                  '  const DRIVER_ACTION_NOTES_KEY = "vixenDriverActionNotesV1";\n',
+                  dedent('''\
+                    const DRIVER_ACTION_NOTES_KEY = "vixenDriverActionNotesV1";
+                    const IDLE_EXCLUDED_DRIVER_NAME_TOKENS = Object.freeze([
+                      Object.freeze(["kevin", "lammerding"]),
+                      Object.freeze(["jason", "lucas"]),
+                      Object.freeze(["ferris", "rust"]),
+                      Object.freeze(["dion", "pajimola"]),
+                      Object.freeze(["robert", "newson"]),
+                      Object.freeze(["paul", "thibodo"]),
+                      Object.freeze(["chris", "covington"]),
+                    ]);
+                    const IDLE_EXCLUDED_DRIVER_CODES = new Set(["242051"]);
+                    window.VixenIdleExclusions = Object.freeze({
+                      isExcluded: isIdleExcludedDriver,
+                      names: Object.freeze([
+                        "Kevin Lammerding",
+                        "Jason Lucas",
+                        "Ferris Rust",
+                        "Dion Pajimola",
+                        "Robert Newson",
+                        "Paul Thibodo",
+                        "Aaron (242051)",
+                        "Chris Covington",
+                      ]),
+                      codes: Object.freeze([...IDLE_EXCLUDED_DRIVER_CODES]),
+                    });
+                  ''')
+              )
+
+              identity_block = dedent('''\
+                function normalizeIdentity(value) {
+                  return text(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
+                }
+              ''')
+              helper_block = identity_block + dedent('''\
+
+                function isIdleExcludedDriver(driver) {
+                  const rawName = String(driver?.driverName ?? "");
+                  const rawCode = String(driver?.driverCode ?? "");
+                  const codeCandidates = [
+                    normalizeIdentity(rawCode),
+                    ...((`${rawCode} ${rawName}`).match(/\\b\\d{4,}\\b/g) || []).map(normalizeIdentity),
+                  ].filter(Boolean);
+                  if (codeCandidates.some((code) => IDLE_EXCLUDED_DRIVER_CODES.has(code))) return true;
+                  const nameTokens = new Set((rawName.toLowerCase().match(/[a-z]+/g) || []));
+                  return IDLE_EXCLUDED_DRIVER_NAME_TOKENS.some((required) => required.every((token) => nameTokens.has(token)));
+                }
+              ''')
+              once(identity_block, helper_block)
+
+              once(
+                  '      const mpg = mpgByCode.get(normalizeIdentity(record.driverCode)) || mpgByName.get(normalizeIdentity(record.driverName));\n      return {\n        ...record,',
+                  '      const mpg = mpgByCode.get(normalizeIdentity(record.driverCode)) || mpgByName.get(normalizeIdentity(record.driverName));\n      const idleExcluded = isIdleExcludedDriver(record);\n      return {\n        ...record,\n        idleExcluded,'
+              )
+              once(
+                  '    const idleValues = raw.map((driver) => driver.idlePct).filter(isFiniteNumber);',
+                  '    const idleValues = raw.filter((driver) => !driver.idleExcluded).map((driver) => driver.idlePct).filter(isFiniteNumber);'
+              )
+
+              high_idle = '      const highIdle = driver.idlePct !== null && driver.idlePct > idleThreshold;'
+              if text.count(high_idle) != 2:
+                  raise SystemExit(f"Expected two high-idle checks, found {text.count(high_idle)}")
+              text = text.replace(high_idle, '      const highIdle = !driver.idleExcluded && driver.idlePct !== null && driver.idlePct > idleThreshold;')
+
+              once(
+                  '    }).sort((a, b) => (b.idlePct || 0) - (a.idlePct || 0));',
+                  '    }).sort((a, b) => Number(a.idleExcluded) - Number(b.idleExcluded) || (b.idlePct || 0) - (a.idlePct || 0));'
+              )
+              once(
+                  '      return {\n        ...start,\n        dispatchMiles: metricValue("Rolling 28 Day Dispatch Miles"),',
+                  '      return {\n        ...start,\n        idleExcluded: isIdleExcludedDriver(start),\n        dispatchMiles: metricValue("Rolling 28 Day Dispatch Miles"),'
+              )
+              once(
+                  '    const idleThreshold = percentile(rawDrivers.map((driver) => driver.idlePct).filter(isFiniteNumber), 0.5);',
+                  '    const idleThreshold = percentile(rawDrivers.filter((driver) => !driver.idleExcluded).map((driver) => driver.idlePct).filter(isFiniteNumber), 0.5);'
+              )
+              once(
+                  '        driverLeader: "Not reported", driverCode: record.driverCode || "", driverName: record.driverName || record.unit || "Unknown driver",\n        managerMatch:',
+                  '        driverLeader: "Not reported", driverCode: record.driverCode || "", driverName: record.driverName || record.unit || "Unknown driver",\n        idleExcluded: isIdleExcludedDriver(record),\n        managerMatch:'
+              )
+              once(
+                  '    return { records, totals, targetMpg: 0, idleThreshold: percentile(records.map((r) => r.idlePct).filter(isFiniteNumber), .5), oorThreshold: 0, movingThreshold: 0, currentDate: latestWeek, planningPpg };',
+                  '    return { records, totals, targetMpg: 0, idleThreshold: percentile(records.filter((r) => !r.idleExcluded).map((r) => r.idlePct).filter(isFiniteNumber), .5), oorThreshold: 0, movingThreshold: 0, currentDate: latestWeek, planningPpg };'
+              )
+              once(
+                  '      const highDriverIdle = driverIdlePct !== null && driverIdlePct > drivers.idleThreshold;',
+                  '      const highDriverIdle = !linkedDriver?.idleExcluded && driverIdlePct !== null && driverIdlePct > drivers.idleThreshold;'
+              )
+              once(
+                  '    const idle7Values = drivers.records.map((driver) => driver.idle7DayPct).filter(isFiniteNumber);',
+                  '    const idleEligibleRecords = drivers.records.filter((driver) => !driver.idleExcluded);\n    const idleExcludedCount = drivers.records.length - idleEligibleRecords.length;\n    const idleExclusionNote = idleExcludedCount ? ` · ${formatCount(idleExcludedCount)} excluded` : "";\n    const idle7Values = idleEligibleRecords.map((driver) => driver.idle7DayPct).filter(isFiniteNumber);'
+              )
+              once(
+                  '    const idle28Values = drivers.records.map((driver) => driver.idle28DayPct).filter(isFiniteNumber);',
+                  '    const idle28Values = idleEligibleRecords.map((driver) => driver.idle28DayPct).filter(isFiniteNumber);'
+              )
+              once(
+                  '    els.kpiIdle7DayNote.textContent = `${formatCount(idle7Values.length)} driver${idle7Values.length === 1 ? "" : "s"} with 7-day data`;',
+                  '    els.kpiIdle7DayNote.textContent = `${formatCount(idle7Values.length)} driver${idle7Values.length === 1 ? "" : "s"} with 7-day data${idleExclusionNote}`;'
+              )
+              once(
+                  '    els.kpiIdle28DayNote.textContent = `${formatCount(idle28Values.length)} driver${idle28Values.length === 1 ? "" : "s"} with 28-day data`;',
+                  '    els.kpiIdle28DayNote.textContent = `${formatCount(idle28Values.length)} driver${idle28Values.length === 1 ? "" : "s"} with 28-day data${idleExclusionNote}`;'
+              )
+              once(
+                  '    const idleRecords = drivers.records.filter((driver) => isFiniteNumber(currentIdlePct(driver)));',
+                  '    const idleRecords = idleEligibleRecords.filter((driver) => isFiniteNumber(currentIdlePct(driver)));'
+              )
+
+              path.write_text(text, encoding="utf-8")
+
+          Path("VERSION").write_text("3.9.3\n", encoding="utf-8")
+
+          subprocess.run(["node", "--check", "app.js"], check=True)
+          test = r'''
+          const fs = require("fs");
+          const vm = require("vm");
+          const document = { addEventListener: () => {}, querySelector: () => null, querySelectorAll: () => [], getElementById: () => null };
+          const localStorage = { getItem: () => null, setItem: () => {} };
+          const window = { addEventListener: () => {}, setTimeout: () => {}, setInterval: () => {}, localStorage };
+          vm.runInNewContext(fs.readFileSync("app.js", "utf8"), { console, window, document, localStorage, location: { protocol: "http:" }, File: function(){}, fetch: async () => ({ ok: false }) });
+          const api = window.VixenIdleExclusions;
+          const excluded = [
+            { driverName: "Kevin Lammerding" },
+            { driverName: "LUCAS, JASON" },
+            { driverName: "Ferris Rust" },
+            { driverName: "Dion Pajimola" },
+            { driverName: "Robert Newson" },
+            { driverName: "Paul Thibodo" },
+            { driverName: "Aaron", driverCode: "242051" },
+            { driverName: "242051 Aaron" },
+            { driverName: "Chris Covington" },
+          ];
+          if (!api || excluded.some((driver) => !api.isExcluded(driver))) throw new Error("An idle exclusion did not match.");
+          if (api.isExcluded({ driverName: "Aaron Smith", driverCode: "999999" })) throw new Error("Aaron exclusion is too broad.");
+          const source = fs.readFileSync("app.js", "utf8");
+          for (const required of ["raw.filter((driver) => !driver.idleExcluded)", "rawDrivers.filter((driver) => !driver.idleExcluded)", "const idleEligibleRecords = drivers.records.filter((driver) => !driver.idleExcluded);", "!linkedDriver?.idleExcluded"]) {
+            if (!source.includes(required)) throw new Error(`Missing idle exclusion integration: ${required}`);
+          }
+          '''
+          subprocess.run(["node", "-e", test], check=True)
+
+          subprocess.run(["git", "config", "user.name", "github-actions[bot]"], check=True)
+          subprocess.run(["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"], check=True)
+          subprocess.run(["git", "add", "app.js", "VERSION"], check=True)
+          subprocess.run(["git", "commit", "-m", "Exclude designated drivers from idle metrics"], check=True)
+          subprocess.run(["git", "push", "origin", "main"], check=True)
+          sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          with open(Path(os.environ["GITHUB_OUTPUT"]), "a", encoding="utf-8") as output:
+              output.write(f"sha={sha}\n")
+        env:
+          GITHUB_OUTPUT: ${{ github.output }}
+
       - name: Validate release version
         id: release
         shell: bash
@@ -62,6 +236,7 @@ jobs:
             database/pta-history-ui.js
             database/pta-change-worker.js
             database/worked-navigation-fix.js
+            database/worked-open-queue.js
           )
           for script in "${scripts[@]}"; do
             if [[ -f "$script" ]]; then
@@ -74,7 +249,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
           RELEASE_ASSET: ${{ steps.release.outputs.asset }}
-          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_SHA: ${{ steps.patch_commit.outputs.sha }}
         run: |
           from pathlib import Path
           import hashlib
@@ -127,12 +302,8 @@ jobs:
           notes = dist / "release-notes.md"
           notes.write_text(
               f"# Fuel Dash {tag}\n\n"
-              "This release restores the standard `v3.x.x` naming convention.\n\n"
-              "## Included\n\n"
-              "- Local IndexedDB persistence for PTA snapshots, notes, settings, and follow-up state\n"
-              "- Searchable PTA history and change alerts\n"
-              "- Worked entries that open the correct truck or driver details even when hidden by the current filter\n"
-              "- Existing fuel, idle, APU, Missing BOL, and shift-transition tools\n\n"
+              "## Idle exclusions\n\n"
+              "Fleet idle averages, thresholds, high-idler rankings, best-idler rankings, and APU idle coaching now exclude Kevin Lammerding, Jason Lucas, Ferris Rust, Dion Pajimola, Robert Newson, Paul Thibodo, Aaron (driver 242051), and Chris Covington. Their driver rows remain available for audit and non-idle fuel review.\n\n"
               "## Privacy\n\n"
               "Operational PTA data and notes are not included in this release and are not uploaded to GitHub. They remain in the browser profile on the computer running the dashboard.\n\n"
               "## Install\n\n"
@@ -146,6 +317,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.release.outputs.tag }}
           ASSET: ${{ steps.release.outputs.asset }}
+          RELEASE_SHA: ${{ steps.patch_commit.outputs.sha }}
         run: |
           set -euo pipefail
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -156,7 +328,7 @@ jobs:
             "dist/$ASSET" \
             "dist/$ASSET.sha256" \
             --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
+            --target "$RELEASE_SHA" \
             --title "Fuel Dash $TAG" \
             --notes-file dist/release-notes.md
 
@@ -165,11 +337,10 @@ jobs:
         env:
           TAG: ${{ steps.release.outputs.tag }}
           ASSET: ${{ steps.release.outputs.asset }}
+          RELEASE_SHA: ${{ steps.patch_commit.outputs.sha }}
         run: |
           set -euo pipefail
-          printf '%s\n%s\n%s\n' "$TAG" "$ASSET" "$GITHUB_SHA" > .github/release-result.txt
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          printf '%s\n%s\n%s\n' "$TAG" "$ASSET" "$RELEASE_SHA" > .github/release-result.txt
           git add .github/release-result.txt
           git commit -m "Record Fuel Dash release $TAG"
           git push origin main
