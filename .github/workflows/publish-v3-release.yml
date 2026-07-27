@@ -63,6 +63,7 @@ jobs:
             database/pta-change-worker.js
             database/worked-navigation-fix.js
             database/worked-open-queue.js
+            database/exclusion-manager.js
           )
           for script in "${scripts[@]}"; do
             if [[ -f "$script" ]]; then
@@ -103,7 +104,7 @@ jobs:
           data_dir.mkdir(exist_ok=True)
           (data_dir / "PLACE_REPORTS_HERE.txt").write_text(
               "Place the current XLSX and PDF operating reports in this folder.\n"
-              "PTA snapshots, notes, and history remain in the local browser database and are not included in this package.\n",
+              "PTA snapshots, notes, history, and report exclusions remain in the local browser database and are not included in this package.\n",
               encoding="utf-8",
           )
 
@@ -111,7 +112,7 @@ jobs:
           commit = os.environ["RELEASE_SHA"]
           (package / "RELEASE_BUILD.txt").write_text(
               f"Fuel Dash\nVersion: {tag}\nCommit: {commit}\n"
-              "Data storage: local browser IndexedDB only; no operational records are bundled or shared.\n",
+              "Data storage: local browser IndexedDB/local storage only; no operational records are bundled or shared.\n",
               encoding="utf-8",
           )
 
@@ -133,10 +134,11 @@ jobs:
               "- Local IndexedDB persistence for PTA snapshots, notes, settings, and follow-up state\n"
               "- Searchable PTA history and change alerts\n"
               "- Worked entries that open the correct truck or driver details and show only open follow-ups\n"
-              "- Configured idle-driver exclusions in fleet idle averages, thresholds, rankings, and APU coaching\n"
+              "- Editable Exclusions tab for driver names, driver codes, and truck numbers\n"
+              "- Exclusions applied to fleet idle averages, thresholds, rankings, and idle-related APU coaching\n"
               "- Existing fuel, idle, APU, Missing BOL, and shift-transition tools\n\n"
               "## Privacy\n\n"
-              "Operational PTA data and notes are not included in this release and are not uploaded to GitHub. They remain in the browser profile on the computer running the dashboard.\n\n"
+              "Operational PTA data, notes, and saved exclusions are not included in this release and are not uploaded to GitHub. They remain in the browser profile on the computer running the dashboard.\n\n"
               "## Install\n\n"
               "Download the ZIP, extract it, place current report files in the `data` folder, and run `Launch Fuel Dashboard.cmd`.\n",
               encoding="utf-8",
