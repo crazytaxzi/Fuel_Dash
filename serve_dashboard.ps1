@@ -78,6 +78,9 @@ function Get-ServedFileBytes([string]$Candidate) {
         if ($Html -notmatch 'missing_bol_driver_only\.js') {
             $ScriptTags += '<script src="missing_bol_driver_only.js"></script>'
         }
+        if ($Html -notmatch 'worked_workflow\.js') {
+            $ScriptTags += '<script src="worked_workflow.js"></script>'
+        }
         $ScriptTags += '<script src="app.js"></script>'
         $Replacement = $ScriptTags -join ("`r`n  ")
         $Html = $Html.Replace('<script src="app.js"></script>', $Replacement)
