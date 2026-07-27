@@ -3,8 +3,7 @@ Traceback (most recent call last):
     final_scan()
   File "/home/runner/work/Fuel_Dash/Fuel_Dash/tools/rewrite_data_discovery.py", line 781, in final_scan
     raise RuntimeError("\n".join(problems))
-RuntimeError: PDF Conversion Guide.txt: explicit report filename
-app.js: explicit report filename
+RuntimeError: app.js: explicit report filename
 index.html: explicit report filename
 PTA Column Guide.txt: explicit report filename
 PDF Driver Report Guide.txt: explicit report filename
