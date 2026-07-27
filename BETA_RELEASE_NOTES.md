@@ -1,6 +1,6 @@
 # Fuel Dash Beta
 
-Release: `v2026.07.27-beta.8`
+Release: `v2026.07.27-beta.9`
 
 ## Operating-layout repair
 
@@ -16,10 +16,13 @@ Release: `v2026.07.27-beta.8`
 - Recent unfinished items remain yellow for one hour; older unfinished items remain visible in red.
 - Added a persistent popup toggle that marks the latest follow-up complete and turns the Worked item blue.
 - A newer note automatically reopens an item so an old completion state cannot hide new work.
-- Shift transition export now groups all notes saved today into one line per truck in `Truck {number} - {all notes}` format.
-- Contacted high-idle drivers appear in a separate `High Idles contacted:` section with one line per driver.
+- Every saved PTA and driver note now has its own `Include in shift transition` toggle beside it.
+- New and existing notes default to excluded. A note appears in the transition only after its toggle is explicitly switched on.
+- Turning a note off removes only that note from the transition while keeping it in note history.
+- Selected notes saved today are grouped into one `{truck} - {all selected notes}` line per truck.
+- Selected high-idle driver notes appear in a separate `High Idles contacted:` section with one line per driver.
 - Removed the Possible 28-Day Savings and Possible Yearly Cost cards from the Overview display.
-- Added a sanitized Worked workflow regression test. No operating workbook is stored in the repository or package.
+- Added sanitized regression tests for default-off note selection and compact transition output. No operating workbook is stored in the repository or package.
 
 ## Beta warning
 
