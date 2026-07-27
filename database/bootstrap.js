@@ -21,12 +21,25 @@
       await loadScript("app.js");
       await loadScript("database/pta-history-ui.js");
       document.dispatchEvent(new Event("DOMContentLoaded", { bubbles: true }));
+      installPtaShortcutBridge();
     })
     .catch((error) => {
       console.error("Fuel dashboard bootstrap failed", error);
       const message = document.getElementById("connectError");
       if (message) message.textContent = `The dashboard could not start: ${error.message || error}`;
     });
+
+  function installPtaShortcutBridge() {
+    const input = document.getElementById("ptaPasteInput");
+    const saveButton = document.getElementById("applyPtaPasteBtn");
+    if (!input || !saveButton) return;
+    input.addEventListener("keydown", (event) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key !== "Enter") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      saveButton.click();
+    }, { capture: true });
+  }
 
   async function loadOptionalScript(src) {
     try {
