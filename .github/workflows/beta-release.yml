@@ -1,0 +1,155 @@
+name: Build beta release
+
+on:
+  push:
+    branches:
+      - testing
+    paths:
+      - BETA_VERSION
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fuel-dash-beta-release
+  cancel-in-progress: false
+
+jobs:
+  package-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out beta source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Read beta version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content -LiteralPath BETA_VERSION -Raw).Trim()
+          if ($version -notmatch '^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}-beta\.[0-9]+$') {
+            throw "BETA_VERSION has an invalid value: $version"
+          }
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Validate JavaScript
+        shell: pwsh
+        run: |
+          $scripts = @(
+            'app.js',
+            'smart_data_loader.js',
+            'auxiliary_mode.js',
+            'missing_bol.js',
+            'missing_bol_driver_only.js',
+            'worked_workflow.js',
+            'note_transition_toggle.js',
+            'transition_export_v2.js',
+            'pdf_converter.js'
+          )
+          foreach ($script in $scripts) {
+            if (Test-Path -LiteralPath $script) {
+              node --check $script
+              if ($LASTEXITCODE -ne 0) { throw "JavaScript validation failed for $script" }
+            }
+          }
+
+      - name: Run regression tests
+        shell: pwsh
+        run: |
+          node tests/auxiliary_mode_smoke.js
+          node tests/operating_layout_smoke.js
+          node tests/live_bol_export_smoke.js
+          node tests/worked_workflow_smoke.js
+          node tests/note_transition_toggle_smoke.js
+          node tests/transition_export_v2_smoke.js
+          node validate_dashboard.js
+          if ($LASTEXITCODE -ne 0) { throw "Fuel Dash regression validation failed" }
+
+      - name: Build clean beta package
+        id: package
+        shell: pwsh
+        env:
+          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          $version = '${{ steps.version.outputs.value }}'
+          $dist = Join-Path $PWD 'dist'
+          $packageRoot = Join-Path $dist 'Fuel_Dash-Beta'
+          Remove-Item -LiteralPath $dist -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $packageRoot | Out-Null
+
+          $excluded = @('.git', '.github', 'data', 'dist', 'Dashboard_Server_Log.txt')
+          Get-ChildItem -LiteralPath $PWD -Force | Where-Object {
+            $excluded -notcontains $_.Name
+          } | ForEach-Object {
+            Copy-Item -LiteralPath $_.FullName -Destination $packageRoot -Recurse -Force
+          }
+
+          $dataFolder = Join-Path $packageRoot 'data'
+          New-Item -ItemType Directory -Path $dataFolder | Out-Null
+          @'
+Place the current XLSX and PDF report files in this folder.
+The beta identifies supported reports by their contents, not their filenames.
+Do not place confidential files in a package you intend to redistribute.
+'@ | Set-Content -LiteralPath (Join-Path $dataFolder 'PLACE_REPORTS_HERE.txt') -Encoding UTF8
+
+          @"
+Fuel Dash Beta
+Version: $version
+Commit: $env:TARGET_SHA
+Branch: testing
+Built: $([DateTime]::UtcNow.ToString('u')) UTC
+
+This is a beta build. Validate it with normal operating files before promoting it to main.
+"@ | Set-Content -LiteralPath (Join-Path $packageRoot 'BETA_BUILD.txt') -Encoding UTF8
+
+          $zipName = "Fuel_Dash-$version.zip"
+          $zipPath = Join-Path $dist $zipName
+          Compress-Archive -Path $packageRoot -DestinationPath $zipPath -CompressionLevel Optimal
+
+          $hash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $checksumPath = "$zipPath.sha256"
+          "$hash  $zipName" | Set-Content -LiteralPath $checksumPath -Encoding ASCII
+
+          "zip=$zipPath" >> $env:GITHUB_OUTPUT
+          "checksum=$checksumPath" >> $env:GITHUB_OUTPUT
+          "zip_name=$zipName" >> $env:GITHUB_OUTPUT
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fuel-Dash-${{ steps.version.outputs.value }}
+          path: |
+            ${{ steps.package.outputs.zip }}
+            ${{ steps.package.outputs.checksum }}
+          if-no-files-found: error
+
+      - name: Publish GitHub prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          $version = '${{ steps.version.outputs.value }}'
+          $repo = '${{ github.repository }}'
+          gh release view $version --repo $repo *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release delete $version --repo $repo --yes --cleanup-tag
+            if ($LASTEXITCODE -ne 0) { throw "Could not replace existing beta release $version" }
+          }
+
+          gh release create $version `
+            '${{ steps.package.outputs.zip }}' `
+            '${{ steps.package.outputs.checksum }}' `
+            --repo $repo `
+            --target $env:TARGET_SHA `
+            --title "Fuel Dash $version" `
+            --notes-file BETA_RELEASE_NOTES.md `
+            --prerelease
+
+          if ($LASTEXITCODE -ne 0) { throw "GitHub prerelease creation failed" }

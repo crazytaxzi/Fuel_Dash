@@ -1,0 +1,1 @@
+Place supported XLSX and text-based PDF reports in this folder. Every file is inspected by content; filenames are ignored.

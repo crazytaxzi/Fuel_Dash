@@ -16,15 +16,7 @@
       <div class="connect-brand">VIXEN <span>FLEET OPS</span></div>
       <h1>Connect your fuel-report folder</h1>
       <p>
-        For the idle dashboard, choose the <code>data</code> folder containing
-        <code>summary</code>, <code>Detail</code>, <code>driver metrics detail</code>,
-        <code>Driver Details</code>, and <code>rolling 7 day</code>. The legacy
-        workbook set and the older four basic reports are also supported:
-        <code>Driver Fuel Metrics</code>, <code>Fuel Compliance Analysis</code>,
-        <code>Fuel Noncompliant Cost Analysis</code>, and <code>MPG by Driver</code>.
-        Optional electric APU and PTA dispatch workbooks can be included too.
-        The dashboard recognizes <code>Fleet PTA Finder</code> and <code>PTA Dispatch Tracker</code> files automatically.
-        XLSX and XLSM are accepted; the older basic set also accepts matching text-based PDFs.
+        Choose a local folder or select reports manually. Every supported XLSX and text-based PDF is inspected by its headers, values, and worksheet structure. Filenames are ignored. Complete report sets populate the full dashboard; partial and auxiliary reports remain available without manufacturing missing metrics.
       </p>
       <button id="connectFolderBtn" class="button button-primary">Choose Data Folder</button>
       <button id="fallbackFilesBtn" class="button button-secondary">Choose Files Instead</button>
@@ -256,7 +248,7 @@
 
         <div id="ptaSummaryGrid" class="pta-summary-grid"></div>
         <div id="ptaEmptyState" class="apu-empty-state hidden">
-          <strong>No PTA dispatch data was found.</strong> Paste the shared PTA report above, or add <code>Fleet_PTA_Finder.xlsx</code> and <code>PTA_Dispatch_Tracker.xlsx</code> to the dashboard folder.
+          <strong>No PTA dispatch data was found.</strong> Paste the shared PTA report above, or add <code>recognized report</code> and <code>recognized report</code> to the dashboard folder.
         </div>
         <div id="ptaFilterBar" class="pta-filter-bar">
           <button class="pta-filter active" type="button" data-pta-filter="action">Needs action</button>

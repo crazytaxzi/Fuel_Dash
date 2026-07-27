@@ -1,59 +1,32 @@
-XLSX / PDF BASIC REPORT GUIDE
-=============================
+XLSX AND PDF REPORT GUIDE
+=========================
 
-The dashboard supports these four basic reports in either XLSX or PDF format:
+The dashboard accepts supported XLSX and text-based PDF reports. Each file is classified from its contents, not its filename.
 
-- Driver Fuel Metrics
-- Fuel Compliance Analysis
-- Fuel Noncompliant Cost Analysis
-- MPG by Driver
+CONTENT REQUIREMENTS
+--------------------
 
-Files may be mixed. For example, Driver Fuel Metrics and MPG by Driver may be
-PDF while the two analysis reports remain XLSX.
+Recognizable reports normally expose enough of the following structure to establish their role:
 
-FILENAMES
----------
+- Driver identity, driver code, dispatch MPG, idle percentage, or out-of-route percentage
+- Compliance dates and percentages
+- Gallon, location, and total noncompliant cost fields
+- Driver MPG history
+- Transaction dates, units, gallons, locations, and purchase details
 
-Use these exact base names:
-
-Driver Fuel Metrics.xlsx / Driver Fuel Metrics.pdf
-Fuel Compliance Analysis.xlsx / Fuel Compliance Analysis.pdf
-Fuel Noncompliant Cost Analysis.xlsx / Fuel Noncompliant Cost Analysis.pdf
-MPG by Driver.xlsx / MPG by Driver.pdf
-
-Place the reports in the dashboard's data folder for automatic loading, or
-choose the folder containing them from the connection screen.
+Files may be mixed between XLSX and PDF. When two files confidently represent the same role, the strongest structural match is used, with newer data breaking close ties.
 
 PDF REQUIREMENTS
 ----------------
 
 - PDFs must contain selectable text.
-- Image-only/scanned PDFs must be OCR'd first.
-- The parser recognizes the layout and labels used by the matching XLSX exports.
-- Keep report titles, table headers, dates, percentages, and totals visible.
+- Image-only scans need OCR first.
+- Report titles, table headers, dates, percentages, and totals should remain visible.
+- A redesigned layout may require another structural rule.
 
-WHAT BASIC MODE PROVIDES
-------------------------
+AVAILABLE ANALYSIS
+------------------
 
-- Weekly fuel compliance
-- Driver dispatch MPG
-- Driver idle percentage
-- Driver out-of-route percentage
-- Overall gallon and location noncompliant cost
-- Available driver MPG history
-- Driver follow-up notes and shift-transition export
+The dashboard populates only the metrics supported by the recognized data. These can include weekly compliance, driver MPG, idle, out-of-route percentage, noncompliant cost, MPG history, driver notes, transaction drilldowns, and shift-transition export.
 
-The basic reports do not contain transaction-level fueling events or unit-level
-cost rows. Use the legacy Detail workbook when those drilldowns are required.
-
-SOURCE PRECEDENCE
------------------
-
-The dashboard needs one matching file for each of the four basic reports. When
-both XLSX and PDF versions of the same report are present, XLSX is preferred.
-
-LIMITATIONS
------------
-
-PDF text order is produced by the report generator. If a PDF redesign moves or
-renames columns, its parser may need to be adjusted using a representative file.
+Missing fields remain blank. The dashboard does not convert an absent source into a suspiciously tidy zero.

@@ -27,6 +27,8 @@ function Get-ContentType([string]$Path) {
         ".svg"  { "image/svg+xml" }
         ".json" { "application/json; charset=utf-8" }
         ".txt"  { "text/plain; charset=utf-8" }
+        ".pdf"  { "application/pdf" }
+        ".xlsx" { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
         default  { "application/octet-stream" }
     }
 }
@@ -39,6 +41,58 @@ function Send-Response {
     $Stream.Write($headerBytes, 0, $headerBytes.Length)
     if ($Body.Length -gt 0) { $Stream.Write($Body, 0, $Body.Length) }
     $Stream.Flush()
+}
+
+function Get-DataManifestJson {
+    $DataRoot = Join-Path $Root "data"
+    $Items = @()
+    if (Test-Path -LiteralPath $DataRoot -PathType Container) {
+        $Items = @(Get-ChildItem -LiteralPath $DataRoot -File | Where-Object {
+            $_.Extension.ToLowerInvariant() -in @(".xlsx", ".pdf")
+        } | Sort-Object Name | ForEach-Object {
+            [PSCustomObject]@{
+                name = $_.Name
+                path = "data-file/$($_.Name).bin"
+                size = $_.Length
+                lastModified = $_.LastWriteTimeUtc.ToString("o")
+                extension = $_.Extension.ToLowerInvariant()
+            }
+        })
+    }
+    return ConvertTo-Json -InputObject @($Items) -Compress
+}
+
+function Get-ServedFileBytes([string]$Candidate) {
+    if ([IO.Path]::GetFileName($Candidate) -ieq "index.html") {
+        $Html = [IO.File]::ReadAllText($Candidate)
+        $ScriptTags = @()
+        if ($Html -notmatch 'smart_data_loader\.js') {
+            $ScriptTags += '<script src="smart_data_loader.js"></script>'
+        }
+        if ($Html -notmatch 'auxiliary_mode\.js') {
+            $ScriptTags += '<script src="auxiliary_mode.js"></script>'
+        }
+        if ($Html -notmatch 'missing_bol\.js') {
+            $ScriptTags += '<script src="missing_bol.js"></script>'
+        }
+        if ($Html -notmatch 'missing_bol_driver_only\.js') {
+            $ScriptTags += '<script src="missing_bol_driver_only.js"></script>'
+        }
+        if ($Html -notmatch 'worked_workflow\.js') {
+            $ScriptTags += '<script src="worked_workflow.js"></script>'
+        }
+        if ($Html -notmatch 'note_transition_toggle\.js') {
+            $ScriptTags += '<script src="note_transition_toggle.js"></script>'
+        }
+        if ($Html -notmatch 'transition_export_v2\.js') {
+            $ScriptTags += '<script src="transition_export_v2.js"></script>'
+        }
+        $ScriptTags += '<script src="app.js"></script>'
+        $Replacement = $ScriptTags -join ("`r`n  ")
+        $Html = $Html.Replace('<script src="app.js"></script>', $Replacement)
+        return [Text.Encoding]::UTF8.GetBytes($Html)
+    }
+    return [IO.File]::ReadAllBytes($Candidate)
 }
 
 try {
@@ -74,6 +128,27 @@ try {
                 continue
             }
 
+            if ($RequestPath -eq "data-manifest.json") {
+                $Manifest = Get-DataManifestJson
+                Send-Response $Stream 200 "OK" "application/json; charset=utf-8" ([Text.Encoding]::UTF8.GetBytes($Manifest))
+                continue
+            }
+
+            if ($RequestPath.StartsWith("data-file/", [StringComparison]::OrdinalIgnoreCase) -and $RequestPath.EndsWith(".bin", [StringComparison]::OrdinalIgnoreCase)) {
+                $StoredName = $RequestPath.Substring(10, $RequestPath.Length - 14)
+                $DataRoot = [IO.Path]::GetFullPath((Join-Path $Root "data") + [IO.Path]::DirectorySeparatorChar)
+                $Candidate = [IO.Path]::GetFullPath((Join-Path $DataRoot $StoredName))
+                $AllowedExtension = [IO.Path]::GetExtension($Candidate).ToLowerInvariant() -in @(".xlsx", ".pdf")
+                if ([IO.Path]::GetFileName($StoredName) -ne $StoredName -or -not $Candidate.StartsWith($DataRoot, [StringComparison]::OrdinalIgnoreCase) -or -not $AllowedExtension -or -not (Test-Path -LiteralPath $Candidate -PathType Leaf)) {
+                    Send-Response $Stream 404 "Not Found" "text/plain; charset=utf-8" ([Text.Encoding]::UTF8.GetBytes("Data file not found"))
+                    continue
+                }
+                $Body = [IO.File]::ReadAllBytes($Candidate)
+                $LastModified = (Get-Item -LiteralPath $Candidate).LastWriteTimeUtc.ToString("R")
+                Send-Response $Stream 200 "OK" (Get-ContentType $Candidate) $Body $LastModified
+                continue
+            }
+
             $Candidate = [IO.Path]::GetFullPath((Join-Path $Root $RequestPath))
             $RootFull = [IO.Path]::GetFullPath($Root + [IO.Path]::DirectorySeparatorChar)
             if (-not $Candidate.StartsWith($RootFull, [StringComparison]::OrdinalIgnoreCase) -or -not (Test-Path -LiteralPath $Candidate -PathType Leaf)) {
@@ -81,7 +156,7 @@ try {
                 continue
             }
 
-            $Body = [IO.File]::ReadAllBytes($Candidate)
+            $Body = Get-ServedFileBytes $Candidate
             $LastModified = (Get-Item -LiteralPath $Candidate).LastWriteTimeUtc.ToString("R")
             Send-Response $Stream 200 "OK" (Get-ContentType $Candidate) $Body $LastModified
         }

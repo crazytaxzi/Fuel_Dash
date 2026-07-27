@@ -2,13 +2,6 @@ import * as pdfjs from "./vendor/pdfjs/pdf.min.mjs";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdfjs/pdf.worker.min.mjs";
 
-const REPORTS = [
-  { key: "driverMetrics", pattern: /driver[ _-]*fuel[ _-]*metrics/i, output: "Driver Fuel Metrics.xlsx" },
-  { key: "compliance", pattern: /fuel[ _-]*compliance[ _-]*analysis/i, output: "Fuel Compliance Analysis.xlsx" },
-  { key: "cost", pattern: /fuel[ _-]*noncompliant[ _-]*cost[ _-]*analysis/i, output: "Fuel Noncompliant Cost Analysis.xlsx" },
-  { key: "mpg", pattern: /mpg[ _-]*by[ _-]*driver/i, output: "MPG by Driver.xlsx" },
-];
-
 const input = document.getElementById("pdfInput");
 const chooseBtn = document.getElementById("chooseBtn");
 const dropZone = document.getElementById("dropZone");
@@ -40,13 +33,14 @@ async function convertFiles(files) {
     row.innerHTML = `<div><strong>${escapeHtml(file.name)}</strong><small>Reading positioned PDF text…</small></div><span>…</span>`;
     results.append(row);
     try {
-      const report = REPORTS.find((item) => item.pattern.test(file.name));
-      if (!report) throw new Error("Filename does not match one of the four supported report names.");
       const pages = await extractPages(file);
-      const workbook = buildWorkbook(report.key, pages, file.name);
-      XLSX.writeFile(workbook, report.output, { compression: true });
+      const reportType = classifyReportContent(pages);
+      if (!reportType) throw new Error("The PDF text did not match a supported report structure. The file may need OCR or a new structural rule.");
+      const workbook = buildWorkbook(reportType, pages, file.name);
+      const outputName = convertedOutputName(file.name);
+      XLSX.writeFile(workbook, outputName, { compression: true });
       const recordCount = workbook.__recordCount || 0;
-      row.querySelector("small").textContent = `${recordCount.toLocaleString()} data row${recordCount === 1 ? "" : "s"} converted to ${report.output}`;
+      row.querySelector("small").textContent = `${recordCount.toLocaleString("en-US")} data row${recordCount === 1 ? "" : "s"} converted to ${outputName}`;
       row.querySelector("span").textContent = "Converted";
       row.querySelector("span").className = "ok";
       converted += 1;
@@ -71,6 +65,36 @@ async function extractPages(file) {
     pages.push(positionedLines(content.items));
   }
   return pages;
+}
+
+function classifyReportContent(pages) {
+  const lines = pages.flat();
+  const text = normalize(lines.join("\n"));
+  const scores = {
+    driverMetrics: scorePhrases(text, [["dispatch mpg", 6], ["idle", 3], ["oor", 4], ["driver current position code", 5], ["driver leader", 2]]),
+    compliance: scorePhrases(text, [["compliance", 6], ["date range", 3], ["last refreshed", 2], ["recommendation", 3]]) + (lines.some(hasDateAndPercent) ? 5 : 0),
+    cost: scorePhrases(text, [["gallon over under cost", 7], ["location noncompliant cost", 7], ["total noncompliant cost", 7], ["grand total", 3]]) + (lines.some((line) => /\$\s*-?[\d,]+(?:\.\d+)?/.test(line)) ? 3 : 0),
+    mpg: scorePhrases(text, [["dispatch mpg", 4], ["driver performance", 3], ["weekly mpg", 4], ["driver code", 2]]) + (lines.filter((line) => /\b\d{5,6}\b/.test(line) && /\b\d+\.\d+\b/.test(line)).length >= 2 ? 6 : 0),
+  };
+  const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  return ranked[0]?.[1] >= 8 && ranked[0][1] > (ranked[1]?.[1] || 0) ? ranked[0][0] : null;
+}
+
+function scorePhrases(text, phrases) {
+  return phrases.reduce((total, [phrase, weight]) => total + (text.includes(normalize(phrase)) ? weight : 0), 0);
+}
+
+function hasDateAndPercent(line) {
+  return /\b(?:20\d{2}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/20\d{2})\b/.test(line) && /-?\d+(?:\.\d+)?%/.test(line);
+}
+
+function normalize(value) {
+  return String(value ?? "").toLowerCase().replace(/[%#]+/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function convertedOutputName(sourceName) {
+  const base = String(sourceName || "report").replace(/\.pdf$/i, "").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || "report";
+  return `${base}-converted.xlsx`;
 }
 
 function positionedLines(items) {
@@ -113,7 +137,7 @@ function buildWorkbook(type, pages, sourceName) {
   else if (type === "compliance") rows = complianceRows(lines);
   else if (type === "cost") rows = costRows(lines);
   else if (type === "mpg") rows = mpgRows(lines);
-  else throw new Error("Unsupported report type.");
+  else throw new Error("Unsupported report structure.");
   if (!rows.data.length) throw new Error("No report data rows were recognized. The PDF may need OCR or layout tuning.");
 
   const workbook = XLSX.utils.book_new();
@@ -208,10 +232,10 @@ function mpgRows(lines) {
     data.push(row);
   }
   const headerRows = [
-    ["MPG by Driver"],
+    ["Driver MPG history"],
     ["Converted from PDF"],
     [],
-    ["Driver Performance by Dispatch MPG"],
+    ["Driver performance"],
     ["Driver Leader", "Driver Code Driver Name", "Weekly MPG values"],
   ];
   return { sheet: [...headerRows, ...data], data, widths: [20, 36, ...Array(11).fill(11)] };

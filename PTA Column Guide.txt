@@ -1,17 +1,10 @@
-PTA DISPATCH WORKBOOK GUIDE
-===========================
+PTA DISPATCH DATA GUIDE
+=======================
 
-Recognized filenames
---------------------
-Fleet_PTA_Finder.xlsx / XLSM
-PTA_Dispatch_Tracker.xlsx / XLSM
-PTA_Dispatch_Tracker_Updated_FIXED.xlsx
+PTA reports are recognized from worksheet structure and column content. Filenames and worksheet names are not required.
 
-PTA Dispatch Tracker sheet
---------------------------
-Preferred sheet name: PTA Tracker
-
-Recognized columns:
+COMMON COLUMNS
+--------------
 Truck # / Truck / Unit
 Div # / Division
 Driver
@@ -21,42 +14,22 @@ Plans / Preplan / Plan Status
 Plan
 Team
 Destination / Area
-OM
+OM / Miles
 Count
 Notes
-
-The webpage recalculates hours past or until PTA from the PTA date/time.
-
-Fleet PTA Finder sheets
------------------------
-Preferred sheet names:
-Settings
-Available
-Dispatched
-
-Recognized list columns:
-Truck
-Division
-Driver
-PTA
-Status
-Preplan
 Flag
 Type
-Area
-Miles / OM
-Count
 
-Settings may include Soon window (hours). The dashboard displays that window
-but trusts the Available and Dispatched sheets as the filtered queues.
+The dashboard identifies tracker-style tables from truck, driver, PTA, status, and planning fields. Finder-style queues are identified from PTA, preplan, availability or dispatch status, and action flags.
 
-Plain-English alerts
+The webpage recalculates hours past or until PTA from the PTA date and time. When several compatible tables exist, the strongest structural match and newest source are preferred.
+
+PLAIN-ENGLISH ALERTS
 --------------------
 Critical: 24+ hours past PTA
 High: 8-24 hours past PTA
 Medium: 2-8 hours past PTA
 New overdue: 0-2 hours past PTA
-Due soon: finder row that is not yet past PTA
+Due soon: recognized row that is not yet past PTA
 
-These are work-priority flags, not blame findings. Confirm driver readiness,
-load availability, hours, equipment, and dispatch conditions.
+These are work-priority flags, not blame findings. Confirm driver readiness, load availability, hours, equipment, and dispatch conditions.

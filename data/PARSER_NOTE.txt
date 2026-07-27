@@ -1,0 +1,1 @@
+Report roles are assigned from headers, values, worksheet layout, and cross-field structure. Do not rename reports to make them load.
