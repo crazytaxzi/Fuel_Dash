@@ -1,6 +1,13 @@
 Traceback (most recent call last):
-  File "/home/runner/work/Fuel_Dash/Fuel_Dash/tools/rewrite_data_discovery.py", line 780, in <module>
-    migrate_app()
-  File "/home/runner/work/Fuel_Dash/Fuel_Dash/tools/rewrite_data_discovery.py", line 705, in migrate_app
-    raise RuntimeError(f"app.js still contains filename routers: {leftovers}")
-RuntimeError: app.js still contains filename routers: ['EXPECTED_FILES', 'BASIC_REPORT_FILES', 'IDLE_REPORT_FILES', 'OPTIONAL_FILES']
+  File "/home/runner/work/Fuel_Dash/Fuel_Dash/tools/rewrite_data_discovery.py", line 788, in <module>
+    final_scan()
+  File "/home/runner/work/Fuel_Dash/Fuel_Dash/tools/rewrite_data_discovery.py", line 781, in final_scan
+    raise RuntimeError("\n".join(problems))
+RuntimeError: PDF Conversion Guide.txt: explicit report filename
+app.js: explicit report filename
+index.html: explicit report filename
+pdf_to_xlsx.js: explicit report filename
+PTA Column Guide.txt: explicit report filename
+PDF Driver Report Guide.txt: explicit report filename
+APU Column Guide.txt: explicit report filename
+tests/auxiliary_mode_smoke.js: filename router
