@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - .github/workflows/finalize-beta-11.yml
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -84,28 +85,30 @@ jobs:
           done < <(find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -print0)
 
           mkdir -p "$package_root/data"
-          cat > "$package_root/data/PLACE_REPORTS_HERE.txt" <<'TXT'
-Place the current XLSX and PDF report files in this folder.
-The beta identifies supported reports by their contents, not their filenames.
-Do not place confidential files in a package you intend to redistribute.
-TXT
+          printf '%s\n' \
+            'Place the current XLSX and PDF report files in this folder.' \
+            'The beta identifies supported reports by their contents, not their filenames.' \
+            'Do not place confidential files in a package you intend to redistribute.' \
+            > "$package_root/data/PLACE_REPORTS_HERE.txt"
 
-          cat > "$package_root/BETA_BUILD.txt" <<TXT
-Fuel Dash Beta
-Version: $version
-Commit: $GITHUB_SHA
-Branch: main
-Built: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
-
-This package was built from merged main after Beta 11 promotion.
-TXT
+          {
+            printf 'Fuel Dash Beta\n'
+            printf 'Version: %s\n' "$version"
+            printf 'Commit: %s\n' "$GITHUB_SHA"
+            printf 'Branch: main\n'
+            printf 'Built: %s\n\n' "$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            printf 'This package was built from merged main after Beta 11 promotion.\n'
+          } > "$package_root/BETA_BUILD.txt"
 
           zip_name="Fuel_Dash-$version.zip"
           (
             cd "$dist"
             zip -rq "$zip_name" Fuel_Dash-Beta
           )
-          sha256sum "$dist/$zip_name" > "$dist/$zip_name.sha256"
+          (
+            cd "$dist"
+            sha256sum "$zip_name" > "$zip_name.sha256"
+          )
 
           echo "zip=$dist/$zip_name" >> "$GITHUB_OUTPUT"
           echo "checksum=$dist/$zip_name.sha256" >> "$GITHUB_OUTPUT"
@@ -151,18 +154,25 @@ TXT
           repo="$GITHUB_REPOSITORY"
 
           if gh api "repos/$repo/git/ref/heads/$KEEP_BRANCH" >/dev/null 2>&1; then
-            gh api -X PATCH "repos/$repo/git/refs/heads/$KEEP_BRANCH" -f sha="$GITHUB_SHA" -F force=true >/dev/null
+            gh api -X PATCH "repos/$repo/git/refs/heads/$KEEP_BRANCH" \
+              -f sha="$GITHUB_SHA" \
+              -F force=true \
+              >/dev/null
           else
-            gh api -X POST "repos/$repo/git/refs" -f ref="refs/heads/$KEEP_BRANCH" -f sha="$GITHUB_SHA" >/dev/null
+            gh api -X POST "repos/$repo/git/refs" \
+              -f ref="refs/heads/$KEEP_BRANCH" \
+              -f sha="$GITHUB_SHA" \
+              >/dev/null
           fi
 
-          mapfile -t branches < <(gh api --paginate "repos/$repo/branches?per_page=100" --jq '.[].name')
+          mapfile -t branches < <(
+            gh api --paginate "repos/$repo/branches?per_page=100" --jq '.[].name'
+          )
           for branch in "${branches[@]}"; do
             if [[ "$branch" == "main" || "$branch" == "$KEEP_BRANCH" ]]; then
               continue
             fi
             echo "Deleting branch: $branch"
-            gh api -X DELETE "repos/$repo/git/refs/heads/$branch"
+            encoded_branch="$(jq -rn --arg value "$branch" '$value|@uri')"
+            gh api -X DELETE "repos/$repo/git/refs/heads/$encoded_branch"
           done
-
-# Triggered through a merged PR so GitHub Actions receives a server-side push event.
