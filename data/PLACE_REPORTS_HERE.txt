@@ -1,3 +1,1 @@
-Place current XLSX and PDF reports in this folder.
-The dashboard inspects report contents instead of relying on filenames.
-A Missing BOL workbook may be used by itself in Partial Data Mode.
+Place supported XLSX and text-based PDF reports in this folder. Every file is inspected by content; filenames are ignored.

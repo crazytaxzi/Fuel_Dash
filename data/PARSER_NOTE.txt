@@ -1,7 +1,1 @@
-Fuel Dash beta 4 recognizes the live Missing BOL export by these fields:
-- Empty Call Date
-- Driver Leader
-- Last Dispatch Driver cd
-- Order #, TMEX Order #, or Logistics Order# containing LLDDDD trips
-
-This note contains no operating data.
+Report roles are assigned from headers, values, worksheet layout, and cross-field structure. Do not rename reports to make them load.

@@ -1,30 +1,12 @@
 (() => {
   "use strict";
 
-  const EXPECTED_FILES = {
-    summary: /^summary\.(xlsx|xlsm|xlsb|xls)$/i,
-    drivers: /^c1\.(xlsx|xlsm|xlsb|xls)$/i,
-    detail: /^detail\.(xlsx|xlsm|xlsb|xls)$/i,
-    trend: /^summary[ _-]*chart\.(xlsx|xlsm|xlsb|xls)$/i,
-  };
-  const BASIC_REPORT_FILES = {
-    reportDriverMetrics: /^driver[ _-]*fuel[ _-]*metrics\.(xlsx|xlsm|xlsb|xls|pdf)$/i,
-    reportCompliance: /^fuel[ _-]*compliance[ _-]*analysis\.(xlsx|xlsm|xlsb|xls|pdf)$/i,
-    reportCost: /^fuel[ _-]*noncompliant[ _-]*cost[ _-]*analysis\.(xlsx|xlsm|xlsb|xls|pdf)$/i,
-    reportMpg: /^mpg[ _-]*by[ _-]*driver\.(xlsx|xlsm|xlsb|xls|pdf)$/i,
-  };
-  const IDLE_REPORT_FILES = {
-    driverMetricsDetail: /^driver[ _-]*metrics[ _-]*detail\.(xlsx|xlsm|xlsb|xls)$/i,
-    driverDetails: /^driver[ _-]*details\.(xlsx|xlsm|xlsb|xls)$/i,
-    rolling7Day: /^rolling[ _-]*7[ _-]*day\.(xlsx|xlsm|xlsb|xls)$/i,
-  };
-  const OPTIONAL_FILES = {
-    apu: /(?:^|[ _-])(?:electric[ _-]*)?apu(?:[ _-].*)?\.(xlsx|xlsm|xlsb|xls)$/i,
-    ptaTracker: /pta[ _-]*dispatch[ _-]*tracker.*\.(xlsx|xlsm|xlsb|xls)$/i,
-    ptaFinder: /fleet[ _-]*pta[ _-]*finder.*\.(xlsx|xlsm|xlsb|xls)$/i,
-    driverPdf: /\.pdf$/i,
-  };
-  const ALL_FILE_PATTERNS = { ...EXPECTED_FILES, ...BASIC_REPORT_FILES, ...IDLE_REPORT_FILES, ...OPTIONAL_FILES };
+  const REPORT_ROLE_GROUPS = Object.freeze({
+    legacy: ["summary", "drivers", "detail", "trend"],
+    idle: ["summary", "detail", "driverMetricsDetail", "driverDetails", "rolling7Day"],
+    basic: ["reportDriverMetrics", "reportCompliance", "reportCost", "reportMpg"],
+  });
+  const SUPPORTED_REPORT_FILE = /\.(?:xlsx|xlsm|xlsb|xls|pdf)$/i;
   const PTA_PASTE_HEADERS = ["Truck #", "Div #", "Driver", "PTA", "Status", "Plans", "Plan", "Team", "Destination", "OM", "Count"];
   const PTA_PASTE_KEYS = {
     active: "vixenManualPtaActive",
@@ -304,11 +286,11 @@
     setBusy(true);
     try {
       const files = await collectSourceFiles();
-      const legacyReady = Object.keys(EXPECTED_FILES).every((key) => files[key] || (key === "drivers" && files.driverPdf));
-      const idleReady = files.summary && files.detail && Object.keys(IDLE_REPORT_FILES).every((key) => files[key]);
-      const basicMissing = Object.keys(BASIC_REPORT_FILES).filter((key) => !files[key]);
-      if (!legacyReady && !idleReady && basicMissing.length) {
-        throw new Error("Choose the five idle-report XLSX files, the legacy workbook set, or all four basic reports.");
+      const legacyReady = reportModeReady(files, "legacy", { drivers: ["driverPdf"] });
+      const idleReady = reportModeReady(files, "idle");
+      const basicReady = reportModeReady(files, "basic");
+      if (!legacyReady && !idleReady && !basicReady) {
+        throw new Error("The available reports were inspected by content, but they do not yet provide a complete fuel-analysis mode.");
       }
 
       const signatures = Object.fromEntries(Object.entries(files).map(([key, file]) => [key, `${file.name}|${file.size}|${file.lastModified}`]));
@@ -357,43 +339,30 @@
 
   async function attemptSameFolderFiles() {
     if (location.protocol !== "http:" && location.protocol !== "https:") return false;
-    const candidates = {
-      summary: ["data/summary.xlsx", "summary.xlsx", "summary.xlsm", "summary.xlsb", "summary.xls"],
-      drivers: ["c1.xlsx", "c1.xlsm", "c1.xlsb", "c1.xls"],
-      detail: ["data/Detail.xlsx", "Detail.xlsx", "Detail.xlsm", "detail.xlsx", "detail.xlsm"],
-      trend: ["summary chart.xlsx", "summary chart.xlsm", "summary_chart.xlsx", "summary_chart.xlsm"],
-      apu: ["APU.xlsx", "APU.xlsm", "apu.xlsx", "apu.xlsm", "Electric APU.xlsx", "Electric APU.xlsm", "electric_apu.xlsx", "electric_apu.xlsm"],
-      ptaTracker: ["PTA_Dispatch_Tracker_Updated_FIXED.xlsx", "PTA Dispatch Tracker.xlsx", "PTA_Dispatch_Tracker.xlsx", "PTA Dispatch Tracker.xlsm"],
-      ptaFinder: ["Fleet_PTA_Finder.xlsx", "Fleet PTA Finder.xlsx", "Fleet_PTA_Finder.xlsm", "Fleet PTA Finder.xlsm"],
-      driverPdf: ["Driver Fuel Report.pdf", "Fuel Driver Report.pdf", "driver report.pdf", "fuel report.pdf"],
-      reportDriverMetrics: ["data/Driver Fuel Metrics.xlsx", "data/Driver Fuel Metrics.pdf", "Driver Fuel Metrics.xlsx", "Driver Fuel Metrics.pdf"],
-      reportCompliance: ["data/Fuel Compliance Analysis.xlsx", "data/Fuel Compliance Analysis.pdf", "Fuel Compliance Analysis.xlsx", "Fuel Compliance Analysis.pdf"],
-      reportCost: ["data/Fuel Noncompliant Cost Analysis.xlsx", "data/Fuel Noncompliant Cost Analysis.pdf", "Fuel Noncompliant Cost Analysis.xlsx", "Fuel Noncompliant Cost Analysis.pdf"],
-      reportMpg: ["data/MPG by Driver.xlsx", "data/MPG by Driver.pdf", "MPG by Driver.xlsx", "MPG by Driver.pdf"],
-      driverMetricsDetail: ["data/driver metrics detail.xlsx", "driver metrics detail.xlsx"],
-      driverDetails: ["data/Driver Details.xlsx", "Driver Details.xlsx"],
-      rolling7Day: ["data/rolling 7 day.xlsx", "rolling 7 day.xlsx"],
-    };
-    const found = {};
-    for (const [key, names] of Object.entries(candidates)) {
-      for (const name of names) {
-        try {
-          const response = await fetch(encodeURI(name), { cache: "no-store" });
-          if (!response.ok) continue;
-          const blob = await response.blob();
-          const modifiedHeader = response.headers.get("Last-Modified");
-          found[key] = new File([blob], name, {
-            type: blob.type || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            lastModified: modifiedHeader ? new Date(modifiedHeader).getTime() : Date.now(),
-          });
-          break;
-        } catch (_) {}
-      }
+    let response;
+    try {
+      response = await fetch("data-manifest.json", { cache: "no-store" });
+    } catch (_) {
+      return false;
     }
-    const legacyReady = Object.keys(EXPECTED_FILES).every((key) => found[key] || (key === "drivers" && found.driverPdf));
-    const basicReady = Object.keys(BASIC_REPORT_FILES).every((key) => found[key]);
-    const idleReady = found.summary && found.detail && Object.keys(IDLE_REPORT_FILES).every((key) => found[key]);
-    if (!legacyReady && !basicReady && !idleReady) return false;
+    if (!response.ok) return false;
+    const manifest = await response.json();
+    const sourceFiles = [];
+    for (const item of Array.isArray(manifest) ? manifest : []) {
+      if (!SUPPORTED_REPORT_FILE.test(item?.name || "") || !item?.path) continue;
+      try {
+        const fileResponse = await fetch(encodeURI(item.path), { cache: "no-store" });
+        if (!fileResponse.ok) continue;
+        const blob = await fileResponse.blob();
+        sourceFiles.push(new File([blob], item.name, {
+          type: blob.type || (/\.pdf$/i.test(item.name) ? "application/pdf" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+          lastModified: Date.parse(item.lastModified) || 0,
+        }));
+      } catch (_) {}
+    }
+    if (!sourceFiles.length) return false;
+    const found = await classifyReportFiles(sourceFiles);
+    if (!Object.keys(found).length) return false;
     state.staticFiles = found;
     state.directoryHandle = null;
     state.fallbackFiles = null;
@@ -401,59 +370,58 @@
   }
 
   async function collectSourceFiles() {
-    const found = {};
     if (state.staticFiles) {
       const refreshed = await attemptSameFolderFiles();
-      if (!refreshed) throw new Error("The required same-folder workbooks could not be reloaded.");
+      if (!refreshed) throw new Error("The local data folder could not be refreshed.");
       return { ...state.staticFiles };
     }
+
+    const candidates = [];
     if (state.directoryHandle) {
       const permission = await verifyPermission(state.directoryHandle, false);
       if (!permission) throw new Error("Folder permission expired. Choose the data folder again.");
-      for await (const [name, handle] of state.directoryHandle.entries()) {
+      for await (const [, handle] of state.directoryHandle.entries()) {
         if (handle.kind !== "file") continue;
-        const key = matchSourceKey(name);
-        if (key) {
-          const file = await handle.getFile();
-          if (!found[key] || shouldReplaceSource(found[key], file)) found[key] = file;
-        }
+        const file = await handle.getFile();
+        if (SUPPORTED_REPORT_FILE.test(file.name || "")) candidates.push(file);
       }
     } else if (state.fallbackFiles) {
-      for (const file of state.fallbackFiles) {
-        const key = matchSourceKey(file.name);
-        if (key && (!found[key] || shouldReplaceSource(found[key], file))) found[key] = file;
-      }
+      candidates.push(...state.fallbackFiles.filter((file) => SUPPORTED_REPORT_FILE.test(file.name || "")));
     } else {
-      throw new Error("Choose the folder containing the five idle-report XLSX files, the legacy workbook set, or the four basic reports. Electric APU and PTA workbooks are optional.");
+      throw new Error("Choose a folder or select XLSX/PDF reports to inspect.");
     }
-    return found;
+    if (!candidates.length) throw new Error("No supported XLSX or PDF reports were found.");
+    return classifyReportFiles(candidates);
   }
 
-  function matchSourceKey(name) {
-    return Object.entries(ALL_FILE_PATTERNS).find(([, regex]) => regex.test(name))?.[0] || null;
+  async function classifyReportFiles(files) {
+    const inspector = window.VixenDataInspector || window.VixenSmartDataLoader;
+    if (!inspector?.classifyFiles) throw new Error("The content-based report inspector is unavailable.");
+    const result = await inspector.classifyFiles(files);
+    return { ...(result?.routes || result || {}) };
   }
 
-  function shouldReplaceSource(existing, candidate) {
-    return /\.pdf$/i.test(existing?.name || "") && !/\.pdf$/i.test(candidate?.name || "");
+  function reportModeReady(files, mode, alternatives = {}) {
+    return (REPORT_ROLE_GROUPS[mode] || []).every((role) => files[role] || (alternatives[role] || []).some((alternate) => files[alternate]));
   }
 
   function sourceLabel(key) {
     return ({
-      summary: "summary.xlsx/xlsm",
-      drivers: "c1.xlsx/xlsm or a basic driver PDF",
-      detail: "Detail.xlsx/xlsm",
-      trend: "summary chart.xlsx/xlsm",
-      apu: "optional APU.xlsx/xlsm",
-      ptaTracker: "optional PTA Dispatch Tracker.xlsx/xlsm",
-      ptaFinder: "optional Fleet PTA Finder.xlsx/xlsm",
-      driverPdf: "optional basic driver report PDF",
-      reportDriverMetrics: "Driver Fuel Metrics.xlsx/pdf",
-      reportCompliance: "Fuel Compliance Analysis.xlsx/pdf",
-      reportCost: "Fuel Noncompliant Cost Analysis.xlsx/pdf",
-      reportMpg: "MPG by Driver.xlsx/pdf",
-      driverMetricsDetail: "driver metrics detail.xlsx",
-      driverDetails: "Driver Details.xlsx",
-      rolling7Day: "rolling 7 day.xlsx",
+      summary: "weekly summary data",
+      drivers: "driver performance data",
+      detail: "transaction detail data",
+      trend: "historical cost trend data",
+      apu: "optional APU operating data",
+      ptaTracker: "optional PTA dispatch data",
+      ptaFinder: "optional PTA planning data",
+      driverPdf: "optional driver-level PDF data",
+      reportDriverMetrics: "driver metrics data",
+      reportCompliance: "compliance history data",
+      reportCost: "noncompliant cost data",
+      reportMpg: "driver MPG history data",
+      driverMetricsDetail: "driver metrics detail data",
+      driverDetails: "driver operating history data",
+      rolling7Day: "rolling idle history data",
     })[key] || key;
   }
 
@@ -506,7 +474,7 @@
       previous: compliance.weeks.at(-2) || null,
       partialRows: [],
     };
-    if (!summary.latest) throw new Error("No dated compliance values were found in the Fuel Compliance Analysis report.");
+    if (!summary.latest) throw new Error("No dated compliance values were found in the recognized compliance report.");
 
     const drivers = buildBasicReportDrivers(metricRows, mpgRows, summary.latest.date);
     const detail = {
@@ -539,8 +507,8 @@
         severity: "Medium",
         count: 1,
         title: "Basic report mode",
-        impact: "The four summary reports do not include transaction-level fueling events.",
-        fix: "Use the legacy Detail workbook when unit and fueling-event drilldown is needed.",
+        impact: "The available summary reports do not include transaction-level fueling events.",
+        fix: "Add transaction-detail data when unit and fueling-event drilldown is needed.",
       }],
     };
     const actions = buildActions(drivers, detail, quality, emptyApu, pta);
@@ -599,9 +567,9 @@
     quality.findings.unshift({
       severity: "Medium",
       count: 0,
-      title: "Five-file idle mode",
+      title: "Joined idle-report mode",
       impact: `${formatCount(drivers.records.length)} drivers joined across the rolling 7-day and 28-day reports.`,
-      fix: "Replace the same five XLSX exports each reporting week.",
+      fix: "Refresh the source reports for each reporting period.",
     });
     const actions = buildActions(drivers, detail, quality, apu, pta);
     return {
@@ -629,7 +597,7 @@
       history.sort((a, b) => a.date - b.date);
       if (history.length) records.push({ driverName: currentDriver, history });
     }
-    if (!records.length) throw new Error("rolling 7 day.xlsx did not contain recognizable driver idle history.");
+    if (!records.length) throw new Error("The recognized rolling-idle report did not contain usable driver idle history.");
     const reportDate = records.flatMap((record) => record.history.map((item) => item.date)).sort((a, b) => a - b).at(-1);
     return records.map((record) => {
       const latest = record.history.at(-1);
@@ -672,7 +640,7 @@
     if (source?.pdfLines) return parseDriverMetricsPdfLines(source.pdfLines);
     const rows = basicReportRows(source);
     const headerIndex = findHeaderRowIndex(rows, ["driver", "dispatch mpg", "idle"]);
-    if (headerIndex < 0) throw new Error("Driver Fuel Metrics did not contain a recognizable driver table.");
+    if (headerIndex < 0) throw new Error("The recognized driver-metrics report did not contain a usable driver table.");
     const headers = rows[headerIndex] || [];
     const driverColumn = findHeaderIndex(headers, ["driver"]);
     const codeColumn = findHeaderIndex(headers, ["driver current position code", "driver code"]);
@@ -717,7 +685,7 @@
         reportDate: null,
       });
     });
-    if (!records.length) throw new Error("The Driver Fuel Metrics PDF opened, but no driver rows were recognized.");
+    if (!records.length) throw new Error("The recognized driver PDF opened, but no driver rows were recognized.");
     return records;
   }
 
@@ -873,7 +841,7 @@
       if (date && date <= endOfDay(latestWeek)) dateColumns.push({ column, date });
     }
     dateColumns.sort((a, b) => b.date - a.date);
-    if (!dateColumns.length) throw new Error("No usable date column was found in c1.xlsx/xlsm.");
+    if (!dateColumns.length) throw new Error("No usable date column was found in recognized report/xlsm.");
     const currentColumn = dateColumns[0].column;
 
     const starts = [];
@@ -892,7 +860,7 @@
         });
       }
     }
-    if (!starts.length) throw new Error("No driver blocks were found in c1.xlsx/xlsm.");
+    if (!starts.length) throw new Error("No driver blocks were found in recognized report/xlsm.");
 
     const rawDrivers = starts.map((start, index) => {
       const end = index + 1 < starts.length ? starts[index + 1].rowIndex : rows.length;
@@ -2772,14 +2740,14 @@
 
   function updateSourceStatus() {
     const activePatterns = state.analysis?.sourceMode === "idle-reports"
-      ? { summary: EXPECTED_FILES.summary, detail: EXPECTED_FILES.detail, ...IDLE_REPORT_FILES, ...OPTIONAL_FILES }
+      ? { summary: Object.fromEntries(REPORT_ROLE_GROUPS.legacy.map((role) => [role, true])).summary, detail: Object.fromEntries(REPORT_ROLE_GROUPS.legacy.map((role) => [role, true])).detail, ...Object.fromEntries(REPORT_ROLE_GROUPS.idle.filter((role) => !["summary", "detail"].includes(role)).map((role) => [role, true])), ...Object.fromEntries(["apu", "ptaTracker", "ptaFinder", "driverPdf"].map((role) => [role, true])) }
       : state.analysis?.sourceMode === "basic-reports"
-        ? { ...BASIC_REPORT_FILES, ...OPTIONAL_FILES }
-      : { ...EXPECTED_FILES, ...OPTIONAL_FILES };
+        ? { ...Object.fromEntries(REPORT_ROLE_GROUPS.basic.map((role) => [role, true])), ...Object.fromEntries(["apu", "ptaTracker", "ptaFinder", "driverPdf"].map((role) => [role, true])) }
+      : { ...Object.fromEntries(REPORT_ROLE_GROUPS.legacy.map((role) => [role, true])), ...Object.fromEntries(["apu", "ptaTracker", "ptaFinder", "driverPdf"].map((role) => [role, true])) };
     const fileRows = Object.entries(activePatterns).map(([key]) => {
       const file = state.sourceFiles[key];
       const isPtaFile = key === "ptaTracker" || key === "ptaFinder";
-      const missingLabel = Object.prototype.hasOwnProperty.call(OPTIONAL_FILES, key) ? "Optional, not found" : "Missing";
+      const missingLabel = Object.prototype.hasOwnProperty.call(Object.fromEntries(["apu", "ptaTracker", "ptaFinder", "driverPdf"].map((role) => [role, true])), key) ? "Optional, not found" : "Missing";
       const detail = state.manualPta.active && isPtaFile
         ? `${file ? escapeHtml(file.name) : "No file"} · overridden by manual paste`
         : file

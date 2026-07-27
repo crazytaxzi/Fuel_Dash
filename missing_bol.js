@@ -169,7 +169,7 @@
         }
 
         const hasUnbilledContext = context.includes("unbilled");
-        const score = 40 + Math.min(20, tripHits * 3) + (hasUnbilledContext ? 12 : 0) + (normalize(item.name).includes("last refresh") ? 2 : 0);
+        const score = 40 + Math.min(20, tripHits * 3) + (hasUnbilledContext ? 12 : 0);
         const candidate = {
           item, workbook, sheetName, rows, headerRow,
           columns: { leader, driverCode, date, trip, orderColumns },

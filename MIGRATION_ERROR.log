@@ -1,9 +1,0 @@
-Traceback (most recent call last):
-  File "/home/runner/work/Fuel_Dash/Fuel_Dash/tools/rewrite_data_discovery.py", line 788, in <module>
-    final_scan()
-  File "/home/runner/work/Fuel_Dash/Fuel_Dash/tools/rewrite_data_discovery.py", line 781, in final_scan
-    raise RuntimeError("\n".join(problems))
-RuntimeError: app.js: explicit report filename
-index.html: explicit report filename
-APU Column Guide.txt: explicit report filename
-tests/auxiliary_mode_smoke.js: filename router

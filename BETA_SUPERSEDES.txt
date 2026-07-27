@@ -1,2 +1,1 @@
-v2026.07.26-beta.2 supersedes v2026.07.26-beta.1.
-Beta 1 retained the legacy complete-report startup gate and should not be used.
+Betas 1 through 4 are superseded by v2026.07.26-beta.5.
