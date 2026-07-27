@@ -1,19 +1,26 @@
 # Fuel Dash Beta
 
-Release: `v2026.07.26-beta.7`
+Release: `v2026.07.27-beta.8`
 
-## Reference-file repair
+## Operating-layout repair
 
 - Validated the parser against the supplied operating workbook structures without committing or packaging the source files.
-- Removed the unused summary dependency from joined idle-report mode.
 - Prevented repeating Driver Details blocks from being misclassified as flat driver metrics or MPG reports.
-- Prevented transaction detail and one-period cost summaries from being misclassified as trend reports.
 - Derived the driver index from rolling idle and driver-history data when a separate flat driver table is absent.
-- Corrected rolling-idle extraction so the week-start date is not mistaken for a percentage.
-- Missing BOL trips are read from whichever order column contains exactly three letters followed by four digits, including the live `Order #` layout.
-- Dispatch driver codes are preserved directly from `Last Dispatch Driver cd`, including short legacy values such as four-letter codes.
-- Added sanitized structural regression tests. No supplied operating workbook is stored in the repository or beta package.
+- Missing BOL trips are read from whichever order column contains exactly three letters followed by four digits.
+- Dispatch driver codes are preserved directly from `Last Dispatch Driver cd`, including short legacy values.
+
+## Worked and transition workflow
+
+- Restored the Worked tab for PTA truck notes and driver follow-up notes.
+- Recent unfinished items remain yellow for one hour; older unfinished items remain visible in red.
+- Added a persistent popup toggle that marks the latest follow-up complete and turns the Worked item blue.
+- A newer note automatically reopens an item so an old completion state cannot hide new work.
+- Shift transition export now groups all notes saved today into one line per truck in `Truck {number} - {all notes}` format.
+- Contacted high-idle drivers appear in a separate `High Idles contacted:` section with one line per driver.
+- Removed the Possible 28-Day Savings and Possible Yearly Cost cards from the Overview display.
+- Added a sanitized Worked workflow regression test. No operating workbook is stored in the repository or package.
 
 ## Beta warning
 
-This build is intended for the supplied operating layouts. Unsupported future export changes should appear as diagnostics rather than being forced into the wrong parser.
+The Windows launcher and browser still get the final operating-computer test. Unsupported future export changes should appear as diagnostics rather than being forced into the wrong parser.
