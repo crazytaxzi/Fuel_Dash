@@ -1,12 +1,23 @@
 (() => {
   "use strict";
 
+  const OPTIONAL_MODULES = [
+    "smart_data_loader.js",
+    "auxiliary_mode.js",
+    "missing_bol.js",
+    "missing_bol_driver_only.js",
+    "worked_workflow.js",
+    "note_transition_toggle.js",
+    "transition_export_v2.js",
+  ];
+
   const domReady = document.readyState === "loading"
     ? new Promise((resolve) => document.addEventListener("DOMContentLoaded", resolve, { once: true }))
     : Promise.resolve();
 
   Promise.all([domReady, window.FuelDashboardDb?.ready || Promise.resolve()])
     .then(async () => {
+      for (const src of OPTIONAL_MODULES) await loadOptionalScript(src);
       await loadScript("app.js");
       await loadScript("database/pta-history-ui.js");
       document.dispatchEvent(new Event("DOMContentLoaded", { bubbles: true }));
@@ -16,6 +27,14 @@
       const message = document.getElementById("connectError");
       if (message) message.textContent = `The dashboard could not start: ${error.message || error}`;
     });
+
+  async function loadOptionalScript(src) {
+    try {
+      await loadScript(src);
+    } catch (error) {
+      console.warn(`Optional dashboard module was unavailable: ${src}`, error);
+    }
+  }
 
   function loadScript(src) {
     return new Promise((resolve, reject) => {
