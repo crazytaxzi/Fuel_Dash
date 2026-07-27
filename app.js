@@ -15,6 +15,30 @@
   };
   const PTA_ACTION_NOTES_KEY = "vixenPtaActionNotesV1";
   const DRIVER_ACTION_NOTES_KEY = "vixenDriverActionNotesV1";
+  const IDLE_EXCLUDED_DRIVER_NAME_TOKENS = Object.freeze([
+    Object.freeze(["kevin", "lammerding"]),
+    Object.freeze(["jason", "lucas"]),
+    Object.freeze(["ferris", "rust"]),
+    Object.freeze(["dion", "pajimola"]),
+    Object.freeze(["robert", "newson"]),
+    Object.freeze(["paul", "thibodo"]),
+    Object.freeze(["chris", "covington"]),
+  ]);
+  const IDLE_EXCLUDED_DRIVER_CODES = new Set(["242051"]);
+  window.VixenIdleExclusions = Object.freeze({
+    isExcluded: isIdleExcludedDriver,
+    names: Object.freeze([
+      "Kevin Lammerding",
+      "Jason Lucas",
+      "Ferris Rust",
+      "Dion Pajimola",
+      "Robert Newson",
+      "Paul Thibodo",
+      "Aaron (242051)",
+      "Chris Covington",
+    ]),
+    codes: Object.freeze([...IDLE_EXCLUDED_DRIVER_CODES]),
+  });
 
   const state = {
     directoryHandle: null,
@@ -750,8 +774,10 @@
     const base = metrics.length ? metrics : mpgRows;
     const raw = base.map((record) => {
       const mpg = mpgByCode.get(normalizeIdentity(record.driverCode)) || mpgByName.get(normalizeIdentity(record.driverName));
+      const idleExcluded = isIdleExcludedDriver(record);
       return {
         ...record,
+        idleExcluded,
         dispatchMpg: record.dispatchMpg ?? mpg?.dispatchMpg ?? null,
         priorDispatchMpg: mpg?.history?.at(-2) ?? null,
         dailyIdlePct: record.dailyIdlePct ?? null,
@@ -763,11 +789,11 @@
       };
     });
     const mpgValues = raw.map((driver) => driver.dispatchMpg).filter(isFiniteNumber);
-    const idleValues = raw.map((driver) => driver.idlePct).filter(isFiniteNumber);
+    const idleValues = raw.filter((driver) => !driver.idleExcluded).map((driver) => driver.idlePct).filter(isFiniteNumber);
     const targetMpg = percentile(mpgValues, .75);
     const idleThreshold = percentile(idleValues, .5);
     const records = raw.map((driver) => {
-      const highIdle = driver.idlePct !== null && driver.idlePct > idleThreshold;
+      const highIdle = !driver.idleExcluded && driver.idlePct !== null && driver.idlePct > idleThreshold;
       const lowMpg = driver.dispatchMpg !== null && driver.dispatchMpg < targetMpg;
       return {
         ...driver, mpgChange: driver.priorDispatchMpg === null ? null : driver.dispatchMpg - driver.priorDispatchMpg,
@@ -779,7 +805,7 @@
         focus: highIdle ? `Idle is above the fleet middle at ${pct(driver.idlePct, 1)}` : `Dispatch MPG is ${num(driver.dispatchMpg, 2)}`,
         action: "Review the basic report values and record any follow-up for the next shift.",
       };
-    }).sort((a, b) => (b.idlePct || 0) - (a.idlePct || 0));
+    }).sort((a, b) => Number(a.idleExcluded) - Number(b.idleExcluded) || (b.idlePct || 0) - (a.idlePct || 0));
     return {
       records,
       totals: { excessGallons: 0, modeledCost: 0, annualizedCost: 0, topFourShare: 0 },
@@ -896,6 +922,7 @@
         ?? metricValueAny([/(?:rolling\s*)?28\s*day.*idle\s*%/i, /idle\s*%.*(?:rolling\s*)?28\s*day/i]);
       return {
         ...start,
+        idleExcluded: isIdleExcludedDriver(start),
         dispatchMiles: metricValue("Rolling 28 Day Dispatch Miles"),
         drivingFuel: metricValue("Rolling 28 day Driving Fuel"),
         fuelGallons: metricValue("Rolling 28 day Fuel Gallons"),
@@ -919,7 +946,7 @@
     }).filter((driver) => [driver.dispatchMiles, driver.fuelGallons, driver.dispatchMpg].every((value) => value !== null));
 
     const targetMpg = percentile(rawDrivers.map((driver) => driver.dispatchMpg).filter(isFiniteNumber), 0.75);
-    const idleThreshold = percentile(rawDrivers.map((driver) => driver.idlePct).filter(isFiniteNumber), 0.5);
+    const idleThreshold = percentile(rawDrivers.filter((driver) => !driver.idleExcluded).map((driver) => driver.idlePct).filter(isFiniteNumber), 0.5);
     const oorThreshold = percentile(rawDrivers.map((driver) => driver.oorPct).filter(isFiniteNumber), 0.5);
     const movingThreshold = percentile(rawDrivers.map((driver) => driver.movingMpg).filter(isFiniteNumber), 0.5);
 
@@ -927,7 +954,7 @@
       const excessGallons = Math.max(0, driver.fuelGallons - (driver.dispatchMiles / targetMpg));
       const estimatedCost = excessGallons * planningPpg;
       const annualizedCost = estimatedCost * 13;
-      const highIdle = driver.idlePct !== null && driver.idlePct > idleThreshold;
+      const highIdle = !driver.idleExcluded && driver.idlePct !== null && driver.idlePct > idleThreshold;
       const highOor = driver.oorPct !== null && driver.oorPct > oorThreshold;
       const lowMoving = driver.movingMpg !== null && driver.movingMpg < movingThreshold;
       const reasons = [];
@@ -1075,6 +1102,7 @@
       const idle28DayPct = record.idle28DayPct ?? null;
       return {
         driverLeader: "Not reported", driverCode: record.driverCode || "", driverName: record.driverName || record.unit || "Unknown driver",
+        idleExcluded: isIdleExcludedDriver(record),
         managerMatch: "", dispatchMiles: null, drivingFuel: null, fuelGallons: null, qualcommMiles: null,
         dispatchMpg: record.dispatchMpg ?? null, dailyIdlePct: record.dailyIdlePct ?? null,
         idle7DayPct: record.idle7DayPct ?? null, idle28DayPct, idlePct: idle28DayPct,
@@ -1093,7 +1121,7 @@
       topFourShare: 0,
     };
     totals.topFourShare = totals.modeledCost ? sum(records.slice(0, 4).map((item) => item.estimatedCost)) / totals.modeledCost : 0;
-    return { records, totals, targetMpg: 0, idleThreshold: percentile(records.map((r) => r.idlePct).filter(isFiniteNumber), .5), oorThreshold: 0, movingThreshold: 0, currentDate: latestWeek, planningPpg };
+    return { records, totals, targetMpg: 0, idleThreshold: percentile(records.filter((r) => !r.idleExcluded).map((r) => r.idlePct).filter(isFiniteNumber), .5), oorThreshold: 0, movingThreshold: 0, currentDate: latestWeek, planningPpg };
   }
 
   function buildDriverAction(highIdle, highOor, lowMoving) {
@@ -1211,7 +1239,7 @@
         record.driverName ||= linkedDriver.driverName;
       }
       const driverIdlePct = linkedDriver?.idlePct ?? null;
-      const highDriverIdle = driverIdlePct !== null && driverIdlePct > drivers.idleThreshold;
+      const highDriverIdle = !linkedDriver?.idleExcluded && driverIdlePct !== null && driverIdlePct > drivers.idleThreshold;
       const usePct = record.apuUsePct !== null && record.apuUsePct !== undefined
         ? record.apuUsePct
         : record.apuHours !== null && record.engineIdleHours !== null && (record.apuHours + record.engineIdleHours) > 0
@@ -1788,6 +1816,17 @@
   function normalizeIdentity(value) {
     return text(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
   }
+  function isIdleExcludedDriver(driver) {
+    const rawName = String(driver?.driverName ?? "");
+    const rawCode = String(driver?.driverCode ?? "");
+    const codeCandidates = [
+      normalizeIdentity(rawCode),
+      ...((`${rawCode} ${rawName}`).match(/\b\d{4,}\b/g) || []).map(normalizeIdentity),
+    ].filter(Boolean);
+    if (codeCandidates.some((code) => IDLE_EXCLUDED_DRIVER_CODES.has(code))) return true;
+    const nameTokens = new Set((rawName.toLowerCase().match(/[a-z]+/g) || []));
+    return IDLE_EXCLUDED_DRIVER_NAME_TOKENS.some((required) => required.every((token) => nameTokens.has(token)));
+  }
 
   function normalizePercent(value) {
     const parsed = number(value);
@@ -2019,18 +2058,21 @@
     els.kpiAnnualNote.textContent = `If the current gap repeats · ${money(state.settings.planningPpg, 2)}/gal`;
     els.kpiAnnualBar.style.width = `${clamp(drivers.totals.topFourShare * 100, 20, 100)}%`;
 
-    const idle7Values = drivers.records.map((driver) => driver.idle7DayPct).filter(isFiniteNumber);
-    const idle28Values = drivers.records.map((driver) => driver.idle28DayPct).filter(isFiniteNumber);
+    const idleEligibleRecords = drivers.records.filter((driver) => !driver.idleExcluded);
+    const idleExcludedCount = drivers.records.length - idleEligibleRecords.length;
+    const idleExclusionNote = idleExcludedCount ? ` · ${formatCount(idleExcludedCount)} excluded` : "";
+    const idle7Values = idleEligibleRecords.map((driver) => driver.idle7DayPct).filter(isFiniteNumber);
+    const idle28Values = idleEligibleRecords.map((driver) => driver.idle28DayPct).filter(isFiniteNumber);
     const idle7Average = idle7Values.length ? average(idle7Values) : null;
     const idle28Average = idle28Values.length ? average(idle28Values) : null;
     els.kpiIdle7Day.textContent = pct(idle7Average, 1);
-    els.kpiIdle7DayNote.textContent = `${formatCount(idle7Values.length)} driver${idle7Values.length === 1 ? "" : "s"} with 7-day data`;
+    els.kpiIdle7DayNote.textContent = `${formatCount(idle7Values.length)} driver${idle7Values.length === 1 ? "" : "s"} with 7-day data${idleExclusionNote}`;
     els.kpiIdle7DayBar.style.width = `${clamp((idle7Average || 0) * 100, idle7Average === null ? 0 : 4, 100)}%`;
     els.kpiIdle28Day.textContent = pct(idle28Average, 1);
-    els.kpiIdle28DayNote.textContent = `${formatCount(idle28Values.length)} driver${idle28Values.length === 1 ? "" : "s"} with 28-day data`;
+    els.kpiIdle28DayNote.textContent = `${formatCount(idle28Values.length)} driver${idle28Values.length === 1 ? "" : "s"} with 28-day data${idleExclusionNote}`;
     els.kpiIdle28DayBar.style.width = `${clamp((idle28Average || 0) * 100, idle28Average === null ? 0 : 4, 100)}%`;
 
-    const idleRecords = drivers.records.filter((driver) => isFiniteNumber(currentIdlePct(driver)));
+    const idleRecords = idleEligibleRecords.filter((driver) => isFiniteNumber(currentIdlePct(driver)));
     const highestIdlers = [...idleRecords].sort((a, b) => currentIdlePct(b) - currentIdlePct(a)).slice(0, 5);
     const bestIdlers = [...idleRecords].sort((a, b) => currentIdlePct(a) - currentIdlePct(b)).slice(0, 5);
     const topDriver = isIdleFocusedMode(analysis) ? highestIdlers[0] : drivers.records[0];
