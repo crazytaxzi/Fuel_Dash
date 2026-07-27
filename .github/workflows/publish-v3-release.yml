@@ -30,11 +30,15 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
-          from textwrap import dedent
+          from textwrap import dedent, indent
+          import os
           import subprocess
 
           path = Path("app.js")
           text = path.read_text(encoding="utf-8")
+
+          def js(value):
+              return indent(dedent(value).lstrip("\n"), "  ")
 
           def once(old, new):
               global text
@@ -46,7 +50,7 @@ jobs:
           if "IDLE_EXCLUDED_DRIVER_NAME_TOKENS" not in text:
               once(
                   '  const DRIVER_ACTION_NOTES_KEY = "vixenDriverActionNotesV1";\n',
-                  dedent('''\
+                  js('''
                     const DRIVER_ACTION_NOTES_KEY = "vixenDriverActionNotesV1";
                     const IDLE_EXCLUDED_DRIVER_NAME_TOKENS = Object.freeze([
                       Object.freeze(["kevin", "lammerding"]),
@@ -75,12 +79,12 @@ jobs:
                   ''')
               )
 
-              identity_block = dedent('''\
+              identity_block = js('''
                 function normalizeIdentity(value) {
                   return text(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
                 }
               ''')
-              helper_block = identity_block + dedent('''\
+              helper_block = identity_block + js('''
 
                 function isIdleExcludedDriver(driver) {
                   const rawName = String(driver?.driverName ?? "");
@@ -194,10 +198,8 @@ jobs:
           subprocess.run(["git", "commit", "-m", "Exclude designated drivers from idle metrics"], check=True)
           subprocess.run(["git", "push", "origin", "main"], check=True)
           sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
-          with open(Path(os.environ["GITHUB_OUTPUT"]), "a", encoding="utf-8") as output:
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               output.write(f"sha={sha}\n")
-        env:
-          GITHUB_OUTPUT: ${{ github.output }}
 
       - name: Validate release version
         id: release
