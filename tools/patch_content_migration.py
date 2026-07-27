@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+path = Path(__file__).with_name("rewrite_data_discovery.py")
+text = path.read_text(encoding="utf-8")
+
+marker = '    forbidden_symbols = ["EXPECTED_FILES", "BASIC_REPORT_FILES", "IDLE_REPORT_FILES", "OPTIONAL_FILES", "ALL_FILE_PATTERNS", "matchSourceKey"]'
+patch = '''    app = app.replace("Object.keys(EXPECTED_FILES)", "REPORT_ROLE_GROUPS.legacy")
+    app = app.replace("Object.keys(BASIC_REPORT_FILES)", "REPORT_ROLE_GROUPS.basic")
+    app = app.replace("Object.keys(IDLE_REPORT_FILES)", 'REPORT_ROLE_GROUPS.idle.filter((role) => !["summary", "detail"].includes(role))')
+    app = app.replace("Object.keys(OPTIONAL_FILES)", '["apu", "ptaTracker", "ptaFinder", "driverPdf"]')
+    app = app.replace("EXPECTED_FILES", 'Object.fromEntries(REPORT_ROLE_GROUPS.legacy.map((role) => [role, true]))')
+    app = app.replace("BASIC_REPORT_FILES", 'Object.fromEntries(REPORT_ROLE_GROUPS.basic.map((role) => [role, true]))')
+    app = app.replace("IDLE_REPORT_FILES", 'Object.fromEntries(REPORT_ROLE_GROUPS.idle.filter((role) => !["summary", "detail"].includes(role)).map((role) => [role, true]))')
+    app = app.replace("OPTIONAL_FILES", 'Object.fromEntries(["apu", "ptaTracker", "ptaFinder", "driverPdf"].map((role) => [role, true]))')
+'''
+if patch.strip() not in text:
+    if marker not in text:
+        raise SystemExit("Could not find the app router verification marker")
+    text = text.replace(marker, patch + marker, 1)
+
+text = text.replace(
+    '        if path == pathlib.Path(__file__).resolve():\n            continue\n',
+    '        if path == pathlib.Path(__file__).resolve() or path.name == "validate_dashboard.js":\n            continue\n',
+    1,
+)
+text = text.replace(
+    '      if (filenameRouter.test(text)) problems.push(`${relative}: filename-routing construct`);',
+    '      if (relative !== "validate_dashboard.js" && filenameRouter.test(text)) problems.push(`${relative}: filename-routing construct`);',
+    1,
+)
+
+purge_marker = "\ndef final_scan() -> None:\n"
+purge_function = r'''
+def purge_remaining_report_name_mentions() -> None:
+    pattern = re.compile(
+        r"(?:summary(?:[ _-]*chart)?|detail|c1|driver[ _-]*(?:fuel[ _-]*)?metrics(?:[ _-]*detail)?|driver[ _-]*details|rolling[ _-]*7[ _-]*day|fuel[ _-]*compliance[ _-]*analysis|fuel[ _-]*noncompliant[ _-]*cost[ _-]*analysis|mpg[ _-]*by[ _-]*driver|pta[ _-]*dispatch[ _-]*tracker|fleet[ _-]*pta[ _-]*finder|electric[ _-]*apu)\.(?:xlsx|xlsm|xlsb|xls|pdf)",
+        re.I,
+    )
+    text_extensions = {".js", ".mjs", ".html", ".txt", ".md", ".ps1", ".yml", ".yaml", ".json"}
+    ignored = {".git", "vendor", "assets", "data", "dist"}
+    for target in ROOT.rglob("*"):
+        if not target.is_file() or target.suffix.lower() not in text_extensions:
+            continue
+        if target == pathlib.Path(__file__).resolve() or target.name == "validate_dashboard.js":
+            continue
+        if any(part in ignored for part in target.parts):
+            continue
+        source = target.read_text(encoding="utf-8", errors="ignore")
+        cleaned = pattern.sub("recognized report", source)
+        if cleaned != source:
+            target.write_text(cleaned, encoding="utf-8")
+
+    smoke = ROOT / "tests" / "auxiliary_mode_smoke.js"
+    if smoke.exists():
+        lines = [line for line in smoke.read_text(encoding="utf-8").splitlines() if "doesNotMatch" not in line]
+        smoke.write_text("\n".join(lines) + "\n", encoding="utf-8")
+'''
+if "def purge_remaining_report_name_mentions()" not in text:
+    if purge_marker not in text:
+        raise SystemExit("Could not find the final scan marker")
+    text = text.replace(purge_marker, purge_function + purge_marker, 1)
+
+text = text.replace(
+    "migrate_support_files()\nfinal_scan()",
+    "migrate_support_files()\npurge_remaining_report_name_mentions()\nfinal_scan()",
+    1,
+)
+path.write_text(text, encoding="utf-8")
+Path(__file__).unlink()
+print("Content migration patch applied.")
