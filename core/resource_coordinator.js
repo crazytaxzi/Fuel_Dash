@@ -44,7 +44,7 @@
       if (path === "data-manifest.json") {
         stats.manifestRequests += 1;
         const response = await nativeFetch(input, { ...init, cache: "no-store" });
-        if (response.ok) updateManifest(response.clone()).catch(() => {});
+        if (response.ok) await updateManifest(response.clone());
         return response;
       }
 
