@@ -42,7 +42,13 @@ jobs:
               lines = []
               for line in source[run_line + 1:end]:
                   lines.append(line[10:] if line.startswith("          ") else line)
-              Path(output).write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+              text = "\n".join(lines).rstrip() + "\n"
+              if output.endswith("add_transition_day_selector.py"):
+                  text = text.replace(
+                      "context_pattern.subn(context_replacement, source, count=1)",
+                      "context_pattern.subn(lambda _match: context_replacement, source, count=1)",
+                  )
+              Path(output).write_text(text, encoding="utf-8")
               py_compile.compile(output, doraise=True)
 
           extract("Add yesterday and today selector", "Commit feature", "/tmp/add_transition_day_selector.py")
