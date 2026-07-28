@@ -3,6 +3,7 @@
 
   const OPTIONAL_MODULES = [
     "core/resource_coordinator.js",
+    "core/read_once_mode.js",
     "smart_data_loader.js",
     "auxiliary_mode.js",
     "database/exclusion-manager.js",
@@ -35,6 +36,7 @@
       await loadScript("app.js");
       await loadScript("database/pta-history-ui.js");
       await loadScript("database/worked-navigation-fix.js");
+      document.dispatchEvent(new Event("DOMContentLoaded", { bubbles: true }));
       installPtaShortcutBridge();
       performance.mark("vixen-bootstrap-end");
       performance.measure("vixen-bootstrap", "vixen-bootstrap-start", "vixen-bootstrap-end");
