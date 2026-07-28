@@ -1,0 +1,18 @@
+{
+  "version": "3.13.0",
+  "sha256": "187d00de65db2a8c2d01353d9cde4ea2e4b2be534997d8dc97adc426511ea0ff",
+  "sourceBytes": 43051,
+  "features": [
+    "Readable Outlook-friendly HTML sections and follow-up cards",
+    "Bold formatting",
+    "Italic formatting",
+    "Underline formatting",
+    "Bulleted lists and clear-format control",
+    "Emoji and emote picker",
+    "Rich HTML clipboard copy for Outlook",
+    "Multipart plain-text and HTML .eml export",
+    "Plain-text mailto fallback"
+  ],
+  "storage": "Recipients, templates, and drafts remain in browser local storage.",
+  "validation": "The assembled source must match the listed SHA-256 before it is executed or released."
+}
