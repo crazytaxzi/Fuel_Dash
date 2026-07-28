@@ -25,42 +25,6 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Apply verified rich transition editor
-        shell: bash
-        run: |
-          set -euo pipefail
-          REQUESTED="$(tr -d '\r\n ' < .github/release-request.txt)"
-          if [[ "$REQUESTED" != "v3.13.0" ]]; then
-            echo "This temporary release pipeline only accepts v3.13.0. Found: $REQUESTED" >&2
-            exit 1
-          fi
-          cat .github/rich-transition-patch/part-*.b64 | base64 --decode > transition_export_v2.js
-          echo "187d00de65db2a8c2d01353d9cde4ea2e4b2be534997d8dc97adc426511ea0ff  transition_export_v2.js" | sha256sum --check --strict
-          node --check transition_export_v2.js
-          grep -F 'data-editor-command="bold"' transition_export_v2.js
-          grep -F 'data-editor-command="italic"' transition_export_v2.js
-          grep -F 'data-editor-command="underline"' transition_export_v2.js
-          grep -F '😊 Emotes' transition_export_v2.js
-          grep -F 'ClipboardItem' transition_export_v2.js
-          grep -F 'multipart/alternative' transition_export_v2.js
-          grep -F 'Content-Type: text/html' transition_export_v2.js
-          grep -F 'transition-email-sheet' transition_export_v2.js
-          printf '3.13.0\n' > VERSION
-
-      - name: Commit rich transition editor
-        id: source
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add transition_export_v2.js VERSION
-          if ! git diff --cached --quiet; then
-            git commit -m "Add rich Outlook transition editor"
-            git push origin main
-          fi
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
       - name: Validate release version
         id: release
         shell: bash
@@ -108,12 +72,23 @@ jobs:
             fi
           done
 
+          cat .github/rich-transition-patch/part-*.b64 | base64 --decode > /tmp/rich-transition-editor.js
+          echo "187d00de65db2a8c2d01353d9cde4ea2e4b2be534997d8dc97adc426511ea0ff  /tmp/rich-transition-editor.js" | sha256sum --check --strict
+          node --check /tmp/rich-transition-editor.js
+          grep -F 'data-editor-command="bold"' /tmp/rich-transition-editor.js
+          grep -F 'data-editor-command="italic"' /tmp/rich-transition-editor.js
+          grep -F 'data-editor-command="underline"' /tmp/rich-transition-editor.js
+          grep -F '😊 Emotes' /tmp/rich-transition-editor.js
+          grep -F 'ClipboardItem' /tmp/rich-transition-editor.js
+          grep -F 'multipart/alternative' /tmp/rich-transition-editor.js
+          grep -F 'Content-Type: text/html' /tmp/rich-transition-editor.js
+
       - name: Build downloadable ZIP
         shell: python
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
           RELEASE_ASSET: ${{ steps.release.outputs.asset }}
-          RELEASE_SHA: ${{ steps.source.outputs.sha }}
+          RELEASE_SHA: ${{ github.sha }}
         run: |
           from pathlib import Path
           import hashlib
@@ -136,6 +111,10 @@ jobs:
                   shutil.copytree(item, target)
               elif item.is_file():
                   shutil.copy2(item, target)
+
+          rich_source = root / ".github" / "rich-transition-patch"
+          rich_target = package / "database" / "rich-transition-patch"
+          shutil.copytree(rich_source, rich_target)
 
           data_dir = package / "data"
           data_dir.mkdir(exist_ok=True)
@@ -189,7 +168,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.release.outputs.tag }}
           ASSET: ${{ steps.release.outputs.asset }}
-          TARGET_SHA: ${{ steps.source.outputs.sha }}
         run: |
           set -euo pipefail
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -200,7 +178,7 @@ jobs:
             "dist/$ASSET" \
             "dist/$ASSET.sha256" \
             --repo "$GITHUB_REPOSITORY" \
-            --target "$TARGET_SHA" \
+            --target "$GITHUB_SHA" \
             --title "Fuel Dash $TAG" \
             --notes-file dist/release-notes.md
 
@@ -209,10 +187,9 @@ jobs:
         env:
           TAG: ${{ steps.release.outputs.tag }}
           ASSET: ${{ steps.release.outputs.asset }}
-          TARGET_SHA: ${{ steps.source.outputs.sha }}
         run: |
           set -euo pipefail
-          printf '%s\n%s\n%s\n' "$TAG" "$ASSET" "$TARGET_SHA" > .github/release-result.txt
+          printf '%s\n%s\n%s\n' "$TAG" "$ASSET" "$GITHUB_SHA" > .github/release-result.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .github/release-result.txt
