@@ -5,6 +5,7 @@
     "smart_data_loader.js",
     "auxiliary_mode.js",
     "database/exclusion-manager.js",
+    "database/trip-planning-notes.js",
     "database/idle-history-ui.js",
     "database/hero-chart-layout.js",
     "database/overview-layout-fix.js",
