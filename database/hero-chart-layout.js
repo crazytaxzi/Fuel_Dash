@@ -12,23 +12,18 @@
     }
 
     .hero-chart-wrap {
-      display: grid;
-      grid-template-rows: auto minmax(0, 1fr);
       min-height: 320px;
-      padding: 2px 126px 10px 2px;
-    }
-
-    .hero-chart-wrap .chart-heading {
-      position: static;
-      align-self: end;
-      padding: 0 0 8px 6px;
+      padding: 0 126px 0 2px;
     }
 
     .hero-chart-wrap canvas {
+      position: absolute;
+      left: 2px;
+      top: 30px;
       min-width: 0;
       min-height: 0;
-      width: 100% !important;
-      height: 100% !important;
+      width: calc(100% - 128px) !important;
+      height: calc(100% - 40px) !important;
     }
 
     @media (max-width: 850px) {
@@ -38,11 +33,13 @@
 
       .hero-chart-wrap {
         min-height: 320px;
-        padding: 2px 0 10px 2px;
+        padding: 30px 0 2px 2px;
       }
 
-      .hero-chart-wrap .chart-callout {
-        grid-row: 3;
+      .hero-chart-wrap canvas {
+        position: static;
+        width: 100% !important;
+        height: 280px !important;
       }
     }
   `;
