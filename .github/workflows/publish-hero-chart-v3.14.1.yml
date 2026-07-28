@@ -1,0 +1,110 @@
+name: Publish taller hero chart v3.14.1
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+    paths:
+      - .github/hero-chart-release-request.txt
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fuel-dash-hero-chart-v3-14-1
+  cancel-in-progress: false
+
+jobs:
+  package-and-release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Validate request and source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(tr -d '\r\n ' < VERSION)" = "3.14.1"
+          test "$(tr -d '\r\n ' < .github/hero-chart-release-request.txt)" = "v3.14.1"
+          node --check database/hero-chart-layout.js
+          node --check database/bootstrap.js
+          node --check database/rich-transition-editor.js
+          node --check app.js
+          grep -F 'grid-auto-rows: minmax(320px, auto)' database/hero-chart-layout.js
+          grep -F 'height: calc(100% - 40px) !important' database/hero-chart-layout.js
+          grep -F 'width: calc(100% - 128px) !important' database/hero-chart-layout.js
+          grep -F 'database/hero-chart-layout.js' database/bootstrap.js
+
+      - name: Build package
+        shell: python
+        run: |
+          from pathlib import Path
+          import hashlib
+          import shutil
+          import zipfile
+
+          root = Path.cwd()
+          dist = root / "dist"
+          package = dist / "Fuel_Dash"
+          shutil.rmtree(dist, ignore_errors=True)
+          package.mkdir(parents=True)
+
+          excluded = {".git", ".github", "data", "dist", "Dashboard_Server_Log.txt"}
+          for item in root.iterdir():
+              if item.name in excluded:
+                  continue
+              target = package / item.name
+              if item.is_dir():
+                  shutil.copytree(item, target)
+              elif item.is_file():
+                  shutil.copy2(item, target)
+
+          data_dir = package / "data"
+          data_dir.mkdir(exist_ok=True)
+          (data_dir / "PLACE_REPORTS_HERE.txt").write_text(
+              "Place the current XLSX and PDF operating reports in this folder.\n"
+              "Operational data, notes, exclusions, and transition settings remain in the local browser.\n",
+              encoding="utf-8",
+          )
+
+          commit = __import__("subprocess").check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          (package / "RELEASE_BUILD.txt").write_text(
+              f"Fuel Dash\nVersion: v3.14.1\nCommit: {commit}\n",
+              encoding="utf-8",
+          )
+
+          zip_path = dist / "Fuel_Dash-v3.14.1.zip"
+          with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
+              for path in sorted(package.rglob("*")):
+                  if path.is_file():
+                      archive.write(path, path.relative_to(dist))
+
+          digest = hashlib.sha256(zip_path.read_bytes()).hexdigest()
+          (dist / "Fuel_Dash-v3.14.1.zip.sha256").write_text(
+              f"{digest}  Fuel_Dash-v3.14.1.zip\n",
+              encoding="ascii",
+          )
+          (dist / "release-notes.md").write_text(
+              "# Fuel Dash v3.14.1\n\n"
+              "The Hero Insight history chart now fills the vertical height of the insight row with a small inner margin instead of remaining capped at 205 pixels. The copy column controls the card height, so the graph grows without making the card taller. The mobile layout remains bounded and readable.\n",
+              encoding="utf-8",
+          )
+
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TARGET="$(git rev-parse HEAD)"
+          if gh release view v3.14.1 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload v3.14.1 dist/Fuel_Dash-v3.14.1.zip dist/Fuel_Dash-v3.14.1.zip.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit v3.14.1 --title "Fuel Dash v3.14.1" --notes-file dist/release-notes.md --latest --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create v3.14.1 dist/Fuel_Dash-v3.14.1.zip dist/Fuel_Dash-v3.14.1.zip.sha256 --repo "$GITHUB_REPOSITORY" --target "$TARGET" --title "Fuel Dash v3.14.1" --notes-file dist/release-notes.md --latest
+          fi
