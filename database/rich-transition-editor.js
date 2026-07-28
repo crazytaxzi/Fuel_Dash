@@ -659,57 +659,27 @@
 
 
   function removeEmailBackgrounds(html) {
+  const container = document.createElement("div");
+  container.innerHTML = String(html ?? "");
+  container.querySelectorAll("*").forEach((element) => {
+    element.style.removeProperty("background");
+    element.style.removeProperty("background-color");
+    element.style.removeProperty("background-image");
+    element.style.removeProperty("color");
+    element.removeAttribute("bgcolor");
+    element.removeAttribute("background");
+    element.removeAttribute("color");
+  });
+  return stripEmailPresentationCss(container.innerHTML);
+}
 
-    const container = document.createElement("div");
+function stripEmailPresentationCss(value) {
+  return String(value ?? "")
+    .replace(/(?:background(?:-color|-image)?)\s*:[^;"']*;?/gi, "")
+    .replace(/(^|[;"'])\s*color\s*:[^;"']*;?/gi, "$1")
+    .replace(/\s(?:bgcolor|background|color)\s*=\s*(["']).*?\1/gi, "");
+}
 
-    container.innerHTML = String(html ?? "");
-
-    const readableColors = {
-
-      "#fff": "#172033",
-
-      "#ffffff": "#172033",
-
-      "white": "#172033",
-
-      "#a9f3c0": "#475467",
-
-      "#d8e1ec": "#667085",
-
-    };
-
-    container.querySelectorAll("*").forEach((element) => {
-
-      element.style.removeProperty("background");
-
-      element.style.removeProperty("background-color");
-
-      element.style.removeProperty("background-image");
-
-      element.removeAttribute("bgcolor");
-
-      element.removeAttribute("background");
-
-      const color = String(element.style.color || "").trim().toLowerCase();
-
-      if (readableColors[color]) element.style.color = readableColors[color];
-
-    });
-
-    return stripEmailBackgroundCss(container.innerHTML);
-
-  }
-
-
-  function stripEmailBackgroundCss(value) {
-
-    return String(value ?? "")
-
-      .replace(/(?:background(?:-color|-image)?)\s*:[^;"']*;?/gi, "")
-
-      .replace(/\s(?:bgcolor|background)\s*=\s*(["']).*?\1/gi, "");
-
-  }
 
 
   function sanitizeHtmlBase(value) {
@@ -756,7 +726,7 @@
 
   function outlookDocument(bodyHtml) {
 
-    return stripEmailBackgroundCss(outlookDocumentBase(bodyHtml));
+    return stripEmailPresentationCss(outlookDocumentBase(bodyHtml));
 
   }
 
