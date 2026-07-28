@@ -15,6 +15,7 @@
     "missing_bol.js",
     "missing_bol_driver_only.js",
     "worked_workflow.js",
+    "core/required_dom_guard.js",
     "note_transition_toggle.js",
     "database/transition-grouping.js",
     "transition_export_v2.js",
@@ -33,6 +34,7 @@
           await window.VixenRichTransitionReady;
         }
       }
+      window.VixenRequiredDomGuard?.ensure?.();
       await loadScript("app.js");
       await loadScript("database/pta-history-ui.js");
       await loadScript("database/worked-navigation-fix.js");
