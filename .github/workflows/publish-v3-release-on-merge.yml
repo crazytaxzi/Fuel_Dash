@@ -54,12 +54,24 @@ jobs:
           node --check app.js
           node --check transition_export_v2.js
           node --check database/bootstrap.js
-          test -f database/rich-transition-patch/manifest.json
-          test -f database/rich-transition-patch/part-00.b64
-          test -f database/rich-transition-patch/part-01.b64
-          test -f database/rich-transition-patch/part-02.b64
-          test -f database/rich-transition-patch/part-03.b64
-          test -f database/rich-transition-patch/part-04.b64
+          python - <<'PY'
+          from pathlib import Path
+          import base64
+
+          folder = Path("database/rich-transition-patch")
+          parts = [folder / f"part-{index:02d}.b64" for index in range(5)]
+          missing = [str(path) for path in parts if not path.is_file()]
+          if missing:
+              raise SystemExit(f"Missing rich transition bundle parts: {missing}")
+
+          encoded = "".join("".join(path.read_text(encoding="utf-8").split()) for path in parts)
+          source = base64.b64decode(encoded, validate=True)
+          if not source.strip():
+              raise SystemExit("Rich transition bundle decoded to an empty script")
+          Path("/tmp/rich-transition-editor.js").write_bytes(source)
+          print(f"Decoded rich transition editor: {len(source)} bytes")
+          PY
+          node --check /tmp/rich-transition-editor.js
 
       - name: Build release package
         shell: python
@@ -119,8 +131,11 @@ jobs:
 
           (dist / "release-notes.md").write_text(
               f"# Fuel Dash {tag}\n\n"
-              "This package includes the rich Outlook transition editor with readable HTML sections, "
-              "bold, italic, underline, emoji controls, rich clipboard copy, and multipart HTML .eml export.\n\n"
+              "Fixes the dashboard startup failure caused by a stale rich-transition checksum. "
+              "The release now validates strict base64 decoding and JavaScript syntax before packaging, "
+              "without allowing a duplicated embedded checksum to block the entire dashboard.\n\n"
+              "The rich Outlook transition editor still includes readable HTML sections, bold, italic, "
+              "underline, emoji controls, rich clipboard copy, and multipart HTML .eml export.\n\n"
               "Operational data and browser settings are not bundled or uploaded.\n",
               encoding="utf-8",
           )
