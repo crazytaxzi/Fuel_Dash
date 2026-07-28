@@ -63,6 +63,7 @@ jobs:
               Path("transition_export_v2.js"),
               Path("core/resource_coordinator.js"),
               Path("core/read_once_mode.js"),
+              Path("core/required_dom_guard.js"),
               Path("database/bootstrap.js"),
               Path("database/idle-history-ui.js"),
               Path("database/trip-planning-notes.js"),
@@ -84,6 +85,7 @@ jobs:
           required_modules = [
               '"core/resource_coordinator.js"',
               '"core/read_once_mode.js"',
+              '"core/required_dom_guard.js"',
               '"database/trip-planning-notes.js"',
               '"database/trip-planning-table.js"',
               '"database/transition-grouping.js"',
@@ -152,10 +154,9 @@ jobs:
 
           (dist / "release-notes.md").write_text(
               f"# Fuel Dash {tag}\n\n"
-              "Cuts the dashboard's workbook and browser resource use by centralizing report loading. "
-              "Reports are read once per file version, shared across fuel analysis, Missing BOL, and idle-history features, and retained as analyzed dashboard results instead of being repeatedly downloaded and parsed.\n\n"
-              "Scheduled workbook refresh is now disabled by default. The dashboard checks for changed files when it opens or when Refresh is pressed, and unchanged files reuse their cached data. "
-              "This release also removes broad DOM observation, reduces recurring Worked-queue rendering, and adds streamed local file delivery with ETag and 304 support.\n\n"
+              "Fixes a startup crash where the Worked workflow removed optional KPI cards before the main dashboard cached its DOM references. "
+              "The dashboard could briefly load saved notes and reports, then return to the connection screen with a null textContent error.\n\n"
+              "Core render targets are now protected during startup, while the resource-efficiency changes from v3.17.0 remain intact: read-once workbook handling, manual refresh by default, shared parsed report data, reduced DOM churn, and streamed local file delivery with ETag and 304 support.\n\n"
               "Operational report files and browser-stored notes remain local and are not included in the release package.\n",
               encoding="utf-8",
           )
