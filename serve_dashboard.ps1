@@ -33,14 +33,80 @@ function Get-ContentType([string]$Path) {
     }
 }
 
-function Send-Response {
-    param($Stream, [int]$StatusCode, [string]$StatusText, [string]$ContentType, [byte[]]$Body, [string]$LastModified = "")
-    $lastModifiedHeader = if ([string]::IsNullOrWhiteSpace($LastModified)) { "" } else { "Last-Modified: $LastModified`r`n" }
-    $header = "HTTP/1.1 $StatusCode $StatusText`r`nContent-Type: $ContentType`r`nContent-Length: $($Body.Length)`r`nCache-Control: no-store`r`n$lastModifiedHeader" + "Connection: close`r`n`r`n"
+function Get-CacheControl([string]$RequestPath) {
+    if ($RequestPath -eq "index.html" -or $RequestPath -eq "data-manifest.json" -or $RequestPath.StartsWith("data-file/", [StringComparison]::OrdinalIgnoreCase)) {
+        return "no-cache"
+    }
+    return "public, max-age=3600"
+}
+
+function Get-FileEtag([IO.FileInfo]$File) {
+    return 'W/"{0:x}-{1:x}"' -f $File.Length, $File.LastWriteTimeUtc.Ticks
+}
+
+function Write-Headers {
+    param(
+        $Stream,
+        [int]$StatusCode,
+        [string]$StatusText,
+        [string]$ContentType,
+        [long]$ContentLength,
+        [string]$CacheControl,
+        [string]$LastModified = "",
+        [string]$Etag = ""
+    )
+
+    $optional = ""
+    if (-not [string]::IsNullOrWhiteSpace($LastModified)) { $optional += "Last-Modified: $LastModified`r`n" }
+    if (-not [string]::IsNullOrWhiteSpace($Etag)) { $optional += "ETag: $Etag`r`n" }
+    $header = "HTTP/1.1 $StatusCode $StatusText`r`nContent-Type: $ContentType`r`nContent-Length: $ContentLength`r`nCache-Control: $CacheControl`r`n$optional" + "Connection: close`r`n`r`n"
     $headerBytes = [Text.Encoding]::ASCII.GetBytes($header)
     $Stream.Write($headerBytes, 0, $headerBytes.Length)
+}
+
+function Send-BytesResponse {
+    param(
+        $Stream,
+        [int]$StatusCode,
+        [string]$StatusText,
+        [string]$ContentType,
+        [byte[]]$Body,
+        [string]$CacheControl = "no-cache",
+        [string]$LastModified = "",
+        [string]$Etag = ""
+    )
+
+    Write-Headers $Stream $StatusCode $StatusText $ContentType $Body.LongLength $CacheControl $LastModified $Etag
     if ($Body.Length -gt 0) { $Stream.Write($Body, 0, $Body.Length) }
     $Stream.Flush()
+}
+
+function Send-NotModified {
+    param($Stream, [string]$CacheControl, [string]$LastModified, [string]$Etag)
+    Write-Headers $Stream 304 "Not Modified" "text/plain; charset=utf-8" 0 $CacheControl $LastModified $Etag
+    $Stream.Flush()
+}
+
+function Send-FileResponse {
+    param($Stream, [IO.FileInfo]$File, [string]$RequestPath, [hashtable]$Headers)
+
+    $etag = Get-FileEtag $File
+    $lastModified = $File.LastWriteTimeUtc.ToString("R")
+    $cacheControl = Get-CacheControl $RequestPath
+    if ($Headers.ContainsKey("if-none-match") -and $Headers["if-none-match"] -eq $etag) {
+        Send-NotModified $Stream $cacheControl $lastModified $etag
+        return
+    }
+
+    Write-Headers $Stream 200 "OK" (Get-ContentType $File.FullName) $File.Length $cacheControl $lastModified $etag
+    $fileStream = [IO.File]::Open($File.FullName, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+    try {
+        $fileStream.CopyTo($Stream, 65536)
+        $Stream.Flush()
+    }
+    finally {
+        $fileStream.Dispose()
+    }
 }
 
 function Get-DataManifestJson {
@@ -62,37 +128,16 @@ function Get-DataManifestJson {
     return ConvertTo-Json -InputObject @($Items) -Compress
 }
 
-function Get-ServedFileBytes([string]$Candidate) {
-    if ([IO.Path]::GetFileName($Candidate) -ieq "index.html") {
-        $Html = [IO.File]::ReadAllText($Candidate)
-        $ScriptTags = @()
-        if ($Html -notmatch 'smart_data_loader\.js') {
-            $ScriptTags += '<script src="smart_data_loader.js"></script>'
-        }
-        if ($Html -notmatch 'auxiliary_mode\.js') {
-            $ScriptTags += '<script src="auxiliary_mode.js"></script>'
-        }
-        if ($Html -notmatch 'missing_bol\.js') {
-            $ScriptTags += '<script src="missing_bol.js"></script>'
-        }
-        if ($Html -notmatch 'missing_bol_driver_only\.js') {
-            $ScriptTags += '<script src="missing_bol_driver_only.js"></script>'
-        }
-        if ($Html -notmatch 'worked_workflow\.js') {
-            $ScriptTags += '<script src="worked_workflow.js"></script>'
-        }
-        if ($Html -notmatch 'note_transition_toggle\.js') {
-            $ScriptTags += '<script src="note_transition_toggle.js"></script>'
-        }
-        if ($Html -notmatch 'transition_export_v2\.js') {
-            $ScriptTags += '<script src="transition_export_v2.js"></script>'
-        }
-        $ScriptTags += '<script src="app.js"></script>'
-        $Replacement = $ScriptTags -join ("`r`n  ")
-        $Html = $Html.Replace('<script src="app.js"></script>', $Replacement)
-        return [Text.Encoding]::UTF8.GetBytes($Html)
+function Get-RequestHeaders($Reader) {
+    $headers = @{}
+    while (($line = $Reader.ReadLine()) -ne $null -and $line -ne "") {
+        $separator = $line.IndexOf(":")
+        if ($separator -lt 1) { continue }
+        $name = $line.Substring(0, $separator).Trim().ToLowerInvariant()
+        $value = $line.Substring($separator + 1).Trim()
+        $headers[$name] = $value
     }
-    return [IO.File]::ReadAllBytes($Candidate)
+    return $headers
 }
 
 try {
@@ -108,10 +153,10 @@ try {
             $Stream = $Client.GetStream()
             $Reader = [IO.StreamReader]::new($Stream, [Text.Encoding]::ASCII, $false, 4096, $true)
             $RequestLine = $Reader.ReadLine()
-            while (($Line = $Reader.ReadLine()) -ne $null -and $Line -ne "") {}
+            $Headers = Get-RequestHeaders $Reader
 
             if ([string]::IsNullOrWhiteSpace($RequestLine)) {
-                Send-Response $Stream 400 "Bad Request" "text/plain; charset=utf-8" ([Text.Encoding]::UTF8.GetBytes("Bad request"))
+                Send-BytesResponse $Stream 400 "Bad Request" "text/plain; charset=utf-8" ([Text.Encoding]::UTF8.GetBytes("Bad request"))
                 continue
             }
 
@@ -122,7 +167,7 @@ try {
             if ([string]::IsNullOrWhiteSpace($RequestPath)) { $RequestPath = "index.html" }
 
             if ($RequestPath -eq "shutdown") {
-                Send-Response $Stream 200 "OK" "text/plain; charset=utf-8" ([Text.Encoding]::UTF8.GetBytes("Dashboard server stopping."))
+                Send-BytesResponse $Stream 200 "OK" "text/plain; charset=utf-8" ([Text.Encoding]::UTF8.GetBytes("Dashboard server stopping."))
                 Write-Log "Shutdown requested."
                 $Running = $false
                 continue
@@ -130,7 +175,14 @@ try {
 
             if ($RequestPath -eq "data-manifest.json") {
                 $Manifest = Get-DataManifestJson
-                Send-Response $Stream 200 "OK" "application/json; charset=utf-8" ([Text.Encoding]::UTF8.GetBytes($Manifest))
+                $Body = [Text.Encoding]::UTF8.GetBytes($Manifest)
+                $Etag = 'W/"manifest-{0:x}"' -f ([Math]::Abs($Manifest.GetHashCode()))
+                if ($Headers.ContainsKey("if-none-match") -and $Headers["if-none-match"] -eq $Etag) {
+                    Send-NotModified $Stream "no-cache" "" $Etag
+                }
+                else {
+                    Send-BytesResponse $Stream 200 "OK" "application/json; charset=utf-8" $Body "no-cache" "" $Etag
+                }
                 continue
             }
 
@@ -140,25 +192,21 @@ try {
                 $Candidate = [IO.Path]::GetFullPath((Join-Path $DataRoot $StoredName))
                 $AllowedExtension = [IO.Path]::GetExtension($Candidate).ToLowerInvariant() -in @(".xlsx", ".pdf")
                 if ([IO.Path]::GetFileName($StoredName) -ne $StoredName -or -not $Candidate.StartsWith($DataRoot, [StringComparison]::OrdinalIgnoreCase) -or -not $AllowedExtension -or -not (Test-Path -LiteralPath $Candidate -PathType Leaf)) {
-                    Send-Response $Stream 404 "Not Found" "text/plain; charset=utf-8" ([Text.Encoding]::UTF8.GetBytes("Data file not found"))
+                    Send-BytesResponse $Stream 404 "Not Found" "text/plain; charset=utf-8" ([Text.Encoding]::UTF8.GetBytes("Data file not found"))
                     continue
                 }
-                $Body = [IO.File]::ReadAllBytes($Candidate)
-                $LastModified = (Get-Item -LiteralPath $Candidate).LastWriteTimeUtc.ToString("R")
-                Send-Response $Stream 200 "OK" (Get-ContentType $Candidate) $Body $LastModified
+                Send-FileResponse $Stream (Get-Item -LiteralPath $Candidate) $RequestPath $Headers
                 continue
             }
 
             $Candidate = [IO.Path]::GetFullPath((Join-Path $Root $RequestPath))
             $RootFull = [IO.Path]::GetFullPath($Root + [IO.Path]::DirectorySeparatorChar)
             if (-not $Candidate.StartsWith($RootFull, [StringComparison]::OrdinalIgnoreCase) -or -not (Test-Path -LiteralPath $Candidate -PathType Leaf)) {
-                Send-Response $Stream 404 "Not Found" "text/plain; charset=utf-8" ([Text.Encoding]::UTF8.GetBytes("Not found"))
+                Send-BytesResponse $Stream 404 "Not Found" "text/plain; charset=utf-8" ([Text.Encoding]::UTF8.GetBytes("Not found"))
                 continue
             }
 
-            $Body = Get-ServedFileBytes $Candidate
-            $LastModified = (Get-Item -LiteralPath $Candidate).LastWriteTimeUtc.ToString("R")
-            Send-Response $Stream 200 "OK" (Get-ContentType $Candidate) $Body $LastModified
+            Send-FileResponse $Stream (Get-Item -LiteralPath $Candidate) $RequestPath $Headers
         }
         catch {
             Write-Log ("Request failed: " + $_.Exception.Message)
