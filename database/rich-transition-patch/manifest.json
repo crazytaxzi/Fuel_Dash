@@ -1,6 +1,6 @@
 {
   "version": "3.13.1",
-  "sourceBytes": 43051,
+  "sourceBytes": 43052,
   "features": [
     "Readable Outlook-friendly HTML sections and follow-up cards",
     "Bold formatting",
@@ -13,5 +13,6 @@
     "Plain-text mailto fallback"
   ],
   "storage": "Recipients, templates, and drafts remain in browser local storage.",
-  "validation": "The release job strictly decodes all bundle parts and runs JavaScript syntax validation before packaging. The browser also rejects invalid base64, invalid UTF-8, empty scripts, and script-load failures."
+  "validation": "Strict base64 decoding and JavaScript syntax validation passed before release.",
+  "sha256": "94eaf703804b9065798a68ddbecb85b50d740c2d1a31e7df69a96a333d203567"
 }
