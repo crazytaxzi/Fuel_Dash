@@ -54,22 +54,36 @@ jobs:
           from pathlib import Path
           import subprocess
 
-          entries = [
+          javascript_entries = [
               Path("app.js"),
+              Path("smart_data_loader.js"),
+              Path("auxiliary_mode.js"),
+              Path("missing_bol.js"),
+              Path("worked_workflow.js"),
               Path("transition_export_v2.js"),
+              Path("core/resource_coordinator.js"),
+              Path("core/read_once_mode.js"),
               Path("database/bootstrap.js"),
+              Path("database/idle-history-ui.js"),
               Path("database/trip-planning-notes.js"),
               Path("database/trip-planning-table.js"),
               Path("database/rich-transition-editor.js"),
               Path("database/transition-grouping.js"),
           ]
-          for entry in entries:
+          for entry in javascript_entries:
               if not entry.is_file():
                   raise SystemExit(f"Missing release entry point: {entry}")
               subprocess.run(["node", "--check", str(entry)], check=True)
 
+          required_files = [Path("serve_dashboard.ps1"), Path("Launch Fuel Dashboard.cmd")]
+          for entry in required_files:
+              if not entry.is_file():
+                  raise SystemExit(f"Missing release file: {entry}")
+
           bootstrap = Path("database/bootstrap.js").read_text(encoding="utf-8")
           required_modules = [
+              '"core/resource_coordinator.js"',
+              '"core/read_once_mode.js"',
               '"database/trip-planning-notes.js"',
               '"database/trip-planning-table.js"',
               '"database/transition-grouping.js"',
@@ -78,7 +92,7 @@ jobs:
           if missing_modules:
               raise SystemExit(f"Release modules are not registered in database/bootstrap.js: {missing_modules}")
 
-          print(f"Validated {len(entries)} live JavaScript release entry points")
+          print(f"Validated {len(javascript_entries)} JavaScript entry points and {len(required_files)} launcher files")
 
       - name: Build release package
         shell: python
@@ -138,11 +152,11 @@ jobs:
 
           (dist / "release-notes.md").write_text(
               f"# Fuel Dash {tag}\n\n"
-              "Replaces the Division 305 Trip Notes card wall with a glanceable PTA-style dispatch table. "
-              "Each truck now shows status, driver, load or order, PTA, destination, next action, latest note, and update time in one compact row. "
-              "The Open control reveals note entry, editing, handoff copy, and removal only when action is needed.\n\n"
-              "PTA sync, search, filters, inline status changes, CSV export, local note history, and existing browser-stored records remain intact. "
-              "Operational data and browser settings are not bundled or uploaded.\n",
+              "Cuts the dashboard's workbook and browser resource use by centralizing report loading. "
+              "Reports are read once per file version, shared across fuel analysis, Missing BOL, and idle-history features, and retained as analyzed dashboard results instead of being repeatedly downloaded and parsed.\n\n"
+              "Scheduled workbook refresh is now disabled by default. The dashboard checks for changed files when it opens or when Refresh is pressed, and unchanged files reuse their cached data. "
+              "This release also removes broad DOM observation, reduces recurring Worked-queue rendering, and adds streamed local file delivery with ETag and 304 support.\n\n"
+              "Operational report files and browser-stored notes remain local and are not included in the release package.\n",
               encoding="utf-8",
           )
 
