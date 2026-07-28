@@ -1,0 +1,15 @@
+/home/runner/work/Fuel_Dash/Fuel_Dash/database/rich-transition-editor.js:522
+      truck_followups: trucks.length ? trucks.map((item) => item.text).join("
+                                                                            ^
+
+SyntaxError: Invalid or unexpected token
+    at wrapSafe (node:internal/modules/cjs/loader:1713:18)
+    at checkSyntax (node:internal/main/check_syntax:78:3)
+
+Node.js v22.23.1
+Traceback (most recent call last):
+  File "/tmp/add_transition_day_selector.py", line 337, in <module>
+    subprocess.run(["node", "--check", str(script)], check=True)
+  File "/usr/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['node', '--check', 'database/rich-transition-editor.js']' returned non-zero exit status 1.
