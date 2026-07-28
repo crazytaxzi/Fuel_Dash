@@ -26,7 +26,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: main
-          fetch-depth: 0
+          fetch-depth: 1
+          show-progress: false
 
       - name: Validate release request
         id: release
@@ -51,26 +52,41 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "CHECK app.js"
           node --check app.js
+          echo "CHECK transition_export_v2.js"
           node --check transition_export_v2.js
+          echo "CHECK database/bootstrap.js"
           node --check database/bootstrap.js
+          echo "DECODE rich transition bundle"
           python - <<'PY'
           from pathlib import Path
           import base64
+          import hashlib
 
           folder = Path("database/rich-transition-patch")
           parts = [folder / f"part-{index:02d}.b64" for index in range(5)]
           missing = [str(path) for path in parts if not path.is_file()]
           if missing:
-              raise SystemExit(f"Missing rich transition bundle parts: {missing}")
+              raise SystemExit(f"MISSING_PARTS {missing}")
 
-          encoded = "".join("".join(path.read_text(encoding="utf-8").split()) for path in parts)
-          source = base64.b64decode(encoded, validate=True)
+          cleaned = []
+          for path in parts:
+              value = "".join(path.read_text(encoding="utf-8").split())
+              print(f"PART {path.name} chars={len(value)} tail={value[-8:]!r}")
+              cleaned.append(value)
+          encoded = "".join(cleaned)
+          print(f"ENCODED chars={len(encoded)} modulo4={len(encoded) % 4}")
+          try:
+              source = base64.b64decode(encoded, validate=True)
+          except Exception as error:
+              raise SystemExit(f"BASE64_DECODE_FAILED {type(error).__name__}: {error}") from error
+          print(f"DECODED bytes={len(source)} sha256={hashlib.sha256(source).hexdigest()}")
           if not source.strip():
-              raise SystemExit("Rich transition bundle decoded to an empty script")
+              raise SystemExit("DECODED_SCRIPT_EMPTY")
           Path("/tmp/rich-transition-editor.js").write_bytes(source)
-          print(f"Decoded rich transition editor: {len(source)} bytes")
           PY
+          echo "CHECK decoded rich transition editor"
           node --check /tmp/rich-transition-editor.js
 
       - name: Build release package
@@ -132,9 +148,8 @@ jobs:
           (dist / "release-notes.md").write_text(
               f"# Fuel Dash {tag}\n\n"
               "Fixes the dashboard startup failure caused by a stale rich-transition checksum. "
-              "The release now validates strict base64 decoding and JavaScript syntax before packaging, "
-              "without allowing a duplicated embedded checksum to block the entire dashboard.\n\n"
-              "The rich Outlook transition editor still includes readable HTML sections, bold, italic, "
+              "The release validates the reconstructed editor before packaging.\n\n"
+              "The rich Outlook transition editor includes readable HTML sections, bold, italic, "
               "underline, emoji controls, rich clipboard copy, and multipart HTML .eml export.\n\n"
               "Operational data and browser settings are not bundled or uploaded.\n",
               encoding="utf-8",
