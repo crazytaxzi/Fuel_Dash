@@ -56,7 +56,7 @@
   const PLACEHOLDERS = Object.freeze([
     "date", "date_scope", "time", "prepared", "weekday", "brand",
     "truck_followups_html", "driver_followups_html", "all_followups_html",
-    "truck_count", "driver_count", "followup_count",
+    "truck_count", "driver_count", "followup_count", "group_count",
   ]);
   const EMOJIS = Object.freeze(["✅", "⚠️", "🚨", "📌", "📞", "🔧", "⏳", "🚛", "⛽", "📊", "👍", "👀", "❗", "🟢", "🟡", "🔴"]);
   const ALLOWED_TAGS = new Set(["A", "B", "BLOCKQUOTE", "BR", "DIV", "EM", "H1", "H2", "H3", "HR", "I", "LI", "OL", "P", "SPAN", "STRONG", "TABLE", "TBODY", "TD", "TH", "THEAD", "TR", "U", "UL"]);
@@ -134,7 +134,7 @@
         <div><span class="eyebrow">SHIFT HANDOFF</span><h2>Rich Transition Email</h2></div>
         <div class="transition-summary"><strong id="transitionSelectedCount">0</strong><span>selected notes</span></div>
       </div>
-      <div class="table-explainer"><strong>Built for Outlook:</strong> selected notes are arranged into readable sections. Format the prepared message with bold, italic, underline, and emoji controls. Use <strong>Copy Rich Email</strong> to paste into an Outlook draft or download the HTML .eml file. The mail-app shortcut is plain text because mail links cannot carry rich HTML.</div>
+      <div class="table-explainer"><strong>Built for Outlook:</strong> selected notes are arranged into readable sections. Notes sharing a driver code, driver name, or truck number are grouped into one chronological follow-up card. Format the prepared message with bold, italic, underline, and emoji controls. Use <strong>Copy Rich Email</strong> to paste into an Outlook draft or download the HTML .eml file. The mail-app shortcut is plain text because mail links cannot carry rich HTML.</div>
       <div class="transition-address-panel panel">
         <div class="transition-address-grid">
           <label><span>To</span><input id="transitionToInput" type="text" placeholder="name@company.com; another@company.com" /></label>
@@ -504,11 +504,19 @@
     dayOffsets = selectedDayOffsets,
   ) {
     const scope = resolveDateScope(now, dayOffsets);
-    const trucks = collectTruckFollowups(ptaNotes, scope, selections);
-    const drivers = collectDriverFollowups(driverNotes, scope, selections);
-    const truckHtml = trucks.length ? trucks.map((item) => item.html).join("") : emptyStateHtml(`No truck follow-ups selected for ${scope.emptyLabel}.`);
-    const driverHtml = drivers.length ? drivers.map((item) => item.html).join("") : emptyStateHtml(`No driver follow-ups selected for ${scope.emptyLabel}.`);
-    const all = [...trucks, ...drivers].sort((a, b) => a.savedAt - b.savedAt || a.text.localeCompare(b.text));
+    const truckNotes = collectTruckFollowups(ptaNotes, scope, selections);
+    const driverNotesSelected = collectDriverFollowups(driverNotes, scope, selections);
+    const selectedNotes = [...truckNotes, ...driverNotesSelected]
+      .sort((a, b) => a.savedAt - b.savedAt || a.text.localeCompare(b.text));
+    const groups = groupSelectedFollowups(selectedNotes, scope);
+    const truckGroups = groups.filter((item) => item.hasTruck);
+    const driverOnlyGroups = groups.filter((item) => !item.hasTruck);
+    const truckHtml = truckGroups.length
+      ? truckGroups.map((item) => item.html).join("")
+      : emptyStateHtml(`No truck-linked follow-ups selected for ${scope.emptyLabel}.`);
+    const driverHtml = driverOnlyGroups.length
+      ? driverOnlyGroups.map((item) => item.html).join("")
+      : emptyStateHtml(`No driver-only follow-ups selected for ${scope.emptyLabel}.`);
     return {
       date: scope.dateLabel,
       date_scope: scope.label,
@@ -518,30 +526,36 @@
       brand: escapeHtml((localStorage.getItem("vixenBrand") || "VIXEN").trim().toUpperCase()),
       truck_followups_html: truckHtml,
       driver_followups_html: driverHtml,
-      all_followups_html: all.length ? all.map((item) => item.html).join("") : emptyStateHtml(`No follow-ups selected for ${scope.emptyLabel}.`),
-      truck_followups: trucks.length ? trucks.map((item) => item.text).join("\n\n") : `None selected for ${scope.emptyLabel}.`,
-      driver_followups: drivers.length ? drivers.map((item) => item.text).join("\n\n") : `None selected for ${scope.emptyLabel}.`,
-      all_followups: all.length ? all.map((item) => item.text).join("\n\n") : `None selected for ${scope.emptyLabel}.`,
-      truck_count: String(trucks.length),
-      driver_count: String(drivers.length),
-      followup_count: String(all.length),
+      all_followups_html: groups.length ? groups.map((item) => item.html).join("") : emptyStateHtml(`No follow-ups selected for ${scope.emptyLabel}.`),
+      truck_followups: truckGroups.length ? truckGroups.map((item) => item.text).join("\n\n") : `None selected for ${scope.emptyLabel}.`,
+      driver_followups: driverOnlyGroups.length ? driverOnlyGroups.map((item) => item.text).join("\n\n") : `None selected for ${scope.emptyLabel}.`,
+      all_followups: groups.length ? groups.map((item) => item.text).join("\n\n") : `None selected for ${scope.emptyLabel}.`,
+      truck_count: String(truckNotes.length),
+      driver_count: String(driverNotesSelected.length),
+      followup_count: String(selectedNotes.length),
+      group_count: String(groups.length),
       file_key: scope.fileKey,
       scope,
-      trucks,
-      drivers,
+      notes: selectedNotes,
+      groups,
+      trucks: truckGroups,
+      drivers: driverOnlyGroups,
     };
   }
 
   function collectTruckFollowups(groups, scope, selections) {
     const items = [];
+    const grouping = window.VixenTransitionGrouping;
     Object.entries(groups || {}).forEach(([truck, values]) => {
       const notes = (Array.isArray(values) ? values : [])
         .filter((note) => dateMatchesScope(note.savedAt, scope.dates) && noteIncluded("pta", note, selections))
         .sort((a, b) => new Date(a.savedAt) - new Date(b.savedAt));
       notes.forEach((note) => {
-        const truckLabel = cleanLine(truck) || "Unknown";
+        const truckLabel = cleanLine(note.truck || truck) || "Unknown";
+        const parsed = grouping?.parseDriverIdentity?.(note.driver) || { name: cleanLine(note.driver), code: "" };
+        const driverName = cleanLine(parsed.name);
+        const driverCode = cleanLine(note.driverCode || parsed.code);
         const details = [
-          scope.dates.length > 1 ? `<strong>Note date:</strong> ${escapeHtml(formatNoteDay(note.savedAt))}` : "",
           note.driver ? `<strong>Driver:</strong> ${escapeHtml(cleanLine(note.driver))}` : "",
           note.pta ? `<strong>PTA:</strong> ${escapeHtml(formatDateTime(note.pta))}` : "",
           note.status ? `<strong>Status:</strong> ${escapeHtml(cleanLine(note.status))}` : "",
@@ -549,17 +563,31 @@
           note.destination ? `<strong>Destination:</strong> ${escapeHtml(cleanLine(note.destination))}` : "",
         ].filter(Boolean).join(" &nbsp;·&nbsp; ");
         const textDetails = [
-          scope.dates.length > 1 ? `Note date ${formatNoteDay(note.savedAt)}` : "",
           note.driver ? `Driver ${cleanLine(note.driver)}` : "",
           note.pta ? `PTA ${formatDateTime(note.pta)}` : "",
           note.status ? `Status ${cleanLine(note.status)}` : "",
           note.planStatus ? `Plan ${cleanLine(note.planStatus)}` : "",
           note.destination ? `Destination ${cleanLine(note.destination)}` : "",
         ].filter(Boolean).join(" | ");
+        const noteText = cleanNoteText(note.text);
         items.push({
+          type: "truck",
+          sourceLabel: "Truck / PTA note",
           savedAt: safeTime(note.savedAt),
-          text: `Truck ${truckLabel}${textDetails ? ` | ${textDetails}` : ""}\n${cleanLine(note.text) || "Note saved without text"}`,
-          html: followupCardHtml(`🚛 Truck ${escapeHtml(truckLabel)}`, details, note.text, "#7c3aed"),
+          truck: truckLabel,
+          driverName,
+          driverCode,
+          driverRaw: cleanLine(note.driver),
+          noteText,
+          detailsHtml: details,
+          detailsText: textDetails,
+          identities: grouping?.identityTokens?.({
+            truck: truckLabel,
+            driverName,
+            driverCode,
+            driverRaw: note.driver,
+          }) || [],
+          text: `Truck ${truckLabel}${textDetails ? ` | ${textDetails}` : ""}\n${noteText}`,
         });
       });
     });
@@ -568,42 +596,155 @@
 
   function collectDriverFollowups(groups, scope, selections) {
     const items = [];
+    const grouping = window.VixenTransitionGrouping;
     Object.entries(groups || {}).forEach(([key, values]) => {
       const notes = (Array.isArray(values) ? values : [])
         .filter((note) => dateMatchesScope(note.savedAt, scope.dates) && noteIncluded("driver", note, selections))
         .sort((a, b) => new Date(a.savedAt) - new Date(b.savedAt));
       notes.forEach((note) => {
-        const name = cleanLine(note.driverName || note.driverCode || key) || "Unknown driver";
-        const code = cleanLine(note.driverCode);
-        const title = `⛽ ${escapeHtml(name)}${code && !name.includes(code) ? ` <span style="font-weight:400;color:#667085;">(${escapeHtml(code)})</span>` : ""}`;
+        const parsedKey = grouping?.parseDriverIdentity?.(key) || { name: cleanLine(key), code: "" };
+        const driverName = cleanLine(note.driverName || parsedKey.name || key) || "Unknown driver";
+        const driverCode = cleanLine(note.driverCode || parsedKey.code);
+        const truckLabel = cleanLine(note.truck || note.truckNumber || note.unit || note.unitNumber);
         const metricPairs = [
-          ...(scope.dates.length > 1 ? [["Note date", formatNoteDay(note.savedAt)]] : []),
+          ...(truckLabel ? [["Truck", truckLabel]] : []),
           ["Idle today", formatPercent(note.dailyIdlePct)],
           ["7-day idle", formatPercent(note.idle7DayPct)],
           ["28-day idle", formatPercent(note.idle28DayPct)],
           ["Possible 28-day cost", Number.isFinite(Number(note.estimatedCost)) ? formatMoney(note.estimatedCost) : ""],
         ].filter((item) => item[1] && item[1] !== "--");
-        const metricsHtml = metricPairs.map(([label, value]) => `<span style="display:inline-block;margin:2px 10px 2px 0;"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</span>`).join("");
+        const metricsHtml = metricPairs
+          .map(([label, value]) => `<span style="display:inline-block;margin:2px 10px 2px 0;"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</span>`)
+          .join("");
         const metricsText = metricPairs.map(([label, value]) => `${label} ${value}`).join(" | ");
+        const noteText = cleanNoteText(note.text);
         items.push({
+          type: "driver",
+          sourceLabel: "Driver / idle note",
           savedAt: safeTime(note.savedAt),
-          text: `${name}${code && !name.includes(code) ? ` (${code})` : ""}\n${metricsText}\n${cleanLine(note.text) || "Note saved without text"}`,
-          html: followupCardHtml(title, metricsHtml, note.text, "#16a34a"),
+          truck: truckLabel,
+          driverName,
+          driverCode,
+          driverRaw: cleanLine(note.driverName || key),
+          noteText,
+          detailsHtml: metricsHtml,
+          detailsText: metricsText,
+          identities: grouping?.identityTokens?.({
+            truck: truckLabel,
+            driverName,
+            driverCode,
+            driverRaw: note.driverName || key,
+          }) || [],
+          text: `${driverName}${driverCode && !driverName.includes(driverCode) ? ` (${driverCode})` : ""}\n${metricsText}\n${noteText}`,
         });
       });
     });
     return items.sort((a, b) => a.savedAt - b.savedAt || a.text.localeCompare(b.text));
   }
 
-  function followupCardHtml(title, details, noteText, accent) {
+  function groupSelectedFollowups(messages, scope) {
+    const grouping = window.VixenTransitionGrouping;
+    const rawGroups = grouping?.groupMessages
+      ? grouping.groupMessages(messages)
+      : messages.map((message) => ({ messages: [message], identities: message.identities || [], savedAt: message.savedAt }));
+    return rawGroups
+      .map((group) => renderFollowupGroup(group, scope))
+      .sort((a, b) => a.savedAt - b.savedAt || a.text.localeCompare(b.text));
+  }
+
+  function renderFollowupGroup(group, scope) {
+    const messages = [...(group.messages || [])]
+      .sort((a, b) => a.savedAt - b.savedAt || a.text.localeCompare(b.text));
+    const trucks = uniqueLabels(messages.map((message) => message.truck));
+    const names = uniqueLabels(messages.map((message) => message.driverName).filter((name) => !/^unknown driver$/i.test(name)));
+    const codes = uniqueLabels(messages.map((message) => message.driverCode));
+    const hasTruck = messages.some((message) => message.type === "truck" || cleanLine(message.truck));
+    const hasDriver = messages.some((message) => message.type === "driver" || cleanLine(message.driverName) || cleanLine(message.driverCode));
+    const titleParts = [
+      trucks.length ? `${trucks.length === 1 ? "Truck" : "Trucks"} ${formatIdentityList(trucks)}` : "",
+      names.length ? formatIdentityList(names) : "",
+      codes.length ? `(${formatIdentityList(codes)})` : "",
+    ].filter(Boolean);
+    const titleText = titleParts.join(" · ") || "Unmatched follow-up";
+    const sourceTypes = [
+      messages.some((message) => message.type === "truck") ? "Truck / PTA" : "",
+      messages.some((message) => message.type === "driver") ? "Driver / idle" : "",
+    ].filter(Boolean).join(" + ");
+    const summary = `${messages.length} message${messages.length === 1 ? "" : "s"}${sourceTypes ? ` · ${sourceTypes}` : ""}`;
+    const messageHtml = messages.map((message, index) => groupedMessageHtml(message, index, scope)).join("");
+    const plainHeader = [
+      trucks.length ? `${trucks.length === 1 ? "Truck" : "Trucks"} ${trucks.join(", ")}` : "",
+      names.length ? names.join(", ") : "",
+      codes.length ? `(${codes.join(", ")})` : "",
+    ].filter(Boolean).join(" | ") || "Unmatched follow-up";
+    const plainMessages = messages.map((message) => {
+      const details = message.detailsText ? ` | ${message.detailsText}` : "";
+      return `[${formatDateTime(message.savedAt)}] ${message.sourceLabel || "Follow-up"}${details}\n${message.noteText || "Note saved without text"}`;
+    }).join("\n\n");
+    return {
+      savedAt: messages[0]?.savedAt || Number(group.savedAt || 0),
+      text: `${plainHeader}\n${summary}\n${plainMessages}`,
+      html: followupGroupHtml(`${hasTruck ? "🚛" : "⛽"} ${escapeHtml(titleText)}`, summary, messageHtml, hasTruck ? "#7c3aed" : "#16a34a"),
+      hasTruck,
+      hasDriver,
+      messageCount: messages.length,
+      messages,
+      identities: group.identities || [],
+    };
+  }
+
+  function groupedMessageHtml(message, index, scope) {
+    const divider = index ? "border-top:1px solid #d8e0ea;" : "";
+    const dateLabel = scope.dates.length > 1 ? `${formatNoteDay(message.savedAt)} · ` : "";
+    const stamp = new Date(message.savedAt);
+    const timeLabel = Number.isNaN(stamp.getTime())
+      ? "Time not captured"
+      : stamp.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    const noteHtml = escapeHtml(message.noteText || "Note saved without text").replace(/\n/g, "<br>");
     return [
-      `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0;margin:0 0 10px;border:1px solid #d8e0ea;border-left:5px solid ${accent};border-radius:8px;background:#ffffff;">`,
+      `<div style="${divider}padding:10px 0 2px;">`,
+      `<div style="font-size:12px;"><strong>${escapeHtml(message.sourceLabel || "Follow-up")}</strong> · ${escapeHtml(`${dateLabel}${timeLabel}`)}</div>`,
+      message.detailsHtml ? `<div style="font-size:12px;margin-top:5px;line-height:1.55;">${message.detailsHtml}</div>` : "",
+      `<div style="font-size:14px;margin-top:7px;line-height:1.5;">${noteHtml}</div>`,
+      "</div>",
+    ].join("");
+  }
+
+  function followupGroupHtml(title, summary, messagesHtml, accent) {
+    return [
+      `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0;margin:0 0 10px;border:1px solid #d8e0ea;border-left:5px solid ${accent};border-radius:8px;">`,
       '<tr><td style="padding:13px 15px;">',
-      `<div style="font-size:15px;font-weight:700;color:#172033;">${title}</div>`,
-      details ? `<div style="font-size:12px;color:#475467;margin-top:5px;line-height:1.55;">${details}</div>` : "",
-      `<div style="font-size:14px;color:#172033;margin-top:9px;padding-top:9px;border-top:1px solid #edf0f4;">${escapeHtml(cleanLine(noteText) || "Note saved without text")}</div>`,
+      `<div style="font-size:15px;font-weight:700;">${title}</div>`,
+      `<div style="font-size:12px;margin-top:4px;">${escapeHtml(summary)}</div>`,
+      messagesHtml,
       "</td></tr></table>",
     ].join("");
+  }
+
+  function uniqueLabels(values) {
+    const seen = new Set();
+    return values.map(cleanLine).filter((value) => {
+      if (!value) return false;
+      const key = value.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function formatIdentityList(values) {
+    const visible = values.slice(0, 3);
+    const extra = values.length - visible.length;
+    return `${visible.join(", ")}${extra > 0 ? ` +${extra} more` : ""}`;
+  }
+
+  function cleanNoteText(value) {
+    return String(value ?? "")
+      .replace(/\r\n?/g, "\n")
+      .replace(/[ \t]+/g, " ")
+      .replace(/ *\n */g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim() || "Note saved without text";
   }
 
   function emptyStateHtml(message) {
@@ -732,7 +873,7 @@
     if (count) count.textContent = String(total);
     if (navCount) navCount.textContent = String(total);
     const meta = byId("transitionPreviewMeta");
-    if (meta) meta.textContent = `${context.date_scope} · ${context.truck_count} truck note${context.truck_count === "1" ? "" : "s"} · ${context.driver_count} driver note${context.driver_count === "1" ? "" : "s"} · prepared ${context.prepared}`;
+    if (meta) meta.textContent = `${context.date_scope} · ${context.followup_count} selected message${context.followup_count === "1" ? "" : "s"} in ${context.group_count} matched group${context.group_count === "1" ? "" : "s"} · ${context.truck_count} truck note${context.truck_count === "1" ? "" : "s"} · ${context.driver_count} driver note${context.driver_count === "1" ? "" : "s"} · prepared ${context.prepared}`;
   }
 
   function handleStorage(event) {

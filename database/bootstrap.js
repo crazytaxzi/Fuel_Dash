@@ -12,6 +12,7 @@
     "missing_bol_driver_only.js",
     "worked_workflow.js",
     "note_transition_toggle.js",
+    "database/transition-grouping.js",
     "transition_export_v2.js",
   ];
 
