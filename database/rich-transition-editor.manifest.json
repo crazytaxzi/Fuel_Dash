@@ -1,0 +1,14 @@
+{
+  "version": "3.13.2",
+  "source": "database/rich-transition-editor.js",
+  "emailBackgrounds": "removed at sanitize and Outlook document render time",
+  "savedTemplates": "existing browser-saved templates are migrated during rendering",
+  "features": [
+    "Bold",
+    "Italic",
+    "Underline",
+    "Emoji picker",
+    "Rich Outlook clipboard copy",
+    "Multipart HTML .eml export"
+  ]
+}
