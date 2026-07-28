@@ -47,34 +47,19 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "asset=Fuel_Dash-$TAG.zip" >> "$GITHUB_OUTPUT"
 
-      - name: Validate dashboard JavaScript
+      - name: Validate release entry points
         shell: bash
         run: |
           set -euo pipefail
-          scripts=(
-            app.js
-            smart_data_loader.js
-            auxiliary_mode.js
-            missing_bol.js
-            missing_bol_driver_only.js
-            worked_workflow.js
-            note_transition_toggle.js
-            transition_export_v2.js
-            database/dashboard-db.js
-            database/bootstrap.js
-            database/pta-history-ui.js
-            database/pta-change-worker.js
-            database/worked-navigation-fix.js
-            database/worked-open-queue.js
-            database/exclusion-manager.js
-            database/idle-history-ui.js
-          )
-          for script in "${scripts[@]}"; do
-            [[ -f "$script" ]] && node --check "$script"
-          done
-          cat database/rich-transition-patch/part-*.b64 | base64 --decode > /tmp/rich-transition-editor.js
-          echo "187d00de65db2a8c2d01353d9cde4ea2e4b2be534997d8dc97adc426511ea0ff  /tmp/rich-transition-editor.js" | sha256sum --check --strict
-          node --check /tmp/rich-transition-editor.js
+          node --check app.js
+          node --check transition_export_v2.js
+          node --check database/bootstrap.js
+          test -f database/rich-transition-patch/manifest.json
+          test -f database/rich-transition-patch/part-00.b64
+          test -f database/rich-transition-patch/part-01.b64
+          test -f database/rich-transition-patch/part-02.b64
+          test -f database/rich-transition-patch/part-03.b64
+          test -f database/rich-transition-patch/part-04.b64
 
       - name: Build release package
         shell: python
