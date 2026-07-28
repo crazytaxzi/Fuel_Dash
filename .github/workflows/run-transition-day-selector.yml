@@ -52,8 +52,20 @@ jobs:
       - name: Apply and validate feature
         shell: bash
         run: |
+          set +e
+          python /tmp/add_transition_day_selector.py > /tmp/transition-day-scope.log 2>&1
+          STATUS=$?
+          cat /tmp/transition-day-scope.log
+          if [[ $STATUS -ne 0 ]]; then
+            cp /tmp/transition-day-scope.log .github/transition-day-scope-diagnostic.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/transition-day-scope-diagnostic.txt
+            git commit -m "Record transition day selector diagnostic"
+            git push origin main
+            exit $STATUS
+          fi
           set -euo pipefail
-          python /tmp/add_transition_day_selector.py
           node --check database/rich-transition-editor.js
           node --check transition_export_v2.js
           node --check database/bootstrap.js
