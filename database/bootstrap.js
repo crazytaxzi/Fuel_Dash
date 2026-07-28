@@ -6,6 +6,7 @@
     "auxiliary_mode.js",
     "database/exclusion-manager.js",
     "database/trip-planning-notes.js",
+    "database/trip-planning-table.js",
     "database/idle-history-ui.js",
     "database/hero-chart-layout.js",
     "database/overview-layout-fix.js",
