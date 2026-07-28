@@ -72,7 +72,7 @@ jobs:
             fi
           done
 
-          cat .github/rich-transition-patch/part-*.b64 | base64 --decode > /tmp/rich-transition-editor.js
+          cat database/rich-transition-patch/part-*.b64 | base64 --decode > /tmp/rich-transition-editor.js
           echo "187d00de65db2a8c2d01353d9cde4ea2e4b2be534997d8dc97adc426511ea0ff  /tmp/rich-transition-editor.js" | sha256sum --check --strict
           node --check /tmp/rich-transition-editor.js
           grep -F 'data-editor-command="bold"' /tmp/rich-transition-editor.js
@@ -111,10 +111,6 @@ jobs:
                   shutil.copytree(item, target)
               elif item.is_file():
                   shutil.copy2(item, target)
-
-          rich_source = root / ".github" / "rich-transition-patch"
-          rich_target = package / "database" / "rich-transition-patch"
-          shutil.copytree(rich_source, rich_target)
 
           data_dir = package / "data"
           data_dir.mkdir(exist_ok=True)
