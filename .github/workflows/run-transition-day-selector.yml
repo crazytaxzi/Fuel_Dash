@@ -1,0 +1,90 @@
+name: Run transition day selector publisher
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+    paths:
+      - .github/transition-day-scope-run.txt
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fuel-dash-transition-day-scope
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Reconstruct and validate feature scripts
+        shell: python
+        run: |
+          from pathlib import Path
+          import py_compile
+
+          source = Path(".github/workflows/add-transition-day-selector.yml").read_text(encoding="utf-8").splitlines()
+
+          def extract(step_name, next_step, output):
+              start_marker = f"      - name: {step_name}"
+              end_marker = f"      - name: {next_step}"
+              start = source.index(start_marker)
+              end = source.index(end_marker, start + 1)
+              run_line = source.index("        run: |", start, end)
+              lines = []
+              for line in source[run_line + 1:end]:
+                  lines.append(line[10:] if line.startswith("          ") else line)
+              Path(output).write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+              py_compile.compile(output, doraise=True)
+
+          extract("Add yesterday and today selector", "Commit feature", "/tmp/add_transition_day_selector.py")
+          extract("Build package", "Publish release", "/tmp/build_transition_v3140.py")
+          print("Feature and package scripts reconstructed and compiled.")
+
+      - name: Apply and validate feature
+        shell: bash
+        run: |
+          set -euo pipefail
+          python /tmp/add_transition_day_selector.py
+          node --check database/rich-transition-editor.js
+          node --check transition_export_v2.js
+          node --check database/bootstrap.js
+          node --check app.js
+
+      - name: Commit feature
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add VERSION .github/release-request.txt database/rich-transition-editor.js database/rich-transition-editor.manifest.json
+          git commit -m "Add yesterday and today transition selector"
+          git push origin main
+
+      - name: Build package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python /tmp/build_transition_v3140.py
+
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TARGET="$(git rev-parse HEAD)"
+          if gh release view v3.14.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload v3.14.0 dist/Fuel_Dash-v3.14.0.zip dist/Fuel_Dash-v3.14.0.zip.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit v3.14.0 --title "Fuel Dash v3.14.0" --notes-file dist/release-notes.md --latest --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create v3.14.0 dist/Fuel_Dash-v3.14.0.zip dist/Fuel_Dash-v3.14.0.zip.sha256 --repo "$GITHUB_REPOSITORY" --target "$TARGET" --title "Fuel Dash v3.14.0" --notes-file dist/release-notes.md --latest
+          fi
