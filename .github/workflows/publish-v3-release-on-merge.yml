@@ -59,6 +59,7 @@ jobs:
               Path("transition_export_v2.js"),
               Path("database/bootstrap.js"),
               Path("database/trip-planning-notes.js"),
+              Path("database/trip-planning-table.js"),
               Path("database/rich-transition-editor.js"),
               Path("database/transition-grouping.js"),
           ]
@@ -70,6 +71,7 @@ jobs:
           bootstrap = Path("database/bootstrap.js").read_text(encoding="utf-8")
           required_modules = [
               '"database/trip-planning-notes.js"',
+              '"database/trip-planning-table.js"',
               '"database/transition-grouping.js"',
           ]
           missing_modules = [module for module in required_modules if module not in bootstrap]
@@ -136,11 +138,11 @@ jobs:
 
           (dist / "release-notes.md").write_text(
               f"# Fuel Dash {tag}\n\n"
-              "Adds a dedicated 305 Trip Notes workspace for truck-level trip planning. "
-              "Dispatch can track driver, load or order, destination, PTA, status, next action, and chronological planning notes; "
-              "sync Division 305 trucks from the manual PTA paste without overwriting existing notes; search and filter the queue; "
-              "copy a shift handoff; and export the board to CSV.\n\n"
-              "Trip-planning records remain in local browser storage. Operational data and browser settings are not bundled or uploaded.\n",
+              "Replaces the Division 305 Trip Notes card wall with a glanceable PTA-style dispatch table. "
+              "Each truck now shows status, driver, load or order, PTA, destination, next action, latest note, and update time in one compact row. "
+              "The Open control reveals note entry, editing, handoff copy, and removal only when action is needed.\n\n"
+              "PTA sync, search, filters, inline status changes, CSV export, local note history, and existing browser-stored records remain intact. "
+              "Operational data and browser settings are not bundled or uploaded.\n",
               encoding="utf-8",
           )
 
