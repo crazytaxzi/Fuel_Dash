@@ -1,0 +1,41 @@
+Rich transition release diagnostic
+
+node --check app.js: PASS
+
+node --check transition_export_v2.js: PASS
+
+node --check database/bootstrap.js: PASS
+
+part-00.b64: chars=12000 tail='dWx0aWxpbmU9'
+part-01.b64: chars=12000 tail='dGVtXSk7CiAg'
+part-02.b64: chars=12000 tail='ICAgICAgICBj'
+part-03.b64: chars=12000 tail='Y29sb3I6Izk0'
+part-04.b64: chars=9404 tail='Cn0pKCk7Cg=='
+Combined base64: chars=57404 modulo4=0
+Decoded bytes: 43051
+Decoded SHA-256: 46d3b3b42a81366b2cb82c2f57e46550c76920956ed603889b6243c8d3e3b7f9
+node --check /tmp/rich-transition-editor.js: FAIL
+/tmp/rich-transition-editor.js:298
+      subjectTemplate: valueOf("transitionSubjectTemplate"),
+      ^^^^^^^^^^^^^^^
+
+SyntaxError: missing ) after argument list
+    at wrapSafe (node:internal/modules/cjs/loader:1713:18)
+    at checkSyntax (node:internal/main/check_syntax:78:3)
+
+Node.js v22.23.1
+
+Source context around line 298:
+  0292: 
+  0293:   function saveTemplate() {
+  0294:     settings = sanitizeSettings({
+  0295:       formatVersion: FORMAT_VERSION,
+  0296:       to: valueOf("transitionToInput"),
+  0297:       cc: valueOf("transitionCcInput",
+> 0298:       subjectTemplate: valueOf("transitionSubjectTemplate"),
+  0299:       bodyTemplate: editorHtml("transitionTemplateEditor"),
+  0300:     });
+  0301:     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  0302:     prepareEmail(true);
+  0303:     setStatus("Rich template and recipients saved in this browser.");
+  0304:   }
