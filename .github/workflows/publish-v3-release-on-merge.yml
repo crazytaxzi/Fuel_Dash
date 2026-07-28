@@ -49,45 +49,98 @@ jobs:
           echo "asset=Fuel_Dash-$TAG.zip" >> "$GITHUB_OUTPUT"
 
       - name: Validate release entry points
-        shell: bash
+        id: validate
+        shell: python
         run: |
-          set -euo pipefail
-          echo "CHECK app.js"
-          node --check app.js
-          echo "CHECK transition_export_v2.js"
-          node --check transition_export_v2.js
-          echo "CHECK database/bootstrap.js"
-          node --check database/bootstrap.js
-          echo "DECODE rich transition bundle"
-          python - <<'PY'
           from pathlib import Path
           import base64
           import hashlib
+          import re
+          import subprocess
+
+          report = ["Rich transition release diagnostic", ""]
+          failed = False
+
+          def check_js(path):
+              global failed
+              result = subprocess.run(
+                  ["node", "--check", str(path)],
+                  text=True,
+                  capture_output=True,
+              )
+              report.append(f"node --check {path}: {'PASS' if result.returncode == 0 else 'FAIL'}")
+              output = (result.stdout + result.stderr).strip()
+              if output:
+                  report.append(output)
+              if result.returncode != 0:
+                  failed = True
+              report.append("")
+              return result
+
+          for entry in [Path("app.js"), Path("transition_export_v2.js"), Path("database/bootstrap.js")]:
+              check_js(entry)
 
           folder = Path("database/rich-transition-patch")
           parts = [folder / f"part-{index:02d}.b64" for index in range(5)]
           missing = [str(path) for path in parts if not path.is_file()]
           if missing:
-              raise SystemExit(f"MISSING_PARTS {missing}")
+              report.append(f"Missing bundle parts: {missing}")
+              failed = True
+          else:
+              cleaned = []
+              for path in parts:
+                  value = "".join(path.read_text(encoding="utf-8").split())
+                  report.append(f"{path.name}: chars={len(value)} tail={value[-12:]!r}")
+                  cleaned.append(value)
+              encoded = "".join(cleaned)
+              report.append(f"Combined base64: chars={len(encoded)} modulo4={len(encoded) % 4}")
+              try:
+                  source = base64.b64decode(encoded, validate=True)
+                  report.append(f"Decoded bytes: {len(source)}")
+                  report.append(f"Decoded SHA-256: {hashlib.sha256(source).hexdigest()}")
+                  decoded = Path("/tmp/rich-transition-editor.js")
+                  decoded.write_bytes(source)
+                  result = check_js(decoded)
+                  if result.returncode != 0:
+                      match = re.search(r"rich-transition-editor\.js:(\d+)", result.stderr)
+                      if match:
+                          line_number = int(match.group(1))
+                          source_lines = source.decode("utf-8", errors="replace").splitlines()
+                          start = max(1, line_number - 6)
+                          end = min(len(source_lines), line_number + 6)
+                          report.append(f"Source context around line {line_number}:")
+                          for index in range(start, end + 1):
+                              marker = ">" if index == line_number else " "
+                              report.append(f"{marker} {index:04d}: {source_lines[index - 1]}")
+                  if not source.strip():
+                      report.append("Decoded script is empty.")
+                      failed = True
+              except Exception as error:
+                  report.append(f"Base64 decode failed: {type(error).__name__}: {error}")
+                  failed = True
 
-          cleaned = []
-          for path in parts:
-              value = "".join(path.read_text(encoding="utf-8").split())
-              print(f"PART {path.name} chars={len(value)} tail={value[-8:]!r}")
-              cleaned.append(value)
-          encoded = "".join(cleaned)
-          print(f"ENCODED chars={len(encoded)} modulo4={len(encoded) % 4}")
-          try:
-              source = base64.b64decode(encoded, validate=True)
-          except Exception as error:
-              raise SystemExit(f"BASE64_DECODE_FAILED {type(error).__name__}: {error}") from error
-          print(f"DECODED bytes={len(source)} sha256={hashlib.sha256(source).hexdigest()}")
-          if not source.strip():
-              raise SystemExit("DECODED_SCRIPT_EMPTY")
-          Path("/tmp/rich-transition-editor.js").write_bytes(source)
-          PY
-          echo "CHECK decoded rich transition editor"
-          node --check /tmp/rich-transition-editor.js
+          diagnostic = Path(".github/rich-transition-diagnostic.txt")
+          diagnostic.write_text("\n".join(report).rstrip() + "\n", encoding="utf-8")
+          print(diagnostic.read_text(encoding="utf-8"))
+          if failed:
+              raise SystemExit(1)
+
+      - name: Commit validation diagnostic
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f .github/rich-transition-diagnostic.txt ]]; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/rich-transition-diagnostic.txt
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Record rich transition validation diagnostic"
+          git push origin main
 
       - name: Build release package
         shell: python
@@ -147,8 +200,8 @@ jobs:
 
           (dist / "release-notes.md").write_text(
               f"# Fuel Dash {tag}\n\n"
-              "Fixes the dashboard startup failure caused by a stale rich-transition checksum. "
-              "The release validates the reconstructed editor before packaging.\n\n"
+              "Fixes the dashboard startup failure caused by the damaged rich-transition bundle. "
+              "The reconstructed editor is validated before packaging.\n\n"
               "The rich Outlook transition editor includes readable HTML sections, bold, italic, "
               "underline, emoji controls, rich clipboard copy, and multipart HTML .eml export.\n\n"
               "Operational data and browser settings are not bundled or uploaded.\n",
