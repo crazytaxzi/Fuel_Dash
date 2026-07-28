@@ -55,8 +55,20 @@ jobs:
           import base64
           import subprocess
 
-          for entry in [Path("app.js"), Path("transition_export_v2.js"), Path("database/bootstrap.js")]:
+          entries = [
+              Path("app.js"),
+              Path("transition_export_v2.js"),
+              Path("database/bootstrap.js"),
+              Path("database/trip-planning-notes.js"),
+          ]
+          for entry in entries:
+              if not entry.is_file():
+                  raise SystemExit(f"Missing release entry point: {entry}")
               subprocess.run(["node", "--check", str(entry)], check=True)
+
+          bootstrap = Path("database/bootstrap.js").read_text(encoding="utf-8")
+          if '"database/trip-planning-notes.js"' not in bootstrap:
+              raise SystemExit("Trip-planning notes module is not registered in database/bootstrap.js")
 
           folder = Path("database/rich-transition-patch")
           parts = [folder / f"part-{index:02d}.b64" for index in range(5)]
@@ -131,9 +143,11 @@ jobs:
 
           (dist / "release-notes.md").write_text(
               f"# Fuel Dash {tag}\n\n"
-              "This stable package contains the current dashboard from main. The rich transition editor "
-              "is strictly decoded and JavaScript syntax-validated before packaging.\n\n"
-              "Operational data and browser settings are not bundled or uploaded.\n",
+              "Adds a dedicated 305 Trip Notes workspace for truck-level trip planning. "
+              "Dispatch can track driver, load or order, destination, PTA, status, next action, and chronological planning notes; "
+              "sync Division 305 trucks from the manual PTA paste without overwriting existing notes; search and filter the queue; "
+              "copy a shift handoff; and export the board to CSV.\n\n"
+              "Trip-planning records remain in local browser storage. Operational data and browser settings are not bundled or uploaded.\n",
               encoding="utf-8",
           )
 
