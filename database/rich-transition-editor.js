@@ -7,6 +7,7 @@
   const SETTINGS_KEY = "vixenTransitionEmailSettingsV2";
   const LEGACY_SETTINGS_KEY = "vixenTransitionEmailSettingsV1";
   const DRAFT_KEY = "vixenTransitionEmailDraftV2";
+  const DATE_SCOPE_KEY = "vixenTransitionDateScopeV1";
   const FORMAT_VERSION = 2;
 
   const DEFAULT_SETTINGS = Object.freeze({
@@ -53,7 +54,7 @@
   });
 
   const PLACEHOLDERS = Object.freeze([
-    "date", "time", "prepared", "weekday", "brand",
+    "date", "date_scope", "time", "prepared", "weekday", "brand",
     "truck_followups_html", "driver_followups_html", "all_followups_html",
     "truck_count", "driver_count", "followup_count",
   ]);
@@ -61,6 +62,7 @@
   const ALLOWED_TAGS = new Set(["A", "B", "BLOCKQUOTE", "BR", "DIV", "EM", "H1", "H2", "H3", "HR", "I", "LI", "OL", "P", "SPAN", "STRONG", "TABLE", "TBODY", "TD", "TH", "THEAD", "TR", "U", "UL"]);
 
   let settings = loadSettings();
+  let selectedDayOffsets = loadDateScope();
   let installed = false;
   let lastFocusedEditor = null;
   const savedRanges = new Map();
@@ -106,7 +108,7 @@
     const nav = document.querySelector('[data-view="transition"]');
     if (nav) nav.click();
     else document.getElementById("transitionView")?.classList.add("active-view");
-    setStatus("Transition refreshed from today’s selected notes.");
+    setStatus(`Transition refreshed from ${resolveDateScope(new Date(), selectedDayOffsets).sourceLabel}.`);
   }
 
   function installView() {
@@ -138,6 +140,22 @@
           <label><span>To</span><input id="transitionToInput" type="text" placeholder="name@company.com; another@company.com" /></label>
           <label><span>Cc</span><input id="transitionCcInput" type="text" placeholder="Optional" /></label>
           <label class="transition-subject-field"><span>Subject template</span><input id="transitionSubjectTemplate" type="text" /></label>
+        </div>
+      </div>
+      <div class="transition-date-panel panel">
+        <div class="transition-date-copy">
+<span class="transition-date-title">Transition dates</span>
+<span id="transitionDateScopeSummary" class="transition-date-help">Today</span>
+        </div>
+        <div class="transition-date-options" role="group" aria-label="Transition dates">
+<label class="transition-date-option">
+  <input type="checkbox" data-transition-day-offset="-1" />
+  <span><strong>Yesterday</strong><small id="transitionYesterdayDate"></small></span>
+</label>
+<label class="transition-date-option">
+  <input type="checkbox" data-transition-day-offset="0" />
+  <span><strong>Today</strong><small id="transitionTodayDate"></small></span>
+</label>
         </div>
       </div>
       <div class="transition-editor-grid">
@@ -206,12 +224,15 @@
     byId("resetTransitionTemplateBtn")?.addEventListener("click", resetTemplate);
     byId("refreshTransitionEmailBtn")?.addEventListener("click", () => {
       prepareEmail(true);
-      setStatus("Prepared email refreshed from today’s selected notes.");
+      setStatus(`Prepared email refreshed from ${resolveDateScope(new Date(), selectedDayOffsets).sourceLabel}.`);
     });
     byId("copyTransitionRichBtn")?.addEventListener("click", copyRichEmail);
     byId("downloadTransitionEmlBtn")?.addEventListener("click", downloadEml);
     byId("openTransitionOutlookBtn")?.addEventListener("click", openInOutlook);
     byId("copyTransitionPlainBtn")?.addEventListener("click", copyPlainEmail);
+    document.querySelectorAll("[data-transition-day-offset]").forEach((input) => {
+      input.addEventListener("change", handleDateScopeChange);
+    });
 
     byId("transitionPlaceholderButtons")?.addEventListener("mousedown", (event) => event.preventDefault());
     byId("transitionPlaceholderButtons")?.addEventListener("click", (event) => {
@@ -288,6 +309,7 @@
     setValue("transitionCcInput", settings.cc);
     setValue("transitionSubjectTemplate", settings.subjectTemplate);
     setEditorHtml("transitionTemplateEditor", settings.bodyTemplate);
+    renderDateScopeControls();
   }
 
   function saveTemplate() {
@@ -321,7 +343,7 @@
       bodyTemplate: editorHtml("transitionTemplateEditor") || settings.bodyTemplate,
     });
     const now = new Date();
-    const email = buildEmail(now, settings);
+    const email = buildEmail(now, settings, selectedDayOffsets);
     if (fromTemplate || !valueOf("transitionPreparedSubject")) setValue("transitionPreparedSubject", email.subject);
     if (fromTemplate || !editorHtml("transitionPreparedBody")) setEditorHtml("transitionPreparedBody", email.html);
     saveDraft();
@@ -400,7 +422,7 @@
     const headers = [
       `To: ${normalizeRecipients(email.to).join(", ")}`,
       email.cc ? `Cc: ${normalizeRecipients(email.cc).join(", ")}` : "",
-      `Subject: ${mimeHeader(email.subject || `Shift Transition - ${dateKey(now)}`)}`,
+      `Subject: ${mimeHeader(email.subject || `Shift Transition - ${email.context?.date || dateKey(now)}`)}`,
       `Date: ${now.toUTCString()}`,
       "MIME-Version: 1.0",
       `Content-Type: multipart/alternative; boundary="${boundary}"`,
@@ -420,7 +442,7 @@
       `--${boundary}--`,
       "",
     ].filter((line, index) => line || index >= 5).join("\r\n");
-    downloadBlob(headers, `Shift_Transition_${dateKey(now)}.eml`, "message/rfc822;charset=utf-8");
+    downloadBlob(headers, `Shift_Transition_${email.context?.file_key || dateKey(now)}.eml`, "message/rfc822;charset=utf-8");
     setStatus("Formatted Outlook .eml downloaded. Open it with Outlook to review the email.");
   }
 
@@ -443,8 +465,14 @@
     }
   }
 
-  function buildEmail(now = new Date(), options = settings) {
-    const context = buildContext(now);
+  function buildEmail(now = new Date(), options = settings, dayOffsets = selectedDayOffsets) {
+    const context = buildContext(
+      now,
+      readObject(PTA_NOTES_KEY),
+      readObject(DRIVER_NOTES_KEY),
+      readObject(NOTE_SELECTION_KEY),
+      dayOffsets,
+    );
     const html = sanitizeHtml(renderTemplate(options.bodyTemplate || DEFAULT_SETTINGS.bodyTemplate, context));
     return {
       to: options.to || "",
@@ -461,8 +489,9 @@
     ptaNotes = readObject(PTA_NOTES_KEY),
     driverNotes = readObject(DRIVER_NOTES_KEY),
     selections = readObject(NOTE_SELECTION_KEY),
+    dayOffsets = selectedDayOffsets,
   ) {
-    const context = buildContext(now, ptaNotes, driverNotes, selections);
+    const context = buildContext(now, ptaNotes, driverNotes, selections, dayOffsets);
     const html = sanitizeHtml(renderTemplate(settings.bodyTemplate || DEFAULT_SETTINGS.bodyTemplate, context));
     return htmlToPlainText(html).replace(/\n/g, "\r\n");
   }
@@ -472,42 +501,47 @@
     ptaNotes = readObject(PTA_NOTES_KEY),
     driverNotes = readObject(DRIVER_NOTES_KEY),
     selections = readObject(NOTE_SELECTION_KEY),
+    dayOffsets = selectedDayOffsets,
   ) {
-    const trucks = collectTruckFollowups(ptaNotes, now, selections);
-    const drivers = collectDriverFollowups(driverNotes, now, selections);
-    const truckHtml = trucks.length ? trucks.map((item) => item.html).join("") : emptyStateHtml("No truck follow-ups selected for today.");
-    const driverHtml = drivers.length ? drivers.map((item) => item.html).join("") : emptyStateHtml("No driver follow-ups selected for today.");
-    const all = [...trucks, ...drivers].sort((a, b) => a.savedAt - b.savedAt);
-    const date = now.toLocaleDateString([], { month: "long", day: "numeric", year: "numeric" });
+    const scope = resolveDateScope(now, dayOffsets);
+    const trucks = collectTruckFollowups(ptaNotes, scope, selections);
+    const drivers = collectDriverFollowups(driverNotes, scope, selections);
+    const truckHtml = trucks.length ? trucks.map((item) => item.html).join("") : emptyStateHtml(`No truck follow-ups selected for ${scope.emptyLabel}.`);
+    const driverHtml = drivers.length ? drivers.map((item) => item.html).join("") : emptyStateHtml(`No driver follow-ups selected for ${scope.emptyLabel}.`);
+    const all = [...trucks, ...drivers].sort((a, b) => a.savedAt - b.savedAt || a.text.localeCompare(b.text));
     return {
-      date,
+      date: scope.dateLabel,
+      date_scope: scope.label,
       time: now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
       prepared: now.toLocaleString([], { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }),
-      weekday: now.toLocaleDateString([], { weekday: "long" }),
+      weekday: scope.weekdayLabel,
       brand: escapeHtml((localStorage.getItem("vixenBrand") || "VIXEN").trim().toUpperCase()),
       truck_followups_html: truckHtml,
       driver_followups_html: driverHtml,
-      all_followups_html: all.length ? all.map((item) => item.html).join("") : emptyStateHtml("No follow-ups selected for today."),
-      truck_followups: trucks.length ? trucks.map((item) => item.text).join("\n\n") : "None selected for today.",
-      driver_followups: drivers.length ? drivers.map((item) => item.text).join("\n\n") : "None selected for today.",
-      all_followups: all.length ? all.map((item) => item.text).join("\n\n") : "None selected for today.",
+      all_followups_html: all.length ? all.map((item) => item.html).join("") : emptyStateHtml(`No follow-ups selected for ${scope.emptyLabel}.`),
+      truck_followups: trucks.length ? trucks.map((item) => item.text).join("\n\n") : `None selected for ${scope.emptyLabel}.`,
+      driver_followups: drivers.length ? drivers.map((item) => item.text).join("\n\n") : `None selected for ${scope.emptyLabel}.`,
+      all_followups: all.length ? all.map((item) => item.text).join("\n\n") : `None selected for ${scope.emptyLabel}.`,
       truck_count: String(trucks.length),
       driver_count: String(drivers.length),
       followup_count: String(all.length),
+      file_key: scope.fileKey,
+      scope,
       trucks,
       drivers,
     };
   }
 
-  function collectTruckFollowups(groups, now, selections) {
+  function collectTruckFollowups(groups, scope, selections) {
     const items = [];
     Object.entries(groups || {}).forEach(([truck, values]) => {
       const notes = (Array.isArray(values) ? values : [])
-        .filter((note) => sameLocalDay(note.savedAt, now) && noteIncluded("pta", note, selections))
+        .filter((note) => dateMatchesScope(note.savedAt, scope.dates) && noteIncluded("pta", note, selections))
         .sort((a, b) => new Date(a.savedAt) - new Date(b.savedAt));
       notes.forEach((note) => {
         const truckLabel = cleanLine(truck) || "Unknown";
         const details = [
+          scope.dates.length > 1 ? `<strong>Note date:</strong> ${escapeHtml(formatNoteDay(note.savedAt))}` : "",
           note.driver ? `<strong>Driver:</strong> ${escapeHtml(cleanLine(note.driver))}` : "",
           note.pta ? `<strong>PTA:</strong> ${escapeHtml(formatDateTime(note.pta))}` : "",
           note.status ? `<strong>Status:</strong> ${escapeHtml(cleanLine(note.status))}` : "",
@@ -515,6 +549,7 @@
           note.destination ? `<strong>Destination:</strong> ${escapeHtml(cleanLine(note.destination))}` : "",
         ].filter(Boolean).join(" &nbsp;·&nbsp; ");
         const textDetails = [
+          scope.dates.length > 1 ? `Note date ${formatNoteDay(note.savedAt)}` : "",
           note.driver ? `Driver ${cleanLine(note.driver)}` : "",
           note.pta ? `PTA ${formatDateTime(note.pta)}` : "",
           note.status ? `Status ${cleanLine(note.status)}` : "",
@@ -528,20 +563,21 @@
         });
       });
     });
-    return items.sort((a, b) => a.text.localeCompare(b.text));
+    return items.sort((a, b) => a.savedAt - b.savedAt || a.text.localeCompare(b.text));
   }
 
-  function collectDriverFollowups(groups, now, selections) {
+  function collectDriverFollowups(groups, scope, selections) {
     const items = [];
     Object.entries(groups || {}).forEach(([key, values]) => {
       const notes = (Array.isArray(values) ? values : [])
-        .filter((note) => sameLocalDay(note.savedAt, now) && noteIncluded("driver", note, selections))
+        .filter((note) => dateMatchesScope(note.savedAt, scope.dates) && noteIncluded("driver", note, selections))
         .sort((a, b) => new Date(a.savedAt) - new Date(b.savedAt));
       notes.forEach((note) => {
         const name = cleanLine(note.driverName || note.driverCode || key) || "Unknown driver";
         const code = cleanLine(note.driverCode);
         const title = `⛽ ${escapeHtml(name)}${code && !name.includes(code) ? ` <span style="font-weight:400;color:#667085;">(${escapeHtml(code)})</span>` : ""}`;
         const metricPairs = [
+          ...(scope.dates.length > 1 ? [["Note date", formatNoteDay(note.savedAt)]] : []),
           ["Idle today", formatPercent(note.dailyIdlePct)],
           ["7-day idle", formatPercent(note.idle7DayPct)],
           ["28-day idle", formatPercent(note.idle28DayPct)],
@@ -556,7 +592,7 @@
         });
       });
     });
-    return items.sort((a, b) => a.text.localeCompare(b.text));
+    return items.sort((a, b) => a.savedAt - b.savedAt || a.text.localeCompare(b.text));
   }
 
   function followupCardHtml(title, details, noteText, accent) {
@@ -606,6 +642,89 @@
       && date.getDate() === reference.getDate();
   }
 
+  function normalizeDayOffsets(value) {
+    const source = Array.isArray(value) ? value : [];
+    const offsets = [...new Set(source.map(Number).filter((offset) => offset === -1 || offset === 0))]
+      .sort((a, b) => a - b);
+    return offsets.length ? offsets : [0];
+  }
+
+  function loadDateScope() {
+    try {
+      return normalizeDayOffsets(JSON.parse(localStorage.getItem(DATE_SCOPE_KEY) || "[0]"));
+    } catch (_) {
+      return [0];
+    }
+  }
+
+  function dateAtOffset(now, offset) {
+    const date = new Date(now);
+    date.setHours(12, 0, 0, 0);
+    date.setDate(date.getDate() + offset);
+    return date;
+  }
+
+  function resolveDateScope(now = new Date(), offsets = selectedDayOffsets) {
+    const normalized = normalizeDayOffsets(offsets);
+    const dates = normalized.map((offset) => dateAtOffset(now, offset));
+    const both = dates.length > 1;
+    const yesterdayOnly = !both && normalized[0] === -1;
+    const label = both ? "Yesterday and Today" : yesterdayOnly ? "Yesterday" : "Today";
+    const emptyLabel = both ? "yesterday and today" : yesterdayOnly ? "yesterday" : "today";
+    const sourceLabel = both ? "yesterday and today’s selected notes" : yesterdayOnly ? "yesterday’s selected notes" : "today’s selected notes";
+    const dateLabel = both
+      ? `${dates[0].toLocaleDateString([], { month: "long", day: "numeric" })} and ${dates[1].toLocaleDateString([], { month: "long", day: "numeric", year: "numeric" })}`
+      : dates[0].toLocaleDateString([], { month: "long", day: "numeric", year: "numeric" });
+    const weekdayLabel = dates.map((date) => date.toLocaleDateString([], { weekday: "long" })).join(" and ");
+    return {
+      offsets: normalized,
+      dates,
+      label,
+      emptyLabel,
+      sourceLabel,
+      dateLabel,
+      weekdayLabel,
+      fileKey: dates.map(dateKey).join("_"),
+    };
+  }
+
+  function dateMatchesScope(value, dates) {
+    return (Array.isArray(dates) ? dates : []).some((date) => sameLocalDay(value, date));
+  }
+
+  function formatNoteDay(value) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "Unknown date" : date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+  }
+
+  function renderDateScopeControls() {
+    const now = new Date();
+    document.querySelectorAll("[data-transition-day-offset]").forEach((input) => {
+      input.checked = selectedDayOffsets.includes(Number(input.dataset.transitionDayOffset));
+    });
+    const yesterday = byId("transitionYesterdayDate");
+    const today = byId("transitionTodayDate");
+    const summary = byId("transitionDateScopeSummary");
+    if (yesterday) yesterday.textContent = dateAtOffset(now, -1).toLocaleDateString([], { month: "short", day: "numeric" });
+    if (today) today.textContent = dateAtOffset(now, 0).toLocaleDateString([], { month: "short", day: "numeric" });
+    if (summary) summary.textContent = resolveDateScope(now, selectedDayOffsets).label;
+  }
+
+  function handleDateScopeChange(event) {
+    const checked = [...document.querySelectorAll("[data-transition-day-offset]:checked")]
+      .map((input) => Number(input.dataset.transitionDayOffset));
+    if (!checked.length) {
+      event.currentTarget.checked = true;
+      setStatus("Choose at least one transition date.", true);
+      return;
+    }
+    selectedDayOffsets = normalizeDayOffsets(checked);
+    localStorage.setItem(DATE_SCOPE_KEY, JSON.stringify(selectedDayOffsets));
+    renderDateScopeControls();
+    prepareEmail(true);
+    setStatus(`Prepared email now uses ${resolveDateScope(new Date(), selectedDayOffsets).sourceLabel}.`);
+  }
+
   function updateSummary(context) {
     const total = Number(context.followup_count) || 0;
     const count = byId("transitionSelectedCount");
@@ -613,13 +732,18 @@
     if (count) count.textContent = String(total);
     if (navCount) navCount.textContent = String(total);
     const meta = byId("transitionPreviewMeta");
-    if (meta) meta.textContent = `${context.truck_count} truck note${context.truck_count === "1" ? "" : "s"} · ${context.driver_count} driver note${context.driver_count === "1" ? "" : "s"} · prepared ${context.prepared}`;
+    if (meta) meta.textContent = `${context.date_scope} · ${context.truck_count} truck note${context.truck_count === "1" ? "" : "s"} · ${context.driver_count} driver note${context.driver_count === "1" ? "" : "s"} · prepared ${context.prepared}`;
   }
 
   function handleStorage(event) {
     if ([SETTINGS_KEY, LEGACY_SETTINGS_KEY].includes(event.key)) {
       settings = loadSettings();
       populateSettings();
+      prepareEmail(true);
+    }
+    if (event.key === DATE_SCOPE_KEY) {
+      selectedDayOffsets = loadDateScope();
+      renderDateScopeControls();
       prepareEmail(true);
     }
     if ([PTA_NOTES_KEY, DRIVER_NOTES_KEY, NOTE_SELECTION_KEY].includes(event.key)) prepareEmail(true);
@@ -754,11 +878,11 @@ function stripEmailPresentationCss(value) {
     style.id = "transitionEditorStyles";
     style.textContent = `
       .transition-editor-grid{display:grid;grid-template-columns:minmax(340px,.78fr) minmax(480px,1.22fr);gap:18px;align-items:start}.transition-template-panel,.transition-preview-panel{min-width:0}.transition-heading{align-items:center}.transition-summary{display:flex;align-items:baseline;gap:8px;padding:10px 14px;border:1px solid rgba(74,222,128,.35);background:rgba(34,197,94,.08);border-radius:12px}.transition-summary strong{font-size:22px;color:#86efac}.transition-summary span{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#94a3b8}.transition-nav-count{margin-left:auto;min-width:22px;padding:2px 6px;border-radius:999px;background:rgba(168,85,247,.22);color:#d8b4fe;font-size:10px;text-align:center}
-      .transition-address-panel{margin-bottom:18px;padding:16px}.transition-address-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.transition-subject-field{grid-column:1/-1}.transition-address-grid label,.transition-field{display:grid;gap:7px;margin:0}.transition-address-grid span,.transition-field>span,.transition-placeholder-wrap>span{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#94a3b8}.transition-editor-view input{width:100%;box-sizing:border-box;border:1px solid rgba(148,163,184,.28);border-radius:10px;background:rgba(5,12,18,.78);color:#e5edf4;padding:11px 12px;font:inherit;outline:none}.transition-editor-view input:focus{border-color:rgba(168,85,247,.75);box-shadow:0 0 0 3px rgba(168,85,247,.12)}
+      .transition-address-panel{margin-bottom:12px;padding:16px}.transition-date-panel{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;padding:13px 16px}.transition-date-copy{display:grid;gap:3px}.transition-date-title{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#94a3b8}.transition-date-help{font-size:12px;color:#cbd5e1}.transition-date-options{display:flex;gap:9px;flex-wrap:wrap}.transition-date-option{display:flex;align-items:center;gap:8px;min-width:128px;padding:8px 11px;border:1px solid rgba(148,163,184,.28);border-radius:10px;background:rgba(15,23,42,.65);cursor:pointer}.transition-date-option:has(input:checked){border-color:rgba(74,222,128,.65);background:rgba(34,197,94,.1)}.transition-date-option input{width:auto;accent-color:#39ff63}.transition-date-option span{display:grid;gap:1px}.transition-date-option strong{font-size:12px;color:#e5edf4}.transition-date-option small{font-size:10px;color:#94a3b8}.transition-address-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.transition-subject-field{grid-column:1/-1}.transition-address-grid label,.transition-field{display:grid;gap:7px;margin:0}.transition-address-grid span,.transition-field>span,.transition-placeholder-wrap>span{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#94a3b8}.transition-editor-view input{width:100%;box-sizing:border-box;border:1px solid rgba(148,163,184,.28);border-radius:10px;background:rgba(5,12,18,.78);color:#e5edf4;padding:11px 12px;font:inherit;outline:none}.transition-editor-view input:focus{border-color:rgba(168,85,247,.75);box-shadow:0 0 0 3px rgba(168,85,247,.12)}
       .transition-panel-help{margin:-3px 0 12px;color:#94a3b8;font-size:12px}.transition-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px;border:1px solid rgba(148,163,184,.25);border-bottom:0;border-radius:10px 10px 0 0;background:rgba(15,23,42,.92)}.transition-toolbar>button,.transition-emoji-menu summary{min-width:34px;height:31px;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(148,163,184,.25);border-radius:7px;background:rgba(30,41,59,.9);color:#e2e8f0;padding:0 9px;font-size:12px;cursor:pointer;list-style:none}.transition-toolbar>button:hover,.transition-emoji-menu summary:hover{border-color:rgba(168,85,247,.65);background:rgba(88,28,135,.3)}.transition-toolbar-divider{width:1px;height:22px;background:rgba(148,163,184,.25);margin:0 2px}.transition-emoji-menu{position:relative}.transition-emoji-menu summary::-webkit-details-marker{display:none}.transition-emoji-palette{position:absolute;z-index:20;top:37px;right:0;width:232px;display:grid;grid-template-columns:repeat(8,1fr);gap:4px;padding:9px;border:1px solid rgba(148,163,184,.35);border-radius:10px;background:#101923;box-shadow:0 14px 30px rgba(0,0,0,.35)}.transition-emoji-palette button{border:0;border-radius:6px;background:transparent;font-size:19px;line-height:1;padding:5px;cursor:pointer}.transition-emoji-palette button:hover{background:rgba(168,85,247,.2)}
       .transition-rich-editor{box-sizing:border-box;width:100%;overflow:auto;outline:none}.transition-template-editor{min-height:410px;max-height:620px;padding:18px;border:1px solid rgba(148,163,184,.28);border-radius:0 0 10px 10px;background:#ffffff;color:#172033;font:14px/1.45 Arial,Helvetica,sans-serif}.transition-email-sheet{min-height:570px;max-height:780px;padding:24px;border:1px solid rgba(148,163,184,.28);border-radius:0 0 10px 10px;background:#ffffff;color:#172033;font:14px/1.45 Arial,Helvetica,sans-serif;box-shadow:inset 0 0 0 1px rgba(255,255,255,.5)}.transition-rich-editor:focus{border-color:rgba(168,85,247,.75);box-shadow:0 0 0 3px rgba(168,85,247,.12)}
       .transition-placeholder-wrap{display:grid;gap:8px;margin:12px 0 14px}.transition-placeholder-buttons{display:flex;gap:7px;flex-wrap:wrap}.transition-placeholder-buttons button{border:1px solid rgba(168,85,247,.35);border-radius:999px;background:rgba(168,85,247,.1);color:#d8b4fe;padding:5px 8px;font-size:10px;cursor:pointer}.transition-placeholder-buttons button:hover{background:rgba(168,85,247,.2)}.transition-button-row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}.transition-output-buttons{margin-top:14px}.transition-preview-meta{margin:-2px 0 12px;padding:9px 11px;border-left:3px solid #39ff63;background:rgba(57,255,99,.06);color:#a9b3bc;font-size:11px}.transition-status{min-height:20px;margin-top:12px;color:#86efac;font-size:11px}.transition-status.error{color:#fda4af}
-      @media(max-width:1180px){.transition-editor-grid{grid-template-columns:1fr}}@media(max-width:680px){.transition-address-grid{grid-template-columns:1fr}.transition-subject-field{grid-column:auto}.transition-button-row>*{width:100%;justify-content:center}.transition-email-sheet,.transition-template-editor{padding:14px}.transition-emoji-palette{left:0;right:auto}}
+      @media(max-width:1180px){.transition-editor-grid{grid-template-columns:1fr}}@media(max-width:680px){.transition-date-panel{align-items:stretch;flex-direction:column}.transition-date-options{display:grid;grid-template-columns:1fr 1fr}.transition-date-option{min-width:0}.transition-address-grid{grid-template-columns:1fr}.transition-subject-field{grid-column:auto}.transition-button-row>*{width:100%;justify-content:center}.transition-email-sheet,.transition-template-editor{padding:14px}.transition-emoji-palette{left:0;right:auto}}
     `;
     document.head.append(style);
   }

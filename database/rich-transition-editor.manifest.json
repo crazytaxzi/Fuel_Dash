@@ -1,5 +1,5 @@
 {
-  "version": "3.13.3",
+  "version": "3.14.0",
   "source": "database/rich-transition-editor.js",
   "emailBackgrounds": "removed at sanitize and Outlook document render time",
   "savedTemplates": "existing browser-saved templates are cleaned during rendering",
@@ -11,5 +11,7 @@
     "Rich Outlook clipboard copy",
     "Multipart HTML .eml export"
   ],
-  "emailFontColor": "automatic; outgoing inline font colors are removed at render time"
+  "emailFontColor": "automatic; outgoing inline font colors are removed at render time",
+  "transitionDateScope": "yesterday, today, or both; today is the default",
+  "selectedDateStorage": "vixenTransitionDateScopeV1"
 }
