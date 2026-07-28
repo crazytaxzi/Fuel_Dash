@@ -9,11 +9,11 @@
     idle: ["detail", "driverMetricsDetail", "driverDetails", "rolling7Day"],
     basic: ["reportDriverMetrics", "reportCompliance", "reportCost", "reportMpg"],
   });
+
   const aux = {
     active: false,
     routes: {},
     reason: "",
-    observer: null,
     applyTimer: null,
     derivedDriverCount: 0,
   };
@@ -30,17 +30,18 @@
   window.VixenSmartDataLoader = inspector;
 
   document.addEventListener("DOMContentLoaded", () => {
-    const root = document.querySelector(".main-panel") || document.body;
-    if ("MutationObserver" in window && root) {
-      aux.observer = new MutationObserver(scheduleApply);
-      aux.observer.observe(root, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["class"] });
-    }
     [0, 250, 1000].forEach((delay) => window.setTimeout(scheduleApply, delay));
+  }, { once: true });
+  document.addEventListener("vixen:data-classified", scheduleApply);
+  document.addEventListener("vixen:bootstrap-complete", scheduleApply);
+  document.addEventListener("click", (event) => {
+    if (event.target.closest(".nav-item, #refreshBtn")) scheduleApply();
   });
 
   async function augment(result) {
     const normalized = result?.routes ? result : { routes: result || {}, diagnostics: {} };
     const routes = { ...normalized.routes };
+    aux.derivedDriverCount = 0;
 
     if (routes.detail && routes.driverDetails && routes.rolling7Day && !routes.driverMetricsDetail) {
       try {
@@ -98,6 +99,8 @@
       lastModified: 0,
     });
     file.vixenVirtual = true;
+    file.vixenWorkbook = workbook;
+    window.VixenResourceCoordinator?.rememberWorkbook?.(file, workbook);
     return file;
   }
 
@@ -136,11 +139,15 @@
       lastModified: Math.max(rollingFile.lastModified || 0, historyFile.lastModified || 0),
     });
     file.vixenDerived = true;
+    file.vixenWorkbook = workbook;
+    window.VixenResourceCoordinator?.rememberWorkbook?.(file, workbook);
     return { file, driverCount: drivers.size };
   }
 
   async function readWorkbook(file) {
-    return XLSX.read(await file.arrayBuffer(), { type: "array", raw: true, cellDates: false, dense: false });
+    return window.VixenResourceCoordinator?.readWorkbook
+      ? window.VixenResourceCoordinator.readWorkbook(file)
+      : XLSX.read(await file.arrayBuffer(), { type: "array", raw: true, cellDates: false, dense: false });
   }
 
   function workbookRows(workbook) {
