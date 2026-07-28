@@ -3,26 +3,18 @@
 
   const XLSX_API = window.XLSX;
   const NativeChart = window.Chart;
-  if (!XLSX_API?.read || !XLSX_API?.utils?.sheet_to_json || !NativeChart) return;
+  if (!XLSX_API?.utils?.sheet_to_json || !NativeChart) return;
 
   const state = {
     rolling7: [],
     rolling28: [],
     lastTrend: [],
-    resetOnNextRead: false,
   };
 
-  const nativeRead = XLSX_API.read.bind(XLSX_API);
-  XLSX_API.read = (...args) => {
-    if (state.resetOnNextRead) {
-      state.rolling7 = [];
-      state.rolling28 = [];
-      state.resetOnNextRead = false;
-    }
-    const workbook = nativeRead(...args);
-    inspectWorkbook(workbook);
-    return workbook;
-  };
+  document.addEventListener("vixen:data-classified", (event) => {
+    const routes = event.detail?.routes || {};
+    ingest(routes).catch((error) => console.warn("[Idle history adapter]", error));
+  });
 
   window.Chart = new Proxy(NativeChart, {
     construct(target, args) {
@@ -35,7 +27,6 @@
       const chart = Reflect.construct(target, [canvas, nextConfig], target);
       if (trend.length >= 2 && ["heroChart", "weeklyChart"].includes(canvasId)) {
         state.lastTrend = trend;
-        state.resetOnNextRead = true;
         window.setTimeout(() => applyIdleHistoryUi(trend), 0);
       }
       return chart;
@@ -47,33 +38,36 @@
     trend: () => buildFleetIdleTrend().map((week) => ({ ...week })),
   });
 
-  function inspectWorkbook(workbook) {
-    if (!workbook?.SheetNames?.length) return;
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    if (!sheet) return;
-    const rows = XLSX_API.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null, blankrows: true });
-    if (looksLikeRolling7(rows)) {
-      const parsed = parseRolling7(rows);
-      if (parsed.length) state.rolling7 = parsed;
-    }
-    if (looksLikeDriverDetails(rows)) {
-      const parsed = parseRolling28(rows);
-      if (parsed.length) state.rolling28 = parsed;
+  async function ingest(routes) {
+    const rolling7File = routes.rolling7Day || null;
+    const rolling28File = routes.driverDetails || null;
+    const [rolling7Workbook, rolling28Workbook] = await Promise.all([
+      rolling7File ? readWorkbook(rolling7File) : null,
+      rolling28File ? readWorkbook(rolling28File) : null,
+    ]);
+
+    state.rolling7 = rolling7Workbook ? parseRolling7(workbookRows(rolling7Workbook)) : [];
+    state.rolling28 = rolling28Workbook ? parseRolling28(workbookRows(rolling28Workbook)) : [];
+    const trend = buildFleetIdleTrend();
+    if (trend.length) {
+      state.lastTrend = trend;
+      applyIdleHistoryUi(trend);
     }
   }
 
-  function looksLikeRolling7(rows) {
-    return normalizeHeader(rows?.[0]?.[10]) === "week start date"
-      && normalizeHeader(rows?.[2]?.[1]) === "idle";
+  async function readWorkbook(file) {
+    if (file.vixenWorkbook) return file.vixenWorkbook;
+    if (window.VixenResourceCoordinator?.readWorkbook) return window.VixenResourceCoordinator.readWorkbook(file);
+    return XLSX_API.read(await file.arrayBuffer(), { type: "array", raw: true, cellDates: false, dense: false });
   }
 
-  function looksLikeDriverDetails(rows) {
-    const headerDates = (rows?.[0] || []).slice(14).filter((value) => parseDate(value)).length;
-    const hasIdleMetric = rows.slice(0, 20).some((row) => normalizeHeader(row?.[13]) === "idle");
-    return headerDates >= 4 && hasIdleMetric;
+  function workbookRows(workbook) {
+    const sheet = workbook?.Sheets?.[workbook?.SheetNames?.[0]];
+    return sheet ? XLSX_API.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null, blankrows: true }) : [];
   }
 
   function parseRolling7(rows) {
+    if (!looksLikeRolling7(rows)) return [];
     const records = [];
     let currentDriver = "";
     for (let index = 0; index < rows.length; index += 1) {
@@ -95,6 +89,7 @@
   }
 
   function parseRolling28(rows) {
+    if (!looksLikeDriverDetails(rows)) return [];
     const byDriver = new Map();
     let currentDriver = "";
     for (let index = 0; index < rows.length; index += 1) {
@@ -109,10 +104,17 @@
       if (!byDriver.has(key)) byDriver.set(key, { driverName: currentDriver, history: [] });
       byDriver.get(key).history.push({ date, idlePct });
     }
-    return [...byDriver.values()].map((record) => ({
-      ...record,
-      history: record.history.sort((a, b) => a.date - b.date),
-    }));
+    return [...byDriver.values()].map((record) => ({ ...record, history: record.history.sort((a, b) => a.date - b.date) }));
+  }
+
+  function looksLikeRolling7(rows) {
+    return normalizeHeader(rows?.[0]?.[10]) === "week start date" && normalizeHeader(rows?.[2]?.[1]) === "idle";
+  }
+
+  function looksLikeDriverDetails(rows) {
+    const headerDates = (rows?.[0] || []).slice(14).filter((value) => parseDate(value)).length;
+    const hasIdleMetric = rows.slice(0, 20).some((row) => normalizeHeader(row?.[13]) === "idle");
+    return headerDates >= 4 && hasIdleMetric;
   }
 
   function buildFleetIdleTrend(limit = 4) {
@@ -143,11 +145,6 @@
         idle7DriverCount: entry.idle7.length,
         idle28DriverCount: entry.idle28.length,
       }));
-  }
-
-  function isExcluded(driverName) {
-    const embeddedCode = text(driverName).match(/^\s*(\d{4,})\b/)?.[1] || "";
-    return Boolean(window.VixenReportExclusions?.matches?.({ driverName, driverCode: embeddedCode }));
   }
 
   function buildIdleChartConfig(config, canvasId, trend) {
@@ -215,22 +212,28 @@
     if (heading) heading.textContent = "FLEET IDLE HISTORY";
     const calloutLabel = document.querySelector(".hero-chart-wrap .chart-callout span");
     if (calloutLabel) calloutLabel.textContent = "CURRENT 7-DAY IDLE";
-    const heroValue = document.getElementById("heroSavings");
-    if (heroValue) heroValue.textContent = formatPercent(latest.idle7DayPct, 1);
+    setText("heroSavings", formatPercent(latest.idle7DayPct, 1));
     const trendLabel = document.querySelector(".trend-total small");
     if (trendLabel) trendLabel.textContent = "CURRENT 7-DAY IDLE";
-    const trendTotal = document.getElementById("trendWeekTotal");
-    if (trendTotal) trendTotal.textContent = formatPercent(latest.idle7DayPct, 1);
-    const trendDelta = document.getElementById("trendWeekDelta");
-    if (trendDelta) trendDelta.textContent = change === null ? "No comparison" : `${change >= 0 ? "▲" : "▼"} ${Math.abs(change * 100).toFixed(1)} pts vs prior`;
+    setText("trendWeekTotal", formatPercent(latest.idle7DayPct, 1));
+    setText("trendWeekDelta", change === null ? "No comparison" : `${change >= 0 ? "▲" : "▼"} ${Math.abs(change * 100).toFixed(1)} pts vs prior`);
 
     const insight = document.getElementById("heroInsight");
     if (insight) {
-      const marker = "data-idle-history-summary";
-      if (!insight.innerHTML.includes(marker)) insight.dataset.idleHistoryBase = insight.innerHTML;
+      if (!insight.dataset.idleHistoryBase) insight.dataset.idleHistoryBase = insight.innerHTML;
       const base = insight.dataset.idleHistoryBase || "";
-      insight.innerHTML = `<span ${marker}><strong>Four-week fleet idle.</strong> Current 7-day idle is <strong>${formatPercent(latest.idle7DayPct, 1)}</strong> and current 28-day idle is ${formatPercent(latest.idle28DayPct, 1)}. ${escapeHtml(direction)}</span>${base ? `<br><br>${base}` : ""}`;
+      insight.innerHTML = `<span data-idle-history-summary><strong>Four-week fleet idle.</strong> Current 7-day idle is <strong>${formatPercent(latest.idle7DayPct, 1)}</strong> and current 28-day idle is ${formatPercent(latest.idle28DayPct, 1)}. ${escapeHtml(direction)}</span>${base ? `<br><br>${base}` : ""}`;
     }
+  }
+
+  function setText(id, value) {
+    const element = document.getElementById(id);
+    if (element) element.textContent = value;
+  }
+
+  function isExcluded(driverName) {
+    const embeddedCode = text(driverName).match(/^\s*(\d{4,})\b/)?.[1] || "";
+    return Boolean(window.VixenReportExclusions?.matches?.({ driverName, driverCode: embeddedCode }));
   }
 
   function parseDate(value) {
