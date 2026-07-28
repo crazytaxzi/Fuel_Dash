@@ -19,7 +19,12 @@
 
   Promise.all([domReady, window.FuelDashboardDb?.ready || Promise.resolve()])
     .then(async () => {
-      for (const src of OPTIONAL_MODULES) await loadOptionalScript(src);
+      for (const src of OPTIONAL_MODULES) {
+        await loadOptionalScript(src);
+        if (src === "transition_export_v2.js" && window.VixenRichTransitionReady) {
+          await window.VixenRichTransitionReady;
+        }
+      }
       await loadScript("app.js");
       await loadScript("database/pta-history-ui.js");
       await loadScript("database/worked-navigation-fix.js");
