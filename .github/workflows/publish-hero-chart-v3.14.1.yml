@@ -36,7 +36,8 @@ jobs:
           node --check database/rich-transition-editor.js
           node --check app.js
           grep -F 'grid-auto-rows: minmax(320px, auto)' database/hero-chart-layout.js
-          grep -F 'height: 100% !important' database/hero-chart-layout.js
+          grep -F 'height: calc(100% - 40px) !important' database/hero-chart-layout.js
+          grep -F 'width: calc(100% - 128px) !important' database/hero-chart-layout.js
           grep -F 'database/hero-chart-layout.js' database/bootstrap.js
 
       - name: Build package
@@ -90,7 +91,7 @@ jobs:
           )
           (dist / "release-notes.md").write_text(
               "# Fuel Dash v3.14.1\n\n"
-              "The Hero Insight history chart now fills the vertical height of the insight row with a small inner margin instead of remaining capped at 205 pixels. The chart continues to resize with the card and retains the mobile layout.\n",
+              "The Hero Insight history chart now fills the vertical height of the insight row with a small inner margin instead of remaining capped at 205 pixels. The copy column controls the card height, so the graph grows without making the card taller. The mobile layout remains bounded and readable.\n",
               encoding="utf-8",
           )
 
