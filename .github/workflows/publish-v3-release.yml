@@ -105,7 +105,7 @@ jobs:
           data_dir.mkdir(exist_ok=True)
           (data_dir / "PLACE_REPORTS_HERE.txt").write_text(
               "Place the current XLSX and PDF operating reports in this folder.\n"
-              "PTA snapshots, notes, history, and report exclusions remain in the local browser database and are not included in this package.\n",
+              "PTA snapshots, notes, history, report exclusions, and transition email settings remain in the local browser database and are not included in this package.\n",
               encoding="utf-8",
           )
 
@@ -138,9 +138,10 @@ jobs:
               "- Editable Exclusions tab for driver names, driver codes, and truck numbers\n"
               "- Exclusions applied to fleet idle averages, thresholds, rankings, historical charts, and idle-related APU coaching\n"
               "- Four-week 7-day and 28-day fleet idle history in Hero Insight and Weekly Trend\n"
+              "- Transition Email Editor with saved Outlook recipients and templates, editable preview, mail-app launch, .eml download, and copy controls\n"
               "- Existing fuel, idle, APU, Missing BOL, and shift-transition tools\n\n"
               "## Privacy\n\n"
-              "Operational PTA data, notes, and saved exclusions are not included in this release and are not uploaded to GitHub. They remain in the browser profile on the computer running the dashboard.\n\n"
+              "Operational PTA data, notes, saved exclusions, transition recipients, and email templates are not included in this release and are not uploaded to GitHub. They remain in the browser profile on the computer running the dashboard.\n\n"
               "## Install\n\n"
               "Download the ZIP, extract it, place current report files in the `data` folder, and run `Launch Fuel Dashboard.cmd`.\n",
               encoding="utf-8",
