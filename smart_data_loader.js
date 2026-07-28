@@ -3,6 +3,7 @@
 
   const SUPPORTED_REPORT = /\.(?:xlsx|xlsm|xlsb|xls|pdf)$/i;
   const diagnostics = { files: [], routes: {}, unclassified: [], errors: [] };
+  const inspectionCache = new Map();
   const ROLE_RULES = Object.freeze({
     summary: { threshold: 12, phrases: [["zz recommendation", 8], ["zz compliance", 8], ["re opt count", 4], ["primary rec compliance", 4]] },
     drivers: { threshold: 14, phrases: [["driver leader name", 8], ["fleet manager match", 6], ["rolling 28 day dispatch miles", 8], ["rolling 4 week dispatch mpg", 8]] },
@@ -23,46 +24,19 @@
 
   const inspector = {
     diagnostics,
-    ready: null,
+    ready: Promise.resolve({ routes: {}, diagnostics }),
     classifyFiles,
     inspectFile,
     test: { scoreInspection, structuralScore, roleThreshold, roleQualifies, normalize },
     supported: (file) => Boolean(file && SUPPORTED_REPORT.test(file.name || "")),
+    clearCache: () => inspectionCache.clear(),
   };
 
   window.VixenDataInspector = inspector;
   window.VixenSmartDataLoader = inspector;
-  inspector.ready = loadManifestFiles()
-    .then((files) => classifyFiles(files))
-    .catch((error) => {
-      diagnostics.errors.push(error?.message || String(error));
-      return { routes: {}, diagnostics };
-    });
-
-  async function loadManifestFiles() {
-    const response = await fetch("data-manifest.json", { cache: "no-store" });
-    if (!response.ok) return [];
-    const manifest = await response.json();
-    const files = [];
-    for (const item of Array.isArray(manifest) ? manifest : []) {
-      if (!SUPPORTED_REPORT.test(item?.name || "") || !item?.path) continue;
-      try {
-        const fileResponse = await fetch(encodeURI(item.path), { cache: "no-store" });
-        if (!fileResponse.ok) throw new Error(`HTTP ${fileResponse.status}`);
-        const blob = await fileResponse.blob();
-        files.push(new File([blob], item.name, {
-          type: blob.type || genericMime(item.name),
-          lastModified: Date.parse(item.lastModified) || 0,
-        }));
-      } catch (error) {
-        diagnostics.errors.push(`${item?.name || "Report"}: ${error?.message || error}`);
-      }
-    }
-    return files;
-  }
 
   async function classifyFiles(inputFiles) {
-    const files = Array.from(inputFiles || []).filter((file) => inspector.supported(file));
+    const files = dedupeFiles(Array.from(inputFiles || []).filter((file) => inspector.supported(file)));
     const run = { files: [], routes: {}, unclassified: [], errors: [] };
     const inspected = [];
 
@@ -82,20 +56,18 @@
         .map((entry) => ({ ...entry, value: entry.scores[role] || 0 }))
         .filter((entry) => entry.value >= roleThreshold(rule, entry.inspection.kind))
         .sort((a, b) => b.value - a.value || (b.file.lastModified || 0) - (a.file.lastModified || 0));
-      if (candidates.length) {
-        run.routes[role] = candidates[0].file;
-        run.routes[role].vixenRole = role;
-        run.routes[role].vixenConfidence = candidates[0].value;
-        run.routes[role].vixenInspection = candidates[0].inspection;
-      }
+      if (!candidates.length) continue;
+      const winner = candidates[0];
+      winner.file.vixenRole = role;
+      winner.file.vixenConfidence = winner.value;
+      winner.file.vixenInspection = winner.inspection;
+      run.routes[role] = winner.file;
     }
 
     if (!run.routes.driverMetricsDetail && run.routes.reportDriverMetrics && !/\.pdf$/i.test(run.routes.reportDriverMetrics.name)) {
       run.routes.driverMetricsDetail = run.routes.reportDriverMetrics;
     }
-    if (!run.routes.reportDriverMetrics && run.routes.driverMetricsDetail) {
-      run.routes.reportDriverMetrics = run.routes.driverMetricsDetail;
-    }
+    if (!run.routes.reportDriverMetrics && run.routes.driverMetricsDetail) run.routes.reportDriverMetrics = run.routes.driverMetricsDetail;
     if (!run.routes.driverPdf && run.routes.reportDriverMetrics && /\.pdf$/i.test(run.routes.reportDriverMetrics.name)) {
       run.routes.driverPdf = run.routes.reportDriverMetrics;
     }
@@ -103,20 +75,44 @@
     const used = new Set(Object.values(run.routes));
     run.unclassified = files.filter((file) => !used.has(file)).map((file) => file.name);
     Object.assign(diagnostics, run);
-    console.info("[Vixen Data Inspector] content-based roles", Object.fromEntries(Object.entries(run.routes).map(([role, file]) => [role, { source: file.name, score: file.vixenConfidence || 0 }])));
-    if (run.unclassified.length) console.warn("[Vixen Data Inspector] unclassified reports", run.unclassified);
-    if (run.errors.length) console.warn("[Vixen Data Inspector] inspection errors", run.errors);
-    return { routes: run.routes, diagnostics: run };
+    const result = { routes: run.routes, diagnostics: run };
+    inspector.ready = Promise.resolve(result);
+    document.dispatchEvent(new CustomEvent("vixen:data-classified", { detail: { ...result, files } }));
+    return result;
   }
 
   async function inspectFile(file) {
-    const buffer = await file.arrayBuffer();
-    return /\.pdf$/i.test(file.name) ? inspectPdf(buffer) : inspectWorkbook(buffer);
+    const signature = fileSignature(file);
+    if (inspectionCache.has(signature)) {
+      const cached = inspectionCache.get(signature);
+      if (cached.workbook) {
+        file.vixenWorkbook = cached.workbook;
+        window.VixenResourceCoordinator?.rememberWorkbook?.(file, cached.workbook);
+      }
+      file.vixenInspection = cached.inspection;
+      return cached.inspection;
+    }
+
+    let workbook = null;
+    const inspection = /\.pdf$/i.test(file.name)
+      ? await inspectPdf(await file.arrayBuffer())
+      : inspectWorkbook(workbook = await readWorkbook(file));
+
+    file.vixenInspection = inspection;
+    if (workbook) file.vixenWorkbook = workbook;
+    inspectionCache.set(signature, { inspection, workbook });
+    trimCache(inspectionCache, 48);
+    return inspection;
   }
 
-  function inspectWorkbook(buffer) {
-    if (!window.XLSX) throw new Error("SheetJS was not loaded before the data inspector.");
-    const workbook = XLSX.read(buffer, { type: "array", raw: true, cellDates: false, cellText: false, cellNF: false, dense: false });
+  async function readWorkbook(file) {
+    if (window.VixenResourceCoordinator?.readWorkbook) {
+      return window.VixenResourceCoordinator.readWorkbook(file, { cellText: false, cellNF: false });
+    }
+    return XLSX.read(await file.arrayBuffer(), { type: "array", raw: true, cellDates: false, cellText: false, cellNF: false, dense: false });
+  }
+
+  function inspectWorkbook(workbook) {
     const sheetNames = workbook.SheetNames.slice();
     const rows = [];
     const text = [...sheetNames];
@@ -226,7 +222,21 @@
     return String(value ?? "").toLowerCase().replace(/[%#]+/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
   }
 
-  function genericMime(name) {
-    return /\.pdf$/i.test(name) ? "application/pdf" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  function fileSignature(file) {
+    return `${file.name}|${file.size}|${file.lastModified || 0}`;
+  }
+
+  function dedupeFiles(files) {
+    const seen = new Set();
+    return files.filter((file) => {
+      const signature = fileSignature(file);
+      if (seen.has(signature)) return false;
+      seen.add(signature);
+      return true;
+    });
+  }
+
+  function trimCache(map, limit) {
+    while (map.size > limit) map.delete(map.keys().next().value);
   }
 })();
