@@ -3,10 +3,42 @@
 
   const STORAGE_KEY = "vixenTripPlanningNotes305V1";
   const PLACEHOLDERS = Object.freeze([
-    "division_305_followups_html",
-    "division_305_followups",
-    "division_305_count",
+    {
+      name: "division_305_followups",
+      title: "Insert compact open Division 305 lines: truck, next action, and latest note",
+    },
+    {
+      name: "division_305_count",
+      title: "Insert the count of open Division 305 trucks",
+    },
+    {
+      name: "card_start",
+      title: "Start a manual Outlook-ready card",
+    },
+    {
+      name: "card_end",
+      title: "End the current manual card",
+    },
+    {
+      name: "sep_red",
+      title: "Insert a red section separator",
+    },
+    {
+      name: "sep_blue",
+      title: "Insert a blue section separator",
+    },
   ]);
+
+  const CARD_START_HTML = [
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0"',
+    ' style="border-collapse:separate;border-spacing:0;margin:0 0 10px;',
+    'border:1px solid #d8e0ea;border-radius:8px;background:#ffffff;">',
+    '<tr><td style="padding:13px 15px;">',
+  ].join("");
+  const CARD_END_HTML = "</td></tr></table>";
+  const SEP_RED_HTML = separatorHtml("#dc2626");
+  const SEP_BLUE_HTML = separatorHtml("#2563eb");
+
   const original = window.VixenTransitionExport;
   if (!original) {
     console.warn("Division 305 transition extension could not find the transition exporter.");
@@ -20,10 +52,17 @@
     ...original,
     buildContext: (...args) => augmentContext(original.buildContext(...args)),
     buildEmail: (...args) => augmentEmail(original.buildEmail(...args)),
-    buildTransition: (...args) => replacePlainTokens(original.buildTransition(...args), division305Context()),
-    renderTemplate: (template, context = {}) => original.renderTemplate(template, augmentContext(context)),
+    buildTransition: (...args) => replacePlainTokens(
+      original.buildTransition(...args),
+      division305Context(),
+    ),
+    renderTemplate: (template, context = {}) => replaceHtmlTokens(
+      original.renderTemplate(template, context),
+      augmentContext(context),
+    ),
     refresh: () => refreshPreview(true),
   });
+
   window.VixenTransitionExport = api;
   window.VixenTransition305Ready = true;
 
@@ -36,28 +75,32 @@
       bindDirectRefreshControls();
       schedulePreparedRefresh({ rebuildBase: false, delay: 0 });
     };
-    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
-    else start();
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", start, { once: true });
+    } else {
+      start();
+    }
+
     document.addEventListener("vixen:bootstrap-complete", start);
     window.addEventListener("storage", (event) => {
-      if (event.key === STORAGE_KEY) schedulePreparedRefresh({ rebuildBase: true, delay: 0 });
+      if (event.key === STORAGE_KEY) {
+        schedulePreparedRefresh({ rebuildBase: true, delay: 0 });
+      }
     });
   }
 
   function addPlaceholderButtons() {
     const container = document.getElementById("transitionPlaceholderButtons");
     if (!container) return;
-    PLACEHOLDERS.forEach((name) => {
+
+    PLACEHOLDERS.forEach(({ name, title }) => {
       if (container.querySelector(`[data-transition-placeholder="${name}"]`)) return;
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.transitionPlaceholder = name;
       button.textContent = `{{${name}}}`;
-      button.title = name === "division_305_followups_html"
-        ? "Insert all open Division 305 trip-planning records as formatted cards"
-        : name === "division_305_followups"
-          ? "Insert all open Division 305 trip-planning records as plain text"
-          : "Insert the count of open Division 305 trip-planning records";
+      button.title = title;
       container.append(button);
     });
   }
@@ -68,14 +111,16 @@
 
     document.addEventListener("click", (event) => {
       const outputTarget = event.target?.closest?.(
-        "#copyTransitionRichBtn,#downloadTransitionEmlBtn,#openTransitionOutlookBtn,#copyTransitionPlainBtn"
+        "#copyTransitionRichBtn,#downloadTransitionEmlBtn,#openTransitionOutlookBtn,#copyTransitionPlainBtn",
       );
       if (outputTarget) applyToPreparedBody();
 
       const placeholderTarget = event.target?.closest?.(
-        "#transitionPlaceholderButtons [data-transition-placeholder]"
+        "#transitionPlaceholderButtons [data-transition-placeholder]",
       );
-      if (placeholderTarget) schedulePreparedRefresh({ rebuildBase: true, delay: 0 });
+      if (placeholderTarget) {
+        schedulePreparedRefresh({ rebuildBase: true, delay: 0 });
+      }
 
       const viewTarget = event.target?.closest?.('[data-view="transition"],#exportTransitionBtn');
       if (viewTarget) schedulePreparedRefresh({ rebuildBase: true, delay: 0 });
@@ -103,8 +148,6 @@
     template.addEventListener("input", livePreview);
     subject?.addEventListener("input", livePreview);
 
-    // These listeners are registered after the editor's own handlers. They run
-    // after Save/Reset/Refresh has rebuilt the base preview, then apply 305 data.
     [save, reset, refresh].filter(Boolean).forEach((button) => {
       button.addEventListener("click", () => {
         schedulePreparedRefresh({ rebuildBase: false, delay: 0 });
@@ -128,6 +171,7 @@
   function applyToPreparedBody() {
     const body = document.getElementById("transitionPreparedBody");
     if (!body) return;
+
     const context = division305Context();
     const current = body.innerHTML;
     const next = replaceHtmlTokens(current, context);
@@ -137,20 +181,20 @@
     }
 
     const meta = document.getElementById("transitionPreviewMeta");
-    if (meta) {
-      const currentText = String(meta.textContent || "Prepared transition").trim();
-      const priorDecorated = String(meta.dataset.vixenDecoratedText || "");
-      const base = (currentText === priorDecorated
-        ? String(meta.dataset.vixenBaseText || currentText)
-        : currentText
-      ).replace(/\s*·\s*\d+ open Division 305 trucks?\s*$/i, "").trim();
-      const decorated = context.division_305_count === "0"
-        ? base
-        : `${base} · ${context.division_305_count} open Division 305 truck${context.division_305_count === "1" ? "" : "s"}`;
-      meta.dataset.vixenBaseText = base;
-      meta.dataset.vixenDecoratedText = decorated;
-      meta.textContent = decorated;
-    }
+    if (!meta) return;
+
+    const currentText = String(meta.textContent || "Prepared transition").trim();
+    const priorDecorated = String(meta.dataset.vixenDecoratedText || "");
+    const base = (currentText === priorDecorated
+      ? String(meta.dataset.vixenBaseText || currentText)
+      : currentText
+    ).replace(/\s*·\s*\d+ open Division 305 trucks?\s*$/i, "").trim();
+    const decorated = context.division_305_count === "0"
+      ? base
+      : `${base} · ${context.division_305_count} open Division 305 truck${context.division_305_count === "1" ? "" : "s"}`;
+    meta.dataset.vixenBaseText = base;
+    meta.dataset.vixenDecoratedText = decorated;
+    meta.textContent = decorated;
   }
 
   function augmentEmail(email) {
@@ -171,12 +215,14 @@
   function division305Context() {
     const records = readOpenRecords();
     const html = records.length
-      ? records.map(recordHtml).join("")
-      : emptyStateHtml("No open Division 305 trip-planning records.");
+      ? records.map(recordLineHtml).join("")
+      : '<div style="font-size:13px;color:#667085;">No open Division 305 trip-planning records.</div>';
     const text = records.length
-      ? records.map(recordText).join("\n\n")
+      ? records.map(recordLineText).join("\n")
       : "No open Division 305 trip-planning records.";
+
     return {
+      // The old HTML token remains an alias so saved templates do not break.
       division_305_followups_html: html,
       division_305_followups: text,
       division_305_count: String(records.length),
@@ -192,62 +238,31 @@
       parsed = [];
     }
     if (!Array.isArray(parsed)) return [];
+
     const statusRank = { "Needs plan": 0, Waiting: 1, Hold: 2, Planned: 3 };
     return parsed
       .filter((record) => record && clean(record.truck) && !/^complete$/i.test(clean(record.status)))
       .map((record) => ({
         truck: clean(record.truck),
-        driver: clean(record.driver),
-        load: clean(record.load),
-        destination: clean(record.destination),
-        pta: clean(record.pta),
+        route: clean(record.nextAction) || "No next action entered",
+        truckNotes: latestNote(record.notes)?.text || "No planning note saved",
         status: clean(record.status) || "Needs plan",
-        nextAction: clean(record.nextAction),
-        latestNote: latestNote(record.notes),
-        updatedAt: validTime(record.updatedAt),
       }))
       .sort((a, b) => (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9)
         || a.truck.localeCompare(b.truck, undefined, { numeric: true }));
   }
 
-  function recordHtml(record) {
-    const facts = [
-      ["Driver", record.driver],
-      ["Load / order", record.load],
-      ["Destination", record.destination],
-      ["PTA / ready", record.pta],
-      ["Status", record.status],
-    ].filter((item) => item[1]);
-    const factsHtml = facts
-      .map(([label, value]) => `<span style="display:inline-block;margin:2px 12px 2px 0;"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</span>`)
-      .join("");
-    const note = record.latestNote?.text || "No planning note saved.";
-    const noteTime = record.latestNote?.savedAt ? ` · ${formatDateTime(record.latestNote.savedAt)}` : "";
-    const updated = record.updatedAt ? formatDateTime(record.updatedAt) : "Update time unavailable";
+  function recordLineHtml(record) {
     return [
-      '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0;margin:0 0 10px;border:1px solid #d8e0ea;border-left:5px solid #0ea5e9;border-radius:8px;">',
-      '<tr><td style="padding:13px 15px;">',
-      `<div style="font-size:15px;font-weight:700;">🚚 Division 305 · Truck ${escapeHtml(record.truck)}</div>`,
-      `<div style="font-size:12px;margin-top:4px;line-height:1.55;">${factsHtml}</div>`,
-      `<div style="font-size:14px;margin-top:9px;"><strong>Next action:</strong> ${escapeHtml(record.nextAction || "No next action entered.")}</div>`,
-      `<div style="font-size:14px;margin-top:7px;"><strong>Latest note${escapeHtml(noteTime)}:</strong><br>${escapeHtml(note).replace(/\n/g, "<br>")}</div>`,
-      `<div style="font-size:11px;color:#667085;margin-top:8px;">Last updated ${escapeHtml(updated)}</div>`,
-      "</td></tr></table>",
+      '<div style="font-size:14px;line-height:1.45;margin:0 0 6px;">',
+      `<strong>${escapeHtml(record.truck)}</strong> - Next action=${escapeHtml(record.route)}`,
+      ` &nbsp;·&nbsp; Notes: ${escapeHtml(record.truckNotes)}`,
+      "</div>",
     ].join("");
   }
 
-  function recordText(record) {
-    return [
-      `Division 305 · Truck ${record.truck}`,
-      record.driver ? `Driver: ${record.driver}` : "",
-      record.load ? `Load / order: ${record.load}` : "",
-      record.destination ? `Destination: ${record.destination}` : "",
-      record.pta ? `PTA / ready: ${record.pta}` : "",
-      `Status: ${record.status}`,
-      `Next action: ${record.nextAction || "No next action entered."}`,
-      `Latest note: ${record.latestNote?.text || "No planning note saved."}`,
-      record.updatedAt ? `Last updated: ${formatDateTime(record.updatedAt)}` : "",
-    ].filter(Boolean).join("\n");
+  function recordLineText(record) {
+    return `${record.truck} - Next action=${record.route} | Notes: ${record.truckNotes}`;
   }
 
   function latestNote(notes) {
@@ -267,28 +282,67 @@
   }
 
   function replaceTokens(value, context, htmlMode) {
-    return String(value ?? "").replace(/{{\s*(division_305_followups_html|division_305_followups|division_305_count)\s*}}/gi, (token, key) => {
+    let output = normalizeStandaloneCardMarkers(String(value ?? ""));
+
+    output = output.replace(
+      /{{\s*card_start\s*}}([\s\S]*?){{\s*card_end\s*}}/gi,
+      (_, contents) => htmlMode
+        ? `${CARD_START_HTML}${contents}${CARD_END_HTML}`
+        : `\n${contents}\n`,
+    );
+
+    const tokenPattern = /{{\s*(division_305_followups_html|division_305_followups|division_305_count|card_start|card_end|sep_red|sep_blue)\s*}}/gi;
+    return output.replace(tokenPattern, (token, key) => {
       const normalized = key.toLowerCase();
-      if (normalized === "division_305_followups_html" && !htmlMode) return context.division_305_followups;
-      if (normalized === "division_305_followups" && htmlMode) return escapeHtml(context.division_305_followups).replace(/\n/g, "<br>");
-      return String(context[normalized] ?? token);
+      if (normalized === "division_305_followups_html") {
+        return htmlMode ? context.division_305_followups_html : context.division_305_followups;
+      }
+      if (normalized === "division_305_followups") {
+        return htmlMode ? context.division_305_followups_html : context.division_305_followups;
+      }
+      if (normalized === "division_305_count") return context.division_305_count;
+
+      if (htmlMode) {
+        // Unmatched card markers still render safely instead of leaking raw tokens.
+        if (normalized === "card_start") return CARD_START_HTML;
+        if (normalized === "card_end") return CARD_END_HTML;
+        if (normalized === "sep_red") return SEP_RED_HTML;
+        if (normalized === "sep_blue") return SEP_BLUE_HTML;
+      } else {
+        if (normalized === "card_start" || normalized === "card_end") return "\n";
+        if (normalized === "sep_red" || normalized === "sep_blue") {
+          return "\n----------------------------------------\n";
+        }
+      }
+
+      return token;
     });
   }
 
-  function emptyStateHtml(message) {
-    return `<div style="border:1px dashed #c6cfda;border-radius:8px;background:#f8fafc;color:#667085;padding:14px 16px;font-size:13px;">${escapeHtml(message)}</div>`;
+  function normalizeStandaloneCardMarkers(value) {
+    return value
+      .replace(
+        /<(div|p)(?:\s[^>]*)?>\s*{{\s*card_start\s*}}\s*(?:<br\s*\/?>)?\s*<\/\1>/gi,
+        "{{card_start}}",
+      )
+      .replace(
+        /<(div|p)(?:\s[^>]*)?>\s*{{\s*card_end\s*}}\s*(?:<br\s*\/?>)?\s*<\/\1>/gi,
+        "{{card_end}}",
+      );
+  }
+
+  function separatorHtml(color) {
+    return [
+      '<table role="presentation" width="100%" cellspacing="0" cellpadding="0"',
+      ' style="border-collapse:collapse;margin:12px 0;">',
+      `<tr><td style="border-top:3px solid ${color};font-size:1px;line-height:1px;">&nbsp;</td></tr>`,
+      "</table>",
+    ].join("");
   }
 
   function validTime(value) {
     const time = new Date(value).getTime();
     return Number.isFinite(time) ? time : 0;
-  }
-
-  function formatDateTime(value) {
-    const date = new Date(Number(value) || value);
-    return Number.isNaN(date.getTime())
-      ? clean(value)
-      : date.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   }
 
   function clean(value) {
