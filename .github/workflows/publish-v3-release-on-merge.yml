@@ -69,6 +69,7 @@ jobs:
               Path("database/trip-planning-notes.js"),
               Path("database/trip-planning-table.js"),
               Path("database/rich-transition-editor.js"),
+              Path("database/transition-305-extension.js"),
               Path("database/transition-grouping.js"),
           ]
           for entry in javascript_entries:
@@ -93,6 +94,10 @@ jobs:
           missing_modules = [module for module in required_modules if module not in bootstrap]
           if missing_modules:
               raise SystemExit(f"Release modules are not registered in database/bootstrap.js: {missing_modules}")
+
+          transition_loader = Path("transition_export_v2.js").read_text(encoding="utf-8")
+          if '"database/transition-305-extension.js"' not in transition_loader:
+              raise SystemExit("Division 305 transition extension is not registered in transition_export_v2.js")
 
           print(f"Validated {len(javascript_entries)} JavaScript entry points and {len(required_files)} launcher files")
 
@@ -154,10 +159,9 @@ jobs:
 
           (dist / "release-notes.md").write_text(
               f"# Fuel Dash {tag}\n\n"
-              "Fixes a startup crash where the Worked workflow removed optional KPI cards before the main dashboard cached its DOM references. "
-              "The dashboard could briefly load saved notes and reports, then return to the connection screen with a null textContent error.\n\n"
-              "Core render targets are now protected during startup, while the resource-efficiency changes from v3.17.0 remain intact: read-once workbook handling, manual refresh by default, shared parsed report data, reduced DOM churn, and streamed local file delivery with ETag and 304 support.\n\n"
-              "Operational report files and browser-stored notes remain local and are not included in the release package.\n",
+              "Adds Division 305 trip-planning records to the rich shift-transition composer. The new live-data placeholders can insert formatted Outlook-ready cards, plain-text handoff content, or the open 305 truck count.\n\n"
+              "The transition includes every open Division 305 record, excludes trucks marked Complete, and carries the truck, driver, load or order, destination, PTA, status, next action, latest note, and last-updated time. It works with rich copy, plain copy, mail-app output, and Outlook .eml downloads.\n\n"
+              "The read-once workbook handling and the v3.17.1 startup protection remain intact. Operational report files and browser-stored notes remain local and are not included in the release package.\n",
               encoding="utf-8",
           )
 
