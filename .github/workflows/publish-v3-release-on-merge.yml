@@ -99,6 +99,18 @@ jobs:
           if '"database/transition-305-extension.js"' not in transition_loader:
               raise SystemExit("Division 305 transition extension is not registered in transition_export_v2.js")
 
+          transition_extension = Path("database/transition-305-extension.js").read_text(encoding="utf-8")
+          required_transition_tokens = [
+              "division_305_followups",
+              "card_start",
+              "card_end",
+              "sep_red",
+              "sep_blue",
+          ]
+          missing_tokens = [token for token in required_transition_tokens if token not in transition_extension]
+          if missing_tokens:
+              raise SystemExit(f"Compact transition tokens are missing: {missing_tokens}")
+
           print(f"Validated {len(javascript_entries)} JavaScript entry points and {len(required_files)} launcher files")
 
       - name: Build release package
@@ -159,9 +171,9 @@ jobs:
 
           (dist / "release-notes.md").write_text(
               f"# Fuel Dash {tag}\n\n"
-              "Fixes the transition template preview so it redraws without a browser reload. Template and subject edits now refresh the prepared message after a short debounce, placeholder insertion refreshes immediately, and Save, Reset, and Refresh apply Division 305 data after the core editor finishes rendering.\n\n"
-              "Rich copy, plain copy, mail-app output, and Outlook .eml downloads now use the synchronized preview. The local PowerShell server also suppresses expected browser-disconnect socket messages while continuing to log genuine request failures.\n\n"
-              "The Division 305 placeholders, read-once workbook handling, and startup protections remain intact. Operational report files and browser-stored notes remain local and are not included in the release package.\n",
+              "Replaces the oversized Division 305 transition cards with compact truck lines containing only the truck, next action, and latest planning note. Records marked Complete remain excluded.\n\n"
+              "Adds manual transition-layout tokens: card_start and card_end wrap any template content in one Outlook-ready card, while sep_red and sep_blue insert colored section separators. The previous division_305_followups_html token remains supported as a compact compatibility alias.\n\n"
+              "Live preview, rich copy, plain copy, mail-app output, Outlook .eml downloads, read-once workbook handling, and startup protections remain intact. Operational report files and browser-stored notes remain local and are not included in the release package.\n",
               encoding="utf-8",
           )
 
