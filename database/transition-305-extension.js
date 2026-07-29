@@ -13,12 +13,16 @@
     return;
   }
 
+  let previewTimer = null;
+  let directBindingsInstalled = false;
+
   const api = Object.freeze({
     ...original,
     buildContext: (...args) => augmentContext(original.buildContext(...args)),
     buildEmail: (...args) => augmentEmail(original.buildEmail(...args)),
     buildTransition: (...args) => replacePlainTokens(original.buildTransition(...args), division305Context()),
     renderTemplate: (template, context = {}) => original.renderTemplate(template, augmentContext(context)),
+    refresh: () => refreshPreview(true),
   });
   window.VixenTransitionExport = api;
   window.VixenTransition305Ready = true;
@@ -29,13 +33,14 @@
     const start = () => {
       addPlaceholderButtons();
       bindUiHooks();
-      schedulePreparedRefresh();
+      bindDirectRefreshControls();
+      schedulePreparedRefresh({ rebuildBase: false, delay: 0 });
     };
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
     else start();
     document.addEventListener("vixen:bootstrap-complete", start);
     window.addEventListener("storage", (event) => {
-      if (event.key === STORAGE_KEY) schedulePreparedRefresh();
+      if (event.key === STORAGE_KEY) schedulePreparedRefresh({ rebuildBase: true, delay: 0 });
     });
   }
 
@@ -62,27 +67,62 @@
     document.documentElement.dataset.vixenTransition305Bound = "1";
 
     document.addEventListener("click", (event) => {
-      const target = event.target?.closest?.(
+      const outputTarget = event.target?.closest?.(
         "#copyTransitionRichBtn,#downloadTransitionEmlBtn,#openTransitionOutlookBtn,#copyTransitionPlainBtn"
       );
-      if (target) applyToPreparedBody();
+      if (outputTarget) applyToPreparedBody();
 
-      const refreshTarget = event.target?.closest?.(
-        "#exportTransitionBtn,#refreshTransitionEmailBtn,#saveTransitionTemplateBtn,#resetTransitionTemplateBtn,[data-view=\"transition\"]"
+      const placeholderTarget = event.target?.closest?.(
+        "#transitionPlaceholderButtons [data-transition-placeholder]"
       );
-      if (refreshTarget) schedulePreparedRefresh();
+      if (placeholderTarget) schedulePreparedRefresh({ rebuildBase: true, delay: 0 });
+
+      const viewTarget = event.target?.closest?.('[data-view="transition"],#exportTransitionBtn');
+      if (viewTarget) schedulePreparedRefresh({ rebuildBase: true, delay: 0 });
     }, true);
 
     document.addEventListener("change", (event) => {
-      if (event.target?.matches?.("[data-transition-day-offset]")) schedulePreparedRefresh();
+      if (event.target?.matches?.("[data-transition-day-offset]")) {
+        schedulePreparedRefresh({ rebuildBase: true, delay: 0 });
+      }
     }, true);
   }
 
-  function schedulePreparedRefresh() {
-    window.setTimeout(() => {
-      addPlaceholderButtons();
-      applyToPreparedBody();
-    }, 0);
+  function bindDirectRefreshControls() {
+    if (directBindingsInstalled) return;
+    const template = document.getElementById("transitionTemplateEditor");
+    const subject = document.getElementById("transitionSubjectTemplate");
+    const save = document.getElementById("saveTransitionTemplateBtn");
+    const reset = document.getElementById("resetTransitionTemplateBtn");
+    const refresh = document.getElementById("refreshTransitionEmailBtn");
+    if (!template || !save) return;
+
+    directBindingsInstalled = true;
+
+    const livePreview = () => schedulePreparedRefresh({ rebuildBase: true, delay: 220 });
+    template.addEventListener("input", livePreview);
+    subject?.addEventListener("input", livePreview);
+
+    // These listeners are registered after the editor's own handlers. They run
+    // after Save/Reset/Refresh has rebuilt the base preview, then apply 305 data.
+    [save, reset, refresh].filter(Boolean).forEach((button) => {
+      button.addEventListener("click", () => {
+        schedulePreparedRefresh({ rebuildBase: false, delay: 0 });
+      });
+    });
+  }
+
+  function schedulePreparedRefresh({ rebuildBase = false, delay = 0 } = {}) {
+    window.clearTimeout(previewTimer);
+    previewTimer = window.setTimeout(() => refreshPreview(rebuildBase), delay);
+  }
+
+  function refreshPreview(rebuildBase = true) {
+    if (rebuildBase) original.refresh?.();
+    addPlaceholderButtons();
+    bindDirectRefreshControls();
+    applyToPreparedBody();
+    return division305Context();
   }
 
   function applyToPreparedBody() {
@@ -97,8 +137,19 @@
     }
 
     const meta = document.getElementById("transitionPreviewMeta");
-    if (meta && context.division_305_count !== "0" && !/Division 305/i.test(meta.textContent || "")) {
-      meta.textContent = `${meta.textContent || "Prepared transition"} · ${context.division_305_count} open Division 305 truck${context.division_305_count === "1" ? "" : "s"}`;
+    if (meta) {
+      const currentText = String(meta.textContent || "Prepared transition").trim();
+      const priorDecorated = String(meta.dataset.vixenDecoratedText || "");
+      const base = (currentText === priorDecorated
+        ? String(meta.dataset.vixenBaseText || currentText)
+        : currentText
+      ).replace(/\s*·\s*\d+ open Division 305 trucks?\s*$/i, "").trim();
+      const decorated = context.division_305_count === "0"
+        ? base
+        : `${base} · ${context.division_305_count} open Division 305 truck${context.division_305_count === "1" ? "" : "s"}`;
+      meta.dataset.vixenBaseText = base;
+      meta.dataset.vixenDecoratedText = decorated;
+      meta.textContent = decorated;
     }
   }
 
