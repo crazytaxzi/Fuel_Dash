@@ -159,9 +159,9 @@ jobs:
 
           (dist / "release-notes.md").write_text(
               f"# Fuel Dash {tag}\n\n"
-              "Adds Division 305 trip-planning records to the rich shift-transition composer. The new live-data placeholders can insert formatted Outlook-ready cards, plain-text handoff content, or the open 305 truck count.\n\n"
-              "The transition includes every open Division 305 record, excludes trucks marked Complete, and carries the truck, driver, load or order, destination, PTA, status, next action, latest note, and last-updated time. It works with rich copy, plain copy, mail-app output, and Outlook .eml downloads.\n\n"
-              "The read-once workbook handling and the v3.17.1 startup protection remain intact. Operational report files and browser-stored notes remain local and are not included in the release package.\n",
+              "Fixes the transition template preview so it redraws without a browser reload. Template and subject edits now refresh the prepared message after a short debounce, placeholder insertion refreshes immediately, and Save, Reset, and Refresh apply Division 305 data after the core editor finishes rendering.\n\n"
+              "Rich copy, plain copy, mail-app output, and Outlook .eml downloads now use the synchronized preview. The local PowerShell server also suppresses expected browser-disconnect socket messages while continuing to log genuine request failures.\n\n"
+              "The Division 305 placeholders, read-once workbook handling, and startup protections remain intact. Operational report files and browser-stored notes remain local and are not included in the release package.\n",
               encoding="utf-8",
           )
 
