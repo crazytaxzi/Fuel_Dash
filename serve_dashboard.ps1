@@ -15,6 +15,18 @@ function Write-Log([string]$Message) {
     Write-Host $line
 }
 
+function Test-IsClientDisconnect([Exception]$Exception) {
+    $current = $Exception
+    while ($null -ne $current) {
+        $message = [string]$current.Message
+        if ($message -match "(?i)(connection was aborted|connection.*forcibly closed|transport connection|broken pipe|connection reset by peer|existing connection was closed)") {
+            return $true
+        }
+        $current = $current.InnerException
+    }
+    return $false
+}
+
 function Get-ContentType([string]$Path) {
     switch ([IO.Path]::GetExtension($Path).ToLowerInvariant()) {
         ".html" { "text/html; charset=utf-8" }
@@ -209,7 +221,9 @@ try {
             Send-FileResponse $Stream (Get-Item -LiteralPath $Candidate) $RequestPath $Headers
         }
         catch {
-            Write-Log ("Request failed: " + $_.Exception.Message)
+            if (-not (Test-IsClientDisconnect $_.Exception)) {
+                Write-Log ("Request failed: " + $_.Exception.Message)
+            }
         }
         finally {
             if ($null -ne $Reader) { $Reader.Dispose() }
