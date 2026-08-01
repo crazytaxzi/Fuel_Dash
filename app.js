@@ -91,7 +91,7 @@
           type: "driver",
           index,
           identity: driver.driverCode || driver.driverName,
-          label: driver.driverName || driver.driverCode || "Unknown driver",
+          label: driverAssignmentLabel(driver),
           meta: [driver.reviewLabel, driver.driverCode].filter(Boolean).join(" · "),
           detail: driver.nextAction || driver.action || driver.focus || "Review the driver metrics and record the follow-up.",
           urgent: true,
@@ -503,6 +503,7 @@
     const trend = analyzeTrend(trendRows, summary.completed, summary.latest.date);
     const apu = analyzeApu(apuRows, drivers, files.apu || null);
     const pta = analyzePta(workbooks.ptaTracker || null, workbooks.ptaFinder || null, files, activeManualPtaRows());
+    attachDriverTruckAssignments(drivers, pta, apu);
     const quality = buildDataQuality(detail, drivers, summary);
     const actions = buildActions(drivers, detail, quality, apu, pta);
 
@@ -561,6 +562,7 @@
     };
     const apu = analyzeApu(apuWorkbookRows(workbooks.apu), drivers, files.apu || null);
     const pta = analyzePta(workbooks.ptaTracker || null, workbooks.ptaFinder || null, files, activeManualPtaRows());
+    attachDriverTruckAssignments(drivers, pta, apu);
     const quality = {
       findings: [{
         severity: "Medium",
@@ -622,6 +624,7 @@
     const trend = { weeks: [week], recent: [week], latest: week, previous: null, change: null, rollingAverage: [week.totalCost] };
     const apu = analyzeApu(apuWorkbookRows(workbooks.apu), drivers, files.apu || null);
     const pta = analyzePta(workbooks.ptaTracker || null, workbooks.ptaFinder || null, files, activeManualPtaRows());
+    attachDriverTruckAssignments(drivers, pta, apu);
     const quality = buildDataQuality(detail, drivers, summary);
     quality.findings.unshift({
       severity: "Medium",
@@ -2205,8 +2208,8 @@
         ? `28-day ${pct(driver.idle28DayPct, 1)} · MPG ${num(driver.dispatchMpg, 2)}`
         : `28-day ${pct(driver.idle28DayPct, 1)} · ${pct(idle - state.analysis.drivers.idleThreshold, 1)} vs middle`;
       return `
-      <div class="mini-row" data-driver-index="${index}" role="button" tabindex="0" aria-label="Open details for ${escapeHtml(driver.driverName)}">
-        <div class="driver-cell"><span class="rank-badge">${rank + 1}</span><span class="driver-name">${escapeHtml(driver.driverName)}<small>${escapeHtml(driver.driverCode || "No code")}</small></span></div>
+      <div class="mini-row" data-driver-index="${index}" role="button" tabindex="0" aria-label="Open details for ${escapeHtml(driverAssignmentLabel(driver))}">
+        <div class="driver-cell"><span class="rank-badge">${rank + 1}</span><span class="driver-name">${escapeHtml(driverAssignmentLabel(driver))}<small>${escapeHtml(driver.driverCode || "No code")}</small></span></div>
         <span class="impact-value">${pct(idle, 1)}</span>
         <span class="focus-value">${escapeHtml(context)}</span>
         <button class="action-pill" type="button" data-driver-index="${index}">OPEN</button>
@@ -2300,7 +2303,7 @@
     tbody.innerHTML = records.map((driver, index) => `
       <tr data-driver-index="${index}">
         <td class="priority-${driver.priority.toLowerCase()}">${escapeHtml(driver.reviewLabel)}</td>
-        <td>${escapeHtml(driver.driverName)}</td><td>${escapeHtml(driver.driverLeader)}</td>
+        <td>${escapeHtml(driverAssignmentLabel(driver))}</td><td>${escapeHtml(driver.driverLeader)}</td>
         <td class="numeric">${num(driver.dispatchMpg, 2)}</td>
         <td class="numeric">${pct(driver.dailyIdlePct, 1)}</td><td class="numeric">${pct(driver.idle7DayPct, 1)}</td><td class="numeric">${pct(driver.idle28DayPct, 1)}</td>
         <td class="numeric">${pct(driver.oorPct, 1)}</td><td class="numeric">${num(driver.movingMpg, 2)}</td>
@@ -2685,6 +2688,8 @@
       savedAt: new Date().toISOString(),
       driverName: driver.driverName || "",
       driverCode: driver.driverCode || "",
+      truck: driver.assignedTruck || "",
+      assignedTruck: driver.assignedTruck || "",
       dailyIdlePct: driver.dailyIdlePct,
       idle7DayPct: driver.idle7DayPct,
       idle28DayPct: driver.idle28DayPct,
@@ -2696,7 +2701,7 @@
     window.VixenWorkedWorkflow?.setNoteComplete?.("driver", entry.id, false);
     els.driverActionNoteInput.value = "";
     renderDriverActionNotes(driver);
-    showToast(`Driver note saved for ${driver.driverName}.`);
+    showToast(`Follow-up saved for ${driverAssignmentLabel(driver)}.`);
   }
 
   function renderDriverActionNotes(driver) {
@@ -2760,7 +2765,7 @@
       : state.analysis.drivers.records.filter((driver) => driver.priority === "High");
     lines.push(isIdleFocusedMode() ? "FIVE HIGHEST IDLERS" : "HIGH FUEL COST DRIVERS", "----------------------");
     transitionDrivers.forEach((driver) => {
-      lines.push(`${driver.driverName} (${driver.driverCode || "no code"})${isIdleFocusedMode() ? "" : ` | Fuel cost ${money(driver.estimatedCost, 0)}`}`);
+      lines.push(`${driverAssignmentLabel(driver)} (${driver.driverCode || "no code"})${isIdleFocusedMode() ? "" : ` | Fuel cost ${money(driver.estimatedCost, 0)}`}`);
       lines.push(`Idle today ${pct(driver.dailyIdlePct, 1)} | 7-day ${pct(driver.idle7DayPct, 1)} | 28-day ${pct(driver.idle28DayPct, 1)}`);
       const notes = (state.driverActionNotes[driverNoteKey(driver)] || []).filter((note) => isToday(note.savedAt)).reverse();
       if (notes.length) notes.forEach((note) => lines.push(`Note ${new Date(note.savedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}: ${note.text}`));
@@ -2772,7 +2777,7 @@
     if (isIdleFocusedMode()) {
       lines.push("FIVE BEST IDLERS", "----------------");
       idleSorted.slice(-5).reverse().forEach((driver) => {
-        lines.push(`${driver.driverName} (${driver.driverCode || "no code"}) | 7-day idle ${pct(driver.idle7DayPct, 1)} | 28-day idle ${pct(driver.idle28DayPct, 1)} | MPG ${num(driver.dispatchMpg, 2)} | OOR ${pct(driver.oorPct, 1)}`);
+        lines.push(`${driverAssignmentLabel(driver)} (${driver.driverCode || "no code"}) | 7-day idle ${pct(driver.idle7DayPct, 1)} | 28-day idle ${pct(driver.idle28DayPct, 1)} | MPG ${num(driver.dispatchMpg, 2)} | OOR ${pct(driver.oorPct, 1)}`);
       });
       lines.push("");
     }
@@ -2798,21 +2803,72 @@
     const pta = state.analysis?.pta;
     if (!pta?.hasData) return null;
     return pta.allRecords
-      .filter((record) => ptaDriverNameMatches(record.driver, driver.driverName))
+      .filter((record) => ptaDriverNameMatches(record.driver, driver.driverName, driver.driverCode))
       .sort(comparePtaPriority)[0] || null;
   }
 
-  function ptaDriverNameMatches(dispatchName, fullName) {
+  function ptaDriverNameMatches(dispatchName, fullName, driverCode = "") {
     const short = normalizeIdentity(dispatchName);
     const full = normalizeIdentity(fullName);
     if (!short || !full) return false;
-    if (short === full || full.includes(short) || short.includes(full)) return true;
-    const parts = text(fullName).toLowerCase().replace(/[^a-z\s-]/g, " ").split(/\s+/).filter(Boolean);
-    if (parts.length < 2) return false;
-    const first = parts[0];
-    const last = parts.at(-1);
-    const compactLast = normalizeIdentity(last);
-    return short.startsWith(compactLast.slice(0, Math.min(6, compactLast.length))) && short.endsWith(first[0]);
+    if (short === full || short === normalizeIdentity(driverCode)) return true;
+    return short === ptaDriverCode(fullName, driverCode);
+  }
+
+  function ptaDriverCode(fullName, driverCode = "") {
+    let source = text(fullName).trim();
+    const leading = source.match(/^\s*([A-Z0-9]{4,10})\b[\s,.-]*/i);
+    if (leading && (/^\d+$/.test(leading[1]) || normalizeIdentity(leading[1]) === normalizeIdentity(driverCode))) {
+      source = source.slice(leading[0].length).trim();
+    }
+    let first = "";
+    let last = "";
+    if (source.includes(",")) {
+      const [lastPart, firstPart] = source.split(",", 2);
+      last = normalizeIdentity(lastPart);
+      first = normalizeIdentity(firstPart).charAt(0);
+    } else {
+      const parts = source.toLowerCase().replace(/[^a-z\s'-]/g, " ").split(/\s+/).filter(Boolean);
+      first = normalizeIdentity(parts[0]).charAt(0);
+      last = normalizeIdentity(parts.at(-1));
+    }
+    return last && first ? `${last.slice(0, 7)}${first}`.slice(0, 8) : "";
+  }
+
+  function attachDriverTruckAssignments(drivers, pta, apu) {
+    const ptaRecords = pta?.allRecords || [];
+    const apuRecords = apu?.records || [];
+    let notesChanged = false;
+    for (const driver of drivers?.records || []) {
+      const matchedPta = ptaRecords
+        .filter((record) => record.truck && ptaDriverNameMatches(record.driver, driver.driverName, driver.driverCode))
+        .sort(comparePtaPriority);
+      const matchedApu = apuRecords.filter((record) => record.unit && (
+        record.linkedDriver === driver
+        || normalizeIdentity(record.driverCode) === normalizeIdentity(driver.driverCode)
+        || normalizeIdentity(record.driverName) === normalizeIdentity(driver.driverName)
+      ));
+      const trucks = [...new Set([
+        ...matchedPta.map((record) => text(record.truck)),
+        ...matchedApu.map((record) => text(record.unit)),
+        text(driver.assignedTruck || driver.unit || driver.truck),
+      ].filter(Boolean))];
+      driver.assignedTrucks = trucks;
+      driver.assignedTruck = trucks[0] || "";
+      if (driver.assignedTruck) {
+        const notes = state.driverActionNotes[driverNoteKey(driver)] || [];
+        for (const note of notes) {
+          if (!note.truck) { note.truck = driver.assignedTruck; notesChanged = true; }
+          if (!note.assignedTruck) { note.assignedTruck = driver.assignedTruck; notesChanged = true; }
+        }
+      }
+    }
+    if (notesChanged) persistDriverActionNotes();
+  }
+
+  function driverAssignmentLabel(driver) {
+    const name = driver?.driverName || driver?.driverCode || "Unknown driver";
+    return driver?.assignedTruck ? `Truck ${driver.assignedTruck} — ${name}` : name;
   }
 
   function renderQuality(findings) {
@@ -2833,7 +2889,7 @@
     state.activeDriverRecordIndex = index;
     els.driverActionNoteInput.value = "";
     renderDriverActionNotes(driver);
-    els.modalDriverName.textContent = driver.driverName;
+    els.modalDriverName.textContent = driverAssignmentLabel(driver);
     els.modalDriverMeta.textContent = `${driver.driverCode || "No driver code"} · Leader: ${driver.driverLeader || "Unassigned"} · Latest rolling period`;
     els.modalReviewBadge.textContent = driver.reviewLabel;
     els.modalReviewBadge.className = `modal-review-badge ${driver.priority.toLowerCase()}`;

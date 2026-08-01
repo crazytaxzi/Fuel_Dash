@@ -152,6 +152,7 @@ jobs:
               "- Upgrade-safe JavaScript and CSS cache revalidation for the local Windows server\n"
               "- APU loading across every report mode, every worksheet, and Driver Details-shaped APU reports\n"
               "- Filename-isolated APU truck workbooks that cannot replace the primary Driver Details fuel source\n"
+              "- Persistent truck-driver assignments matched from PTA and APU sources, including eight-character pasted PTA driver codes\n"
               "- Private Special Notes workspace with optional date/time reminders, quick timers, completion, reopening, search, and recovery through Show all\n"
               "- Change-driven browser notifications that alert once for newly due reminders or changed Today attention items\n"
               "- Simplified bordered truck and Division 305 transition cards with bold truck numbers, driver names, and note text only\n"

@@ -290,7 +290,9 @@
       if (!Number.isFinite(time) || !noteId) return;
       const note = { ...rawNote, time };
       const identity = note.driverCode || key || note.driverName;
-      items.push({ type: "driver", identity, noteId, label: note.driverName || note.driverCode || key || "Unknown driver", meta: `High-idle follow-up${note.driverCode ? ` · ${note.driverCode}` : ""}`, note, done: completionState("driver", note, completions).done, included: selections[noteStateKey("driver", noteId)] === true });
+      const driverLabel = note.driverName || note.driverCode || key || "Unknown driver";
+      const label = note.truck || note.assignedTruck ? `Truck ${note.truck || note.assignedTruck} — ${driverLabel}` : driverLabel;
+      items.push({ type: "driver", identity, noteId, label, meta: `High-idle follow-up${note.driverCode ? ` · ${note.driverCode}` : ""}`, note, done: completionState("driver", note, completions).done, included: selections[noteStateKey("driver", noteId)] === true });
     }));
     const notedIdentities = new Set(items.map((item) => `${item.type}:${normalizeKey(item.identity)}`));
     const hiddenTasks = readObject(HIDDEN_TASKS_KEY);
