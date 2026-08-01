@@ -134,7 +134,7 @@
         <div><span class="eyebrow">SHIFT HANDOFF</span><h2>Rich Transition Email</h2></div>
         <div class="transition-summary"><strong id="transitionSelectedCount">0</strong><span>selected notes</span></div>
       </div>
-      <div class="table-explainer"><strong>Built for Outlook:</strong> selected notes are arranged into readable sections. Notes sharing a driver code, driver name, or truck number are grouped into one chronological follow-up card. Format the prepared message with bold, italic, underline, and emoji controls. Use <strong>Copy Rich Email</strong> to paste into an Outlook draft or download the HTML .eml file. The mail-app shortcut is plain text because mail links cannot carry rich HTML.</div>
+      <div class="table-explainer"><strong>Built for Outlook:</strong> selected truck notes are grouped by truck into simple bordered cards containing the truck, driver, and notes only. Driver-only notes remain grouped by driver identity. Format the prepared message with bold, italic, underline, and emoji controls. Use <strong>Copy Rich Email</strong> to paste into an Outlook draft or download the HTML .eml file. The mail-app shortcut is plain text because mail links cannot carry rich HTML.</div>
       <div class="transition-address-panel panel">
         <div class="transition-address-grid">
           <label><span>To</span><input id="transitionToInput" type="text" placeholder="name@company.com; another@company.com" /></label>
@@ -644,9 +644,13 @@
 
   function groupSelectedFollowups(messages, scope) {
     const grouping = window.VixenTransitionGrouping;
+    const groupingMessages = messages.map((message) => {
+      const truck = grouping?.normalizeTruck?.(message.truck) || cleanLine(message.truck);
+      return truck ? { ...message, identities: [`truck:${truck}`] } : message;
+    });
     const rawGroups = grouping?.groupMessages
-      ? grouping.groupMessages(messages)
-      : messages.map((message) => ({ messages: [message], identities: message.identities || [], savedAt: message.savedAt }));
+      ? grouping.groupMessages(groupingMessages)
+      : groupingMessages.map((message) => ({ messages: [message], identities: message.identities || [], savedAt: message.savedAt }));
     return rawGroups
       .map((group) => renderFollowupGroup(group, scope))
       .sort((a, b) => a.savedAt - b.savedAt || a.text.localeCompare(b.text));
@@ -681,6 +685,22 @@
       const details = message.detailsText ? ` | ${message.detailsText}` : "";
       return `[${formatDateTime(message.savedAt)}] ${message.sourceLabel || "Follow-up"}${details}\n${message.noteText || "Note saved without text"}`;
     }).join("\n\n");
+    if (hasTruck) {
+      const truckLabel = trucks[0] || "Unknown";
+      const driverLabel = names.length ? formatIdentityList(names) : "";
+      const notes = messages.map((message) => message.noteText || "Note saved without text");
+      const headingText = `Truck ${truckLabel}${driverLabel ? ` — ${driverLabel}` : ""}`;
+      return {
+        savedAt: messages[0]?.savedAt || Number(group.savedAt || 0),
+        text: `${headingText}\n${notes.join("\n\n")}`,
+        html: truckFollowupGroupHtml(truckLabel, driverLabel, notes),
+        hasTruck,
+        hasDriver,
+        messageCount: messages.length,
+        messages,
+        identities: group.identities || [],
+      };
+    }
     return {
       savedAt: messages[0]?.savedAt || Number(group.savedAt || 0),
       text: `${plainHeader}\n${summary}\n${plainMessages}`,
@@ -691,6 +711,21 @@
       messages,
       identities: group.identities || [],
     };
+  }
+
+  function truckFollowupGroupHtml(truck, driver, notes) {
+    const heading = `Truck <strong>${escapeHtml(truck)}</strong>${driver ? ` &mdash; ${escapeHtml(driver)}` : ""}`;
+    const noteHtml = notes.map((note, index) => {
+      const divider = index ? "border-top:1px solid #e4e7ec;padding-top:10px;margin-top:10px;" : "";
+      return `<div style="${divider}font-size:14px;line-height:1.55;">${escapeHtml(note).replace(/\n/g, "<br>")}</div>`;
+    }).join("");
+    return [
+      '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0;margin:0 0 12px;border:1px solid #d8e0ea;border-left:5px solid #7c3aed;border-radius:8px;">',
+      '<tr><td style="padding:13px 15px;">',
+      `<div style="font-size:15px;padding-bottom:9px;margin-bottom:10px;border-bottom:1px solid #d8e0ea;">${heading}</div>`,
+      noteHtml,
+      "</td></tr></table>",
+    ].join("");
   }
 
   function groupedMessageHtml(message, index, scope) {

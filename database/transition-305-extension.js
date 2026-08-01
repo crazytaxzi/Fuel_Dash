@@ -5,7 +5,7 @@
   const PLACEHOLDERS = Object.freeze([
     {
       name: "division_305_followups",
-      title: "Insert compact open Division 305 lines: truck, next action, and latest note",
+      title: "Insert bordered Division 305 cards with truck, driver, and latest note",
     },
     {
       name: "division_305_count",
@@ -32,7 +32,7 @@
   const CARD_START_HTML = [
     '<table role="presentation" width="100%" cellspacing="0" cellpadding="0"',
     ' style="border-collapse:separate;border-spacing:0;margin:0 0 10px;',
-    'border:1px solid #d8e0ea;border-radius:8px;background:#ffffff;">',
+    'border:1px solid #d8e0ea;border-left:5px solid #7c3aed;border-radius:8px;background:#ffffff;">',
     '<tr><td style="padding:13px 15px;">',
   ].join("");
   const CARD_END_HTML = "</td></tr></table>";
@@ -244,7 +244,7 @@
       .filter((record) => record && clean(record.truck) && !/^complete$/i.test(clean(record.status)))
       .map((record) => ({
         truck: clean(record.truck),
-        route: clean(record.nextAction) || "No next action entered",
+        driver: clean(record.driver),
         truckNotes: latestNote(record.notes)?.text || "No planning note saved",
         status: clean(record.status) || "Needs plan",
       }))
@@ -253,16 +253,18 @@
   }
 
   function recordLineHtml(record) {
+    const heading = `Truck <strong>${escapeHtml(record.truck)}</strong>${record.driver ? ` &mdash; ${escapeHtml(record.driver)}` : ""}`;
     return [
-      '<div style="font-size:14px;line-height:1.45;margin:0 0 6px;">',
-      `<strong>${escapeHtml(record.truck)}</strong> - Next action=${escapeHtml(record.route)}`,
-      ` &nbsp;·&nbsp; Notes: ${escapeHtml(record.truckNotes)}`,
-      "</div>",
+      '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0;margin:0 0 12px;border:1px solid #d8e0ea;border-left:5px solid #2563eb;border-radius:8px;">',
+      '<tr><td style="padding:13px 15px;">',
+      `<div style="font-size:15px;padding-bottom:9px;margin-bottom:10px;border-bottom:1px solid #d8e0ea;">${heading}</div>`,
+      `<div style="font-size:14px;line-height:1.55;">${escapeHtml(record.truckNotes)}</div>`,
+      "</td></tr></table>",
     ].join("");
   }
 
   function recordLineText(record) {
-    return `${record.truck} - Next action=${record.route} | Notes: ${record.truckNotes}`;
+    return `Truck ${record.truck}${record.driver ? ` — ${record.driver}` : ""}\n${record.truckNotes}`;
   }
 
   function latestNote(notes) {
