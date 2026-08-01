@@ -48,35 +48,39 @@ body::before {
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 250px minmax(0, 1fr); }
 .sidebar {
   position: sticky; top: 0; height: 100vh; padding: 20px 14px; display: flex; flex-direction: column;
+  overflow: hidden;
   background: linear-gradient(180deg, rgba(4,10,15,.98), rgba(3,8,12,.94));
   border-right: 1px solid rgba(168,85,247,.24); box-shadow: 12px 0 50px rgba(0,0,0,.46); z-index: 10;
 }
 .sidebar::after { content:""; position:absolute; inset:0; pointer-events:none; background: linear-gradient(140deg, rgba(57,255,99,.04), transparent 35%, rgba(168,85,247,.04)); }
-.brand-block { position: relative; z-index: 1; padding: 4px 14px 14px; }
+.brand-block { position: relative; z-index: 1; flex: 0 0 auto; padding: 4px 14px 14px; }
 .brand-name { font-family: var(--font-display); font-size: 42px; line-height: .88; font-style: italic; font-weight: 950; letter-spacing: -3px; color: var(--green); text-shadow: 0 0 14px rgba(57,255,99,.72), 0 0 34px rgba(57,255,99,.34); transform: skew(-6deg); }
 .brand-sub { margin-left: 46px; font-weight: 800; letter-spacing: 3px; color: var(--purple-hot); font-size: 13px; text-shadow: 0 0 12px rgba(200,85,255,.5); }
 
-.portrait-frame { position: relative; margin: 0 8px 16px; aspect-ratio: 1 / 1.02; padding: 8px; background: linear-gradient(135deg, rgba(168,85,247,.5), transparent 30%, rgba(57,255,99,.45)); clip-path: polygon(10% 0, 90% 0, 100% 10%, 100% 90%, 90% 100%, 10% 100%, 0 90%, 0 10%); }
+.portrait-frame { position: relative; flex: 0 0 auto; margin: 0 8px 16px; aspect-ratio: 1 / 1.02; padding: 8px; background: linear-gradient(135deg, rgba(168,85,247,.5), transparent 30%, rgba(57,255,99,.45)); clip-path: polygon(10% 0, 90% 0, 100% 10%, 100% 90%, 90% 100%, 10% 100%, 0 90%, 0 10%); }
 .portrait-frame::before { content:""; position:absolute; inset:3px; background:#070d12; clip-path: inherit; }
-.portrait-frame img { position: relative; width: 100%; height: 100%; object-fit: cover; clip-path: inherit; filter: saturate(1.12) contrast(1.05); z-index: 2; }
+.portrait-frame img { position: relative; width: 100%; height: 100%; object-fit: contain; object-position:center; clip-path: inherit; filter: saturate(1.12) contrast(1.05); z-index: 2; }
 .portrait-glow { position:absolute; inset: 8%; background: radial-gradient(circle, rgba(57,255,99,.18), transparent 65%); z-index:1; filter: blur(18px); }
 .portrait-corner { position:absolute; width:48px; height:48px; z-index:3; }
 .corner-a { left:-2px; top:-2px; border-left:3px solid var(--purple); border-top:3px solid var(--purple); }
 .corner-b { right:-2px; bottom:-2px; border-right:3px solid var(--green); border-bottom:3px solid var(--green); }
 
-.motto-card { margin: 0 8px 18px; display:flex; gap:10px; align-items:center; padding:12px; background:linear-gradient(90deg, rgba(168,85,247,.11), rgba(57,255,99,.08)); border:1px solid rgba(57,255,99,.24); box-shadow: inset 0 0 22px rgba(57,255,99,.05); }
+.motto-card { flex:0 0 auto; margin: 0 8px 18px; display:flex; gap:10px; align-items:center; padding:12px; background:linear-gradient(90deg, rgba(168,85,247,.11), rgba(57,255,99,.08)); border:1px solid rgba(57,255,99,.24); box-shadow: inset 0 0 22px rgba(57,255,99,.05); }
 .motto-icon { font-size:30px; color:var(--green); text-shadow:0 0 14px rgba(57,255,99,.7); }
 .motto-card strong, .motto-card span { display:block; font-size:13px; letter-spacing:.7px; }
 .motto-card span { color:var(--green); margin-top:2px; font-weight:800; }
 
-.nav-list { display:flex; flex-direction:column; gap:6px; position:relative; z-index:1; }
+.nav-list { min-height:0; flex:1 1 auto; display:flex; flex-direction:column; gap:6px; position:relative; z-index:1; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:rgba(168,85,247,.55) rgba(255,255,255,.04); padding-right:5px; }
+.nav-list::-webkit-scrollbar { width:7px; }
+.nav-list::-webkit-scrollbar-track { background:rgba(255,255,255,.035); border-radius:99px; }
+.nav-list::-webkit-scrollbar-thumb { background:linear-gradient(180deg,rgba(168,85,247,.72),rgba(57,255,99,.48)); border-radius:99px; }
 .nav-item { border:1px solid transparent; background:transparent; color:#d8e0e6; text-align:left; padding:11px 14px; border-radius:5px; cursor:pointer; display:flex; gap:12px; align-items:center; transition:.2s ease; }
 .nav-item span { width:18px; text-align:center; color:#c9b8ff; }
 .nav-item:hover { background:rgba(168,85,247,.08); border-color:rgba(168,85,247,.18); transform:translateX(2px); }
 .nav-item.active { background:linear-gradient(90deg, rgba(168,85,247,.28), rgba(168,85,247,.03)); border-color:rgba(168,85,247,.45); box-shadow:0 0 22px rgba(168,85,247,.16), inset 4px 0 var(--purple-hot); color:#fff; }
 .nav-item.active span { color:#fff; text-shadow:0 0 8px var(--purple); }
 
-.sidebar-footer { margin-top:auto; position:relative; z-index:1; padding:11px 13px; border:1px solid rgba(57,255,99,.23); background:rgba(5,12,17,.8); display:grid; grid-template-columns:1fr auto; gap:3px 8px; align-items:center; }
+.sidebar-footer { flex:0 0 auto; margin-top:10px; position:relative; z-index:1; padding:11px 13px; border:1px solid rgba(57,255,99,.23); background:rgba(5,12,17,.8); display:grid; grid-template-columns:1fr auto; gap:3px 8px; align-items:center; }
 .status-label { font-size:10px; color:var(--muted); letter-spacing:1px; }
 .status-value { font-size:11px; color:var(--green); font-weight:700; grid-column:1; }
 .status-dot { width:8px; height:8px; border-radius:99px; background:var(--green); box-shadow:0 0 10px var(--green); grid-column:2; grid-row:1 / span 2; }
@@ -250,7 +254,7 @@ tbody tr:hover { background:rgba(168,85,247,.075); }
   .app-shell { grid-template-columns:1fr; }
   .sidebar { position:relative; height:auto; display:grid; grid-template-columns:1fr; }
   .portrait-frame, .motto-card { display:none; }
-  .nav-list { flex-direction:row; overflow:auto; }
+  .nav-list { flex:none; flex-direction:row; overflow:auto; padding-right:0; }
   .nav-item { white-space:nowrap; }
   .main-panel { padding:16px; }
   .topbar { flex-direction:column; }
