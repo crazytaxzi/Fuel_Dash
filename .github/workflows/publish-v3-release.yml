@@ -56,6 +56,7 @@ jobs:
             missing_bol.js
             missing_bol_driver_only.js
             worked_workflow.js
+            special_notes.js
             note_transition_toggle.js
             pdf_to_xlsx.js
             transition_export_v2.js

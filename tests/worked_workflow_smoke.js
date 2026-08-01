@@ -29,6 +29,10 @@ assert.equal(api.noteStateKey("pta", "note-1"), "pta:note-1");
 const navigationSource = fs.readFileSync("database/worked-navigation-fix.js", "utf8");
 assert.match(navigationSource, /closest\?\.\("\.worked-card-open"\)/, "Worked navigation must only capture the card's dedicated open-details button");
 assert.doesNotMatch(navigationSource, /event\.target\?\.closest\?\.\("\[data-worked-type\]"\)/, "Worked navigation must not capture finish and handoff action buttons");
+const workflowSource = fs.readFileSync("worked_workflow.js", "utf8");
+assert.equal((workflowSource.match(/new Notification\("Fuel Dash needs attention"/g) || []).length, 1, "Today must emit one browser notification per change");
+assert.match(workflowSource, /vixenLastAttentionNoticeV2/, "Attention notification state must persist across reloads");
+assert.doesNotMatch(workflowSource, /vixenLastAttentionNoticeV1/, "Session-only notification tracking must not return");
 
 const noteOne = { id: "p1", text: "Called driver", savedAt: "2026-07-26T10:00:00" };
 const noteTwo = { id: "p2", text: "Reset confirmed", savedAt: "2026-07-26T11:00:00" };

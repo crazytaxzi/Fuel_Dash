@@ -47,6 +47,10 @@ Today is the normal starting point. Live PTA attention items, high-priority driv
 - Show all reveals completed or manually hidden items. Reopen restores an item to the active queue.
 - The attention banner and sidebar count show pending work. Browser notifications are optional and remain off until enabled from Today.
 
+SPECIAL NOTES AND REMINDERS
+---------------------------
+Use Special Notes under Tools for personal notes that are not tied to a truck or driver. A note can have no reminder or a specific date and time, can be completed and reopened, and remains available under Show all. Quick reminder buttons provide 15-minute, one-hour, and tomorrow options. Alerts use the Today notification permission and fire once when a reminder becomes due or its saved details change.
+
 VALIDATION
 ----------
 Run `node validate_dashboard.js` to check JavaScript syntax and confirm that explicit report-filename routing has not returned.

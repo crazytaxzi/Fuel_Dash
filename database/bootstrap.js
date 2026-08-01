@@ -14,6 +14,7 @@
     "database/overview-layout-fix.js",
     "missing_bol.js",
     "missing_bol_driver_only.js",
+    "special_notes.js",
     "worked_workflow.js",
     "core/required_dom_guard.js",
     "note_transition_toggle.js",

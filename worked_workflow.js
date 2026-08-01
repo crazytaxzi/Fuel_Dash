@@ -7,6 +7,7 @@
   const SELECTION_KEY = "vixenTransitionNoteSelectionV1";
   const VIEW_KEY = "vixenTodayQueueViewV1";
   const NOTIFICATION_KEY = "vixenAttentionNotificationsV1";
+  const LAST_NOTICE_KEY = "vixenLastAttentionNoticeV2";
   const HIDDEN_TASKS_KEY = "vixenHiddenAttentionTasksV1";
   const ONE_HOUR_MS = 3600000;
   let tickTimer = null;
@@ -109,7 +110,7 @@
       ["PERFORMANCE", ["overview", "drivers", "units", "apu", "exceptions"]],
       ["DISPATCH", ["pta", "tripPlanning305", "bols"]],
       ["HANDOFF", ["transition"]],
-      ["TOOLS", ["exclusions", "quality", "settings"]],
+      ["TOOLS", ["specialNotes", "exclusions", "quality", "settings"]],
     ];
     groups.forEach(([label, views]) => {
       const buttons = views.map((view) => nav.querySelector(`[data-view="${view}"]`)).filter(Boolean);
@@ -412,7 +413,9 @@
     if (!("Notification" in window)) { showToast("Browser notifications are not available here.", true); return; }
     if (localStorage.getItem(NOTIFICATION_KEY) === "true") {
       localStorage.setItem(NOTIFICATION_KEY, "false");
+      localStorage.removeItem(LAST_NOTICE_KEY);
       updateNotificationButton();
+      document.dispatchEvent(new Event("vixen:notification-setting-change"));
       showToast("Attention alerts turned off.");
       return;
     }
@@ -420,6 +423,7 @@
     if (permission !== "granted") { showToast("Notification permission was not granted.", true); return; }
     localStorage.setItem(NOTIFICATION_KEY, "true");
     updateNotificationButton();
+    document.dispatchEvent(new Event("vixen:notification-setting-change"));
     showToast("Attention alerts are on.");
   }
 
@@ -432,13 +436,18 @@
   }
 
   function maybeNotify(overdue) {
-    if (!overdue.length || localStorage.getItem(NOTIFICATION_KEY) !== "true" || window.Notification?.permission !== "granted") return;
-    const signature = overdue.map((item) => item.noteId).sort().join("|");
-    if (sessionStorage.getItem("vixenLastAttentionNoticeV1") === signature) return;
+    const signature = overdue.map((item) => [item.noteId || item.taskKey || `${item.type}:${normalizeKey(item.identity)}`, item.label, item.meta, item.note?.text].map(normalizeKey).join(":")).sort().join("|");
+    if (!signature) {
+      localStorage.removeItem(LAST_NOTICE_KEY);
+      window.clearTimeout(noticeTimer);
+      return;
+    }
+    if (localStorage.getItem(NOTIFICATION_KEY) !== "true" || window.Notification?.permission !== "granted") return;
+    if (localStorage.getItem(LAST_NOTICE_KEY) === signature) return;
     window.clearTimeout(noticeTimer);
     noticeTimer = window.setTimeout(() => {
       new Notification("Fuel Dash needs attention", { body: `${overdue.length} follow-up${overdue.length === 1 ? " is" : "s are"} waiting. ${overdue[0].label} is first.` });
-      sessionStorage.setItem("vixenLastAttentionNoticeV1", signature);
+      localStorage.setItem(LAST_NOTICE_KEY, signature);
     }, 400);
   }
 
