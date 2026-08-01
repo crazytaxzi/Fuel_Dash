@@ -1,3 +1,3 @@
-v3.19.2
-Fuel_Dash-v3.19.2.zip
-21aee7d51c58d35d937b33967d2ef748be6bd60d
+v3.19.3
+Fuel_Dash-v3.19.3.zip
+a01d258fafebf72a4b049c684b13bd80bbdc60ce
