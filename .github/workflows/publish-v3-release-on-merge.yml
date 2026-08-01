@@ -60,6 +60,7 @@ jobs:
               Path("auxiliary_mode.js"),
               Path("missing_bol.js"),
               Path("worked_workflow.js"),
+              Path("pdf_to_xlsx.js"),
               Path("transition_export_v2.js"),
               Path("core/resource_coordinator.js"),
               Path("core/read_once_mode.js"),
@@ -132,7 +133,12 @@ jobs:
           shutil.rmtree(dist, ignore_errors=True)
           package.mkdir(parents=True)
 
-          excluded = {".git", ".github", "data", "dist", "Dashboard_Server_Log.txt"}
+          excluded = {
+              ".git", ".github", ".gitattributes", "data", "dist", "tests",
+              "Dashboard_Server_Log.txt", "validate_dashboard.js", "summary.xlsx", "summary chart.xlsx",
+              "APU Column Guide.txt", "PDF Driver Report Guide.txt", "PTA Action Notes Guide.txt",
+              "PTA Column Guide.txt", "PTA Manual Paste Guide.txt",
+          }
           for item in root.iterdir():
               if item.name in excluded:
                   continue
@@ -141,6 +147,9 @@ jobs:
                   shutil.copytree(item, target)
               elif item.is_file():
                   shutil.copy2(item, target)
+
+          for internal_file in [package / "database" / "README.md", package / "database" / "rich-transition-editor.manifest.json"]:
+              internal_file.unlink(missing_ok=True)
 
           data_dir = package / "data"
           data_dir.mkdir(exist_ok=True)
@@ -171,8 +180,9 @@ jobs:
 
           (dist / "release-notes.md").write_text(
               f"# Fuel Dash {tag}\n\n"
-              "Keeps the full Vixen truck image visible and stationary in the left sidebar instead of cropping or scrolling it away. Branding, the motto, and refresh status also remain fixed while the navigation scrolls independently on shorter desktop displays.\n\n"
-              "Adds a compact neon-styled navigation scrollbar and preserves the existing mobile navigation behavior. The continuous Today workflow and v3.18.1 completion-feedback hotfix remain intact. Operational reports and browser-stored notes remain local and are not included in the package.\n",
+              "Adds PDF-to-XLSX conversion directly inside Dashboard Settings with file selection, drag-and-drop, per-file results, and local-only processing. PDF.js loads only when a PDF is submitted so normal dashboard startup remains lean.\n\n"
+              "Cleans the downloadable package by removing the standalone converter page and launcher, obsolete workflow code, tests, validation tools, sample workbooks, duplicate guides, and internal metadata. Required PDF.js, SheetJS, dashboard modules, launcher files, and the data folder remain included.\n\n"
+              "The continuous Today workflow, completion-feedback hotfix, and stationary full-image sidebar remain intact. Operational reports and browser-stored notes remain local and are not included in the package.\n",
               encoding="utf-8",
           )
 

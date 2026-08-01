@@ -1,6 +1,4 @@
-import * as pdfjs from "./vendor/pdfjs/pdf.min.mjs";
-
-pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdfjs/pdf.worker.min.mjs";
+let pdfjsPromise = null;
 
 const input = document.getElementById("pdfInput");
 const chooseBtn = document.getElementById("chooseBtn");
@@ -56,6 +54,7 @@ async function convertFiles(files) {
 }
 
 async function extractPages(file) {
+  const pdfjs = await loadPdfJs();
   const data = new Uint8Array(await file.arrayBuffer());
   const pdf = await pdfjs.getDocument({ data }).promise;
   const pages = [];
@@ -65,6 +64,19 @@ async function extractPages(file) {
     pages.push(positionedLines(content.items));
   }
   return pages;
+}
+
+async function loadPdfJs() {
+  if (!pdfjsPromise) {
+    pdfjsPromise = import("./vendor/pdfjs/pdf.min.mjs").then((pdfjs) => {
+      pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdfjs/pdf.worker.min.mjs";
+      return pdfjs;
+    }).catch((error) => {
+      pdfjsPromise = null;
+      throw error;
+    });
+  }
+  return pdfjsPromise;
 }
 
 function classifyReportContent(pages) {

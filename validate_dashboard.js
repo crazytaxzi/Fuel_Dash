@@ -3,7 +3,7 @@ const path = require("path");
 const { execFileSync } = require("child_process");
 
 const root = __dirname;
-const ignored = new Set([".git", "vendor", "assets", "data", "dist"]);
+const ignored = new Set([".git", ".github", "vendor", "assets", "data", "dist"]);
 const textExtensions = new Set([".js", ".mjs", ".html", ".txt", ".md", ".ps1", ".yml", ".yaml", ".json"]);
 const explicitReportFilename = /(?:summary|detail|c1|driver[ _-]*(?:fuel[ _-]*)?metrics(?:[ _-]*detail)?|driver[ _-]*details|rolling[ _-]*7[ _-]*day|fuel[ _-]*compliance[ _-]*analysis|fuel[ _-]*noncompliant[ _-]*cost[ _-]*analysis|mpg[ _-]*by[ _-]*driver|pta[ _-]*dispatch[ _-]*tracker|fleet[ _-]*pta[ _-]*finder|electric[ _-]*apu)\.(?:xlsx|xlsm|xlsb|xls|pdf)/i;
 const filenameRouter = /ALL_FILE_PATTERNS|EXPECTED_FILES|BASIC_REPORT_FILES|IDLE_REPORT_FILES|matchSourceKey|filenameFallback/i;
