@@ -1,4 +1,12 @@
-# Fuel Dash 3.19.1
+# Fuel Dash 3.19.2
+
+## Special notes and change-driven reminders
+
+- Adds a private Special Notes workspace for personal notes that are not tied to a truck or driver.
+- Supports optional date/time reminders plus quick 15-minute, one-hour, and tomorrow timers.
+- Adds edit, complete, reopen, delete, search, and Show all controls with IndexedDB-backed persistence.
+- Sends reminder alerts once when a note becomes due and rearms only when its content or due time changes.
+- Sends Today attention alerts only when the actual attention set or its details change, without repeating alerts after reload.
 
 ## Simplified transition cards
 
