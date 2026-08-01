@@ -56,9 +56,11 @@ window.VixenDashboardWorkflow = {
 const withLiveTasks = api.collectWorkedItems(now, { "300001": [noteOne] }, {}, { "pta:p1": { complete: false } });
 assert.equal(withLiveTasks.filter((item) => item.live).length, 1, "live attention tasks must join the queue without duplicating a tracked identity");
 assert.equal(withLiveTasks.find((item) => item.live).overdue, true, "urgent live work must be raised to attention");
-api.finishNote("pta", "p2", true);
+localStorage.setItem("vixenPtaActionNotesV1", JSON.stringify({ "300001": [noteOne, noteTwo] }));
+assert.equal(api.finishNote("pta", "p2", true), true);
 assert.equal(api.completionState("pta", noteTwo).done, true, "finish must complete the selected note");
 assert.equal(JSON.parse(store.get("vixenTransitionNoteSelectionV1"))["pta:p2"], true, "normal finish must add the note to handoff");
+assert.equal(api.finishNote("pta", "p2", true), false, "a duplicate finish event must be ignored");
 api.setNoteComplete("pta", "p2", false);
 assert.equal(api.completionState("pta", noteTwo).done, false, "a completed note must be reopenable");
 console.log("Continuous Today workflow smoke test passed.");

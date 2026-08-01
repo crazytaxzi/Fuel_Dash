@@ -252,10 +252,13 @@
   }
 
   function finishNote(type, noteId, includeInHandoff = true) {
+    const found = findNote(type, noteId);
+    if (!found || completionState(type, found.note).done) return false;
     setIncluded(type, noteId, includeInHandoff);
     setNoteComplete(type, noteId, true);
     showToast(includeInHandoff ? "Finished and added to handoff. Opening the next task." : "Finished without adding to handoff.");
     window.setTimeout(openNextTask, 120);
+    return true;
   }
 
   function setLiveTaskHidden(taskKey, hidden) {
@@ -480,7 +483,8 @@
     toast.textContent = message;
     toast.classList.toggle("error", error);
     toast.classList.add("show");
-    window.setTimeout(() => toast.classList.remove("show"), 3000);
+    window.clearTimeout(showToast.timer);
+    showToast.timer = window.setTimeout(() => toast.classList.remove("show"), 3000);
   }
 
   function buildTransition(...args) { return window.VixenTransitionExport?.buildTransition?.(...args) || "SHIFT TRANSITION\r\nPrepared: transition exporter unavailable\r\n"; }

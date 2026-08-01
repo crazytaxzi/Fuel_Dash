@@ -171,9 +171,8 @@ jobs:
 
           (dist / "release-notes.md").write_text(
               f"# Fuel Dash {tag}\n\n"
-              "Introduces one continuous Today workflow for live PTA attention, high-priority driver reviews, and saved follow-ups. Urgent work rises to the top with attention counts, search, and optional browser notifications.\n\n"
-              "Finish + handoff now completes a follow-up, selects it for transition, and advances directly to the next task. Finish only handles private work. Show all, Reopen, and Restore keep completed or hidden items recoverable.\n\n"
-              "Navigation is grouped into Performance, Dispatch, Handoff, and Tools while preserving every existing feature. Concurrent report loading, parallel file inspection, and debounced table search improve responsiveness without changing fuel calculations. Operational reports and browser-stored notes remain local and are not included in the package.\n",
+              "Fixes duplicate completion feedback from Finish only and Finish + handoff. Completion is now idempotent, so repeated browser click events are ignored after the first successful state change and cannot announce or process the same follow-up twice.\n\n"
+              "The Today workflow, handoff selection, recoverable completed work, attention notifications, grouped navigation, and runtime improvements from v3.18.0 remain intact. Operational reports and browser-stored notes remain local and are not included in the package.\n",
               encoding="utf-8",
           )
 
