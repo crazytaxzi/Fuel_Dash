@@ -171,9 +171,9 @@ jobs:
 
           (dist / "release-notes.md").write_text(
               f"# Fuel Dash {tag}\n\n"
-              "Replaces the oversized Division 305 transition cards with compact truck lines containing only the truck, next action, and latest planning note. Records marked Complete remain excluded.\n\n"
-              "Adds manual transition-layout tokens: card_start and card_end wrap any template content in one Outlook-ready card, while sep_red and sep_blue insert colored section separators. The previous division_305_followups_html token remains supported as a compact compatibility alias.\n\n"
-              "Live preview, rich copy, plain copy, mail-app output, Outlook .eml downloads, read-once workbook handling, and startup protections remain intact. Operational report files and browser-stored notes remain local and are not included in the release package.\n",
+              "Introduces one continuous Today workflow for live PTA attention, high-priority driver reviews, and saved follow-ups. Urgent work rises to the top with attention counts, search, and optional browser notifications.\n\n"
+              "Finish + handoff now completes a follow-up, selects it for transition, and advances directly to the next task. Finish only handles private work. Show all, Reopen, and Restore keep completed or hidden items recoverable.\n\n"
+              "Navigation is grouped into Performance, Dispatch, Handoff, and Tools while preserving every existing feature. Concurrent report loading, parallel file inspection, and debounced table search improve responsiveness without changing fuel calculations. Operational reports and browser-stored notes remain local and are not included in the package.\n",
               encoding="utf-8",
           )
 

@@ -71,6 +71,39 @@
     },
   };
 
+  window.VixenDashboardWorkflow = Object.freeze({
+    getAttentionTasks() {
+      const ptaTasks = (state.analysis?.pta?.actionQueue || [])
+        .filter((record) => record.needsAction)
+        .map((record) => ({
+          type: "pta",
+          index: record.index,
+          identity: record.truck,
+          label: `Truck ${record.truck || "Unknown"}`,
+          meta: [record.urgency, record.driver || "No driver", record.destination || "No destination"].filter(Boolean).join(" · "),
+          detail: record.action || record.notes || "Review this PTA and record the next action.",
+          urgent: record.overdueHours > 0 || record.urgencyKey === "critical",
+        }));
+      const driverTasks = (state.analysis?.drivers?.records || [])
+        .map((driver, index) => ({ driver, index }))
+        .filter(({ driver }) => driver.priority === "High")
+        .map(({ driver, index }) => ({
+          type: "driver",
+          index,
+          identity: driver.driverCode || driver.driverName,
+          label: driver.driverName || driver.driverCode || "Unknown driver",
+          meta: [driver.reviewLabel, driver.driverCode].filter(Boolean).join(" · "),
+          detail: driver.nextAction || driver.action || driver.focus || "Review the driver metrics and record the follow-up.",
+          urgent: true,
+        }));
+      return [...ptaTasks, ...driverTasks];
+    },
+    openTask(type, index) {
+      if (type === "pta") openPtaModal(Number(index));
+      else if (type === "driver") openDriverModal(Number(index));
+    },
+  });
+
   const els = {};
   const $ = (id) => document.getElementById(id);
 
@@ -128,7 +161,11 @@
       button.addEventListener("click", () => switchView(button.dataset.viewTarget));
     });
     document.querySelectorAll(".table-search").forEach((input) => {
-      input.addEventListener("input", () => filterTable(input.dataset.table, input.value));
+      let searchTimer = null;
+      input.addEventListener("input", () => {
+        window.clearTimeout(searchTimer);
+        searchTimer = window.setTimeout(() => filterTable(input.dataset.table, input.value), 120);
+      });
     });
     els.heroDriverDetailsBtn.addEventListener("click", () => openDriverModal(0));
     els.closeDriverModalBtn.addEventListener("click", closeDriverModal);
@@ -324,16 +361,15 @@
         return;
       }
 
-      const workbooks = {};
-      for (const [key, file] of Object.entries(files)) {
+      const workbookEntries = await Promise.all(Object.entries(files).map(async ([key, file]) => {
         const buffer = await file.arrayBuffer();
         if (/\.pdf$/i.test(file.name)) {
           const pdfLines = await extractPdfTextLines(buffer);
-          workbooks[key] = key === "driverPdf" ? parseBasicDriverPdfLines(pdfLines) : { pdfLines };
-        } else {
-          workbooks[key] = XLSX.read(buffer, { type: "array", cellDates: false, raw: true, dense: false });
+          return [key, key === "driverPdf" ? parseBasicDriverPdfLines(pdfLines) : { pdfLines }];
         }
-      }
+        return [key, XLSX.read(buffer, { type: "array", cellDates: false, raw: true, dense: false })];
+      }));
+      const workbooks = Object.fromEntries(workbookEntries);
 
       state.sourceFiles = files;
       state.sourceSignatures = signatures;
@@ -371,19 +407,18 @@
     }
     if (!response.ok) return false;
     const manifest = await response.json();
-    const sourceFiles = [];
-    for (const item of Array.isArray(manifest) ? manifest : []) {
-      if (!SUPPORTED_REPORT_FILE.test(item?.name || "") || !item?.path) continue;
+    const reportItems = (Array.isArray(manifest) ? manifest : []).filter((item) => SUPPORTED_REPORT_FILE.test(item?.name || "") && item?.path);
+    const sourceFiles = (await Promise.all(reportItems.map(async (item) => {
       try {
         const fileResponse = await fetch(encodeURI(item.path), { cache: "no-store" });
-        if (!fileResponse.ok) continue;
+        if (!fileResponse.ok) return null;
         const blob = await fileResponse.blob();
-        sourceFiles.push(new File([blob], item.name, {
+        return new File([blob], item.name, {
           type: blob.type || (/\.pdf$/i.test(item.name) ? "application/pdf" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
           lastModified: Date.parse(item.lastModified) || 0,
-        }));
-      } catch (_) {}
-    }
+        });
+      } catch (_) { return null; }
+    }))).filter(Boolean);
     if (!sourceFiles.length) return false;
     const found = await classifyReportFiles(sourceFiles);
     if (!Object.keys(found).length) return false;
@@ -2503,6 +2538,7 @@
     const existing = Array.isArray(state.ptaActionNotes[key]) ? state.ptaActionNotes[key] : [];
     state.ptaActionNotes[key] = [entry, ...existing].slice(0, 75);
     if (!persistPtaActionNotes()) return;
+    window.VixenWorkedWorkflow?.setNoteComplete?.("pta", entry.id, false);
 
     els.ptaActionNoteInput.value = "";
     renderPtaActionNotes(record);
@@ -2595,6 +2631,7 @@
     const existing = Array.isArray(state.driverActionNotes[key]) ? state.driverActionNotes[key] : [];
     state.driverActionNotes[key] = [entry, ...existing].slice(0, 75);
     if (!persistDriverActionNotes()) return;
+    window.VixenWorkedWorkflow?.setNoteComplete?.("driver", entry.id, false);
     els.driverActionNoteInput.value = "";
     renderDriverActionNotes(driver);
     showToast(`Driver note saved for ${driver.driverName}.`);
@@ -2604,7 +2641,7 @@
     const key = driverNoteKey(driver);
     const notes = Array.isArray(state.driverActionNotes[key]) ? state.driverActionNotes[key] : [];
     const today = notes.filter((note) => isToday(note.savedAt));
-    els.driverActionNoteStatus.textContent = `${formatCount(today.length)} note${today.length === 1 ? "" : "s"} today · ${formatCount(notes.length)} total. Included in shift transition.`;
+    els.driverActionNoteStatus.textContent = `${formatCount(today.length)} note${today.length === 1 ? "" : "s"} today · ${formatCount(notes.length)} total. Finish + handoff when the follow-up is ready for transition.`;
     els.driverActionNoteHistory.innerHTML = notes.length ? notes.map((note) => {
       const saved = new Date(note.savedAt);
       const savedLabel = Number.isNaN(saved.getTime()) ? "Saved previously" : saved.toLocaleString([], { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });

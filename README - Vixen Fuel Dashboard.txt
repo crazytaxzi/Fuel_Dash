@@ -3,7 +3,7 @@ VIXEN FUEL DASHBOARD
 
 VERSION
 -------
-3.9.0 - Stable main release
+3.18.0 - Stable main release
 
 Fuel Dash reads supported XLSX and text-based PDF reports from the local data folder. Report roles are determined from worksheet headers, values, layout, and cross-field structure. The filename is ignored.
 
@@ -27,6 +27,16 @@ DATA RULES
 NOTES AND TRANSITIONS
 ---------------------
 Driver and PTA notes are stored in the browser used to run the dashboard. Export transitions regularly if the notes matter after a browser reset or computer change.
+
+CONTINUOUS WORKFLOW
+-------------------
+Today is the normal starting point. Live PTA attention items, high-priority driver reviews, and saved follow-ups share one prioritized queue.
+
+- Open the first task and record the action taken.
+- Finish + handoff completes the follow-up, includes it in the shift transition, and advances to the next open item.
+- Finish only completes private or non-handoff work.
+- Show all reveals completed or manually hidden items. Reopen restores an item to the active queue.
+- The attention banner and sidebar count show pending work. Browser notifications are optional and remain off until enabled from Today.
 
 VALIDATION
 ----------

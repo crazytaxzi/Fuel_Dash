@@ -3,9 +3,9 @@ const fs = require("fs");
 const vm = require("vm");
 const assert = require("node:assert/strict");
 const window = { addEventListener() {}, setTimeout() {}, VixenTransitionExport: null };
-const context = { window, document: {}, localStorage: { getItem() { return null; } }, console, Date, JSON, String, Number, Math, Array, Object, Blob: class {}, URL: {} };
+const context = { window, document: { addEventListener() {} }, localStorage: { getItem() { return null; } }, console, Date, JSON, String, Number, Math, Array, Object, Blob: class {}, URL: {} };
 vm.createContext(context);
-vm.runInContext(fs.readFileSync("transition_export_v2.js", "utf8"), context);
+vm.runInContext(fs.readFileSync("database/rich-transition-editor.js", "utf8"), context);
 const api = window.VixenTransitionExport;
 const now = new Date(2026, 6, 27, 15, 0);
 const pta = {
@@ -22,20 +22,22 @@ const drivers = {
   ],
 };
 
-const defaultOff = api.buildTransition(now, pta, drivers, {});
-assert.match(defaultOff, /Truck follow-ups:\r\nNone/);
-assert.match(defaultOff, /High Idles contacted:\r\nNone/);
+const defaultOff = api.buildContext(now, pta, drivers, {});
+assert.equal(defaultOff.truck_count, "0");
+assert.equal(defaultOff.driver_count, "0");
 
 const selections = {
   "pta:pta-a": true,
   "pta:pta-b": true,
   "driver:driver-a": true,
 };
-const output = api.buildTransition(now, pta, drivers, selections);
-assert.match(output, /Truck follow-ups:\r\n300001 - Called driver \| Reset confirmed/);
-assert.match(output, /High Idles contacted:\r\nTest Driver - Discussed idle/);
-assert.doesNotMatch(output, /Internal note only|Private reminder/);
-assert.doesNotMatch(output, /Truck 300001/);
+const output = api.buildContext(now, pta, drivers, selections);
+assert.equal(output.truck_count, "2");
+assert.equal(output.driver_count, "1");
+assert.match(output.all_followups, /Called driver/);
+assert.match(output.all_followups, /Reset confirmed/);
+assert.match(output.all_followups, /Discussed idle/);
+assert.doesNotMatch(output.all_followups, /Internal note only|Private reminder/);
 assert.equal(api.noteIncluded("pta", { id: "pta-a" }, selections), true);
 assert.equal(api.noteIncluded("pta", { id: "pta-c" }, selections), false);
 console.log("Transition export default-off selection smoke test passed.");

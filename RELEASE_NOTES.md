@@ -1,4 +1,20 @@
-# Fuel Dash 3.9.0
+# Fuel Dash 3.18.0
+
+## Continuous Today workflow
+
+- Adds one prioritized Today queue for live PTA attention, high-priority driver reviews, and saved follow-ups.
+- Adds Finish + handoff to complete work, select it for transition, and advance to the next task in one action.
+- Adds Finish only for private work, plus Show all, Reopen, and Restore so completed or hidden tasks are never lost.
+- Adds attention counts, an urgent-work banner, queue search, and optional browser notifications.
+- Groups the existing navigation into Performance, Dispatch, Handoff, and Tools without removing any dashboard feature.
+
+## Runtime and accuracy
+
+- New notes now enter the workflow explicitly as open work.
+- Live source tasks are de-duplicated when a matching tracked note exists.
+- Report downloads and independent file inspection run concurrently.
+- Large table searches are debounced to reduce unnecessary DOM work.
+- Updates workflow and transition smoke coverage for the current rich-editor architecture.
 
 ## Stability repair
 
