@@ -298,6 +298,24 @@
             <h3>Source Status</h3><p class="settings-help">Electric APU and PTA workbooks are optional. A manual PTA paste overrides both PTA files until you switch back to file mode.</p>
             <div id="sourceStatusList" class="source-status-list"></div>
           </article>
+          <article class="panel settings-card pdf-converter-card">
+            <div class="pdf-converter-heading">
+              <div><span class="eyebrow">LOCAL REPORT UTILITY</span><h3>PDF → XLSX Converter</h3></div>
+              <span class="pdf-local-badge">Runs locally</span>
+            </div>
+            <p class="settings-help">Convert supported text-based fuel-report PDFs into dashboard-ready XLSX files without leaving Fuel Dash. Reports are processed only in this browser and are never uploaded.</p>
+            <div id="dropZone" class="pdf-drop-zone">
+              <div>
+                <strong>Drop PDF reports here</strong>
+                <small>Driver Fuel Metrics · Fuel Compliance · Noncompliant Cost · MPG by Driver</small>
+                <button id="chooseBtn" class="button button-primary" type="button">Choose PDF files</button>
+                <input id="pdfInput" type="file" accept=".pdf,application/pdf" multiple hidden />
+              </div>
+            </div>
+            <p class="settings-help pdf-converter-help">Converted files download as <code>*-converted.xlsx</code>. Place them in the dashboard data folder if you want Fuel Dash to load them automatically. PDFs must contain selectable text.</p>
+            <div id="status" class="pdf-converter-status" aria-live="polite">Waiting for PDF files.</div>
+            <div id="results" class="pdf-converter-results"></div>
+          </article>
         </div>
       </section>
     </main>
@@ -384,5 +402,6 @@
   <script src="vendor/chart.umd.js"></script>
   <script src="database/dashboard-db.js"></script>
   <script src="database/bootstrap.js"></script>
+  <script type="module" src="pdf_to_xlsx.js"></script>
 </body>
 </html>

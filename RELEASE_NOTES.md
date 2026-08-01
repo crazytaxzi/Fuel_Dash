@@ -1,4 +1,12 @@
-# Fuel Dash 3.18.2
+# Fuel Dash 3.19.0
+
+## In-app PDF conversion and cleaner package
+
+- Moves PDF-to-XLSX conversion directly into Dashboard Settings with file selection and drag-and-drop.
+- Keeps conversion local and lazy-loads PDF.js only after a PDF is submitted.
+- Removes the obsolete standalone converter page, converter launcher, conversion guide, and unused Worked cleanup module.
+- Excludes tests, validation tooling, sample workbooks, duplicate guides, and internal metadata from downloadable packages.
+- Adds browser and smoke-test coverage for converter integration and release-package cleanup.
 
 ## Stationary sidebar image
 

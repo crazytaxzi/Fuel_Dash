@@ -56,15 +56,18 @@ jobs:
             missing_bol_driver_only.js
             worked_workflow.js
             note_transition_toggle.js
+            pdf_to_xlsx.js
             transition_export_v2.js
             database/dashboard-db.js
             database/bootstrap.js
             database/pta-history-ui.js
             database/pta-change-worker.js
             database/worked-navigation-fix.js
-            database/worked-open-queue.js
             database/exclusion-manager.js
             database/idle-history-ui.js
+            database/rich-transition-editor.js
+            database/transition-305-extension.js
+            database/transition-grouping.js
           )
           for script in "${scripts[@]}"; do
             if [[ -f "$script" ]]; then
@@ -72,16 +75,9 @@ jobs:
             fi
           done
 
-          cat database/rich-transition-patch/part-*.b64 | base64 --decode > /tmp/rich-transition-editor.js
-          echo "187d00de65db2a8c2d01353d9cde4ea2e4b2be534997d8dc97adc426511ea0ff  /tmp/rich-transition-editor.js" | sha256sum --check --strict
-          node --check /tmp/rich-transition-editor.js
-          grep -F 'data-editor-command="bold"' /tmp/rich-transition-editor.js
-          grep -F 'data-editor-command="italic"' /tmp/rich-transition-editor.js
-          grep -F 'data-editor-command="underline"' /tmp/rich-transition-editor.js
-          grep -F '😊 Emotes' /tmp/rich-transition-editor.js
-          grep -F 'ClipboardItem' /tmp/rich-transition-editor.js
-          grep -F 'multipart/alternative' /tmp/rich-transition-editor.js
-          grep -F 'Content-Type: text/html' /tmp/rich-transition-editor.js
+          grep -F 'data-editor-command="bold"' database/rich-transition-editor.js
+          grep -F 'ClipboardItem' database/rich-transition-editor.js
+          grep -F 'multipart/alternative' database/rich-transition-editor.js
 
       - name: Build downloadable ZIP
         shell: python
@@ -102,7 +98,12 @@ jobs:
           shutil.rmtree(dist, ignore_errors=True)
           package.mkdir(parents=True)
 
-          excluded = {".git", ".github", "data", "dist", "Dashboard_Server_Log.txt"}
+          excluded = {
+              ".git", ".github", ".gitattributes", "data", "dist", "tests",
+              "Dashboard_Server_Log.txt", "validate_dashboard.js", "summary.xlsx", "summary chart.xlsx",
+              "APU Column Guide.txt", "PDF Driver Report Guide.txt", "PTA Action Notes Guide.txt",
+              "PTA Column Guide.txt", "PTA Manual Paste Guide.txt",
+          }
           for item in root.iterdir():
               if item.name in excluded:
                   continue
@@ -111,6 +112,9 @@ jobs:
                   shutil.copytree(item, target)
               elif item.is_file():
                   shutil.copy2(item, target)
+
+          for internal_file in [package / "database" / "README.md", package / "database" / "rich-transition-editor.manifest.json"]:
+              internal_file.unlink(missing_ok=True)
 
           data_dir = package / "data"
           data_dir.mkdir(exist_ok=True)

@@ -3,7 +3,7 @@ VIXEN FUEL DASHBOARD
 
 VERSION
 -------
-3.18.2 - Stable main release
+3.19.0 - Stable main release
 
 Fuel Dash reads supported XLSX and text-based PDF reports from the local data folder. Report roles are determined from worksheet headers, values, layout, and cross-field structure. The filename is ignored.
 
@@ -12,6 +12,10 @@ START
 1. Put the current XLSX and PDF reports in the data folder.
 2. Run the included dashboard launcher.
 3. The browser opens the dashboard and classifies every supported report by content.
+
+PDF TO XLSX
+-----------
+Open Settings and use the built-in PDF to XLSX converter when a spreadsheet copy is needed. Drop one or more supported text-based PDF fuel reports into the converter and move the downloaded XLSX files into the data folder. Conversion stays in the local browser.
 
 The folder may contain a complete fuel-analysis set, a partial set, or auxiliary operational reports. Complete data populates the related dashboards. Partial data remains available without inventing unavailable performance values.
 
