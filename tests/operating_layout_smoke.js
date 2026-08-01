@@ -43,8 +43,12 @@ historyRows[0] = ["Driver", "92385 SAMPLE DRIVER", "7/19/2026", "6/22/2026", "Di
 historyRows[3] = Array(13).fill("").concat(["Dispatch MPG", 7.1]);
 historyRows[5] = Array(13).fill("").concat(["Idle %", 0.34]);
 historyRows[9] = Array(13).fill("").concat(["Moving MPG", 7.7, "OOR %", 0.05]);
+historyRows[6] = Array(13).fill("").concat(["Electric APU Hours", 4.5]);
+historyRows[7] = Array(13).fill("").concat(["Engine Idle Hours", 1.5]);
+historyRows[8] = Array(13).fill("").concat(["APU Utilization %", 0.75]);
 const driverHistory = inspection(historyRows);
 assert.equal(test.roleQualifies("driverDetails", driverHistory), true);
+assert.equal(test.roleQualifies("apu", driverHistory), true, "Driver Details-shaped workbooks with APU metric rows must also route to the APU role");
 assert.equal(test.roleQualifies("reportDriverMetrics", driverHistory), false, "repeating history blocks are not flat driver-metric tables");
 assert.equal(test.roleQualifies("driverMetricsDetail", driverHistory), false);
 assert.equal(test.roleQualifies("reportMpg", driverHistory), false);

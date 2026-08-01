@@ -1263,6 +1263,11 @@
       }
     }
 
+    if (!external.length && rows?.length) {
+      external = parseDriverDetailsApuRows(rows, file);
+      if (external.length) parserNote = "";
+    }
+
     if (external.length) {
       external.sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
       const latestByIdentity = new Map();
@@ -1337,6 +1342,52 @@
       workingWell: records.filter((record) => record.statusKey === "working-well").length,
     };
     return { records, byDriver, summary, hasData: records.length > 0, parserNote, sourceName: file?.name || (embedded.length ? "c1 driver report" : "No APU source") };
+  }
+
+  function parseDriverDetailsApuRows(rows, file = null) {
+    const records = [];
+    let currentDriver = "";
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index] || [];
+      if (text(row[1]) && !/^total$/i.test(text(row[1]))) currentDriver = text(row[1]);
+      const date = parseDate(row[2]);
+      if (!currentDriver || !date || normalizeHeader(row[13]) !== "cruise in time") continue;
+      let end = rows.length;
+      for (let cursor = index + 1; cursor < rows.length; cursor += 1) {
+        const candidate = rows[cursor] || [];
+        if (text(candidate[1]) && parseDate(candidate[2]) && normalizeHeader(candidate[13]) === "cruise in time") { end = cursor; break; }
+      }
+      const block = rows.slice(index, end);
+      const metric = (patterns, percent = false) => {
+        const metricRow = block.find((item) => patterns.some((pattern) => pattern.test(normalizeHeader(item?.[13]))));
+        if (!metricRow) return null;
+        const converter = percent ? normalizePercent : number;
+        return metricRow.slice(14).map(converter).find(isFiniteNumber) ?? null;
+      };
+      const apuHours = metric([/electric apu.*hours?/, /apu.*run(?:time)?.*hours?/, /^apu hours?$/]);
+      const engineIdleHours = metric([/engine.*idle.*hours?/, /tractor.*idle.*hours?/]);
+      const apuUsePct = metric([/apu.*(?:use|usage|utilization).*%?/, /electric apu.*%/], true);
+      const batterySoc = metric([/apu.*battery/, /battery.*(?:soc|state of charge|charge)/], true);
+      const faultCount = metric([/apu.*fault/, /apu.*alert/]);
+      if ([apuHours, engineIdleHours, apuUsePct, batterySoc, faultCount].every((value) => value === null)) continue;
+      const codeMatch = currentDriver.match(/^\s*([A-Z0-9]{4,10})\s+(.+)$/i);
+      records.push({
+        source: file?.name || "Driver Details APU report",
+        date,
+        driverCode: codeMatch?.[1] || "",
+        driverName: codeMatch?.[2] || currentDriver,
+        unit: "",
+        apuHours,
+        engineIdleHours,
+        apuUsePct,
+        batterySoc,
+        faultCount: Math.max(0, faultCount || 0),
+        faultText: faultCount ? `${faultCount} reported` : "",
+        available: apuHours !== null || apuUsePct !== null,
+        notes: "",
+      });
+    }
+    return records;
   }
 
 
@@ -3026,7 +3077,7 @@
     analyzeWorkbooks, analyzeBasicReports, analyzeIdleReports, analyzeApu, analyzePta, normalizePtaPasteRows,
     parseDelimitedText, parseBasicDriverPdfLines, analyzePdfDrivers,
     parseBasicDriverMetricsReport, parseBasicComplianceReport, parseBasicCostReport, parseBasicMpgReport,
-    parseRolling7DayReport, parseRolling28DayHistory,
+    parseRolling7DayReport, parseRolling28DayHistory, parseDriverDetailsApuRows,
     parseDate, parseDateTime, sourceLabel, ptaTruckNoteKey, driverNoteKey, recentTruckWork
   };
 })();

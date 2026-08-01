@@ -180,7 +180,7 @@
     if ((role === "reportDriverMetrics" || role === "driverMetricsDetail") && headerRow(rows, ["driver", "dispatch mpg", "idle"]) >= 0) return 12;
     if (role === "rolling7Day" && rollingSevenStructure(rows)) return 14;
     if (role === "driverDetails" && rollingHistoryStructure(rows)) return 14;
-    if (role === "apu" && headerRow(rows, ["apu", "idle", "driver"]) >= 0) return 10;
+    if (role === "apu" && (headerRow(rows, ["apu", "idle", "driver"]) >= 0 || (rollingHistoryStructure(rows) && rows.some((row) => row.some((cell) => /\b(?:electric\s+)?apu\b/.test(normalize(cell))))))) return 12;
     if (role === "ptaTracker" && headerRow(rows, ["truck", "driver", "pta", "status"]) >= 0) return 12;
     if (role === "ptaFinder" && headerRow(rows, ["truck", "driver", "pta", "preplan"]) >= 0) return 12;
     return 0;
