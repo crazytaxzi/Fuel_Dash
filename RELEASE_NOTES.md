@@ -1,4 +1,12 @@
-# Fuel Dash 3.19.2
+# Fuel Dash 3.19.3
+
+## Release catch-up
+
+- Moves Special Notes directly below Today under a clearly visible PERSONAL navigation group.
+- Prevents an older cached bootstrap from hiding newly installed dashboard features after an upgrade.
+- Loads optional APU workbooks in legacy, basic, and idle report modes.
+- Searches every worksheet for APU content instead of assuming it is on the first sheet.
+- Recognizes and parses APU metrics stored in the row-oriented Driver Details workbook structure.
 
 ## Special notes and change-driven reminders
 
