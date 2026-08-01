@@ -23,7 +23,7 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--white); font-family: var(--font-body); }
-body { overflow-x: hidden; }
+body { min-width: 1180px; overflow-x: auto; }
 button, input, select { font: inherit; }
 button { color: inherit; }
 
@@ -45,7 +45,7 @@ body::before {
 .ambient-one { background: var(--purple); right: -10rem; top: 10rem; }
 .ambient-two { background: var(--green); left: 15rem; bottom: -20rem; }
 
-.app-shell { min-height: 100vh; display: grid; grid-template-columns: 250px minmax(0, 1fr); }
+.app-shell { min-width:1180px; min-height:100vh; display:grid; grid-template-columns:250px minmax(0,1fr); }
 .sidebar {
   position: sticky; top: 0; height: 100vh; padding: 20px 14px; display: flex; flex-direction: column;
   overflow: hidden;
@@ -268,36 +268,6 @@ tbody tr:hover { background:rgba(168,85,247,.075); }
   .kpi-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .hero-content { grid-template-columns:.75fr 1.35fr; }
 }
-@media (max-width: 850px) {
-  .app-shell { grid-template-columns:1fr; }
-  .sidebar {
-    position:relative;
-    height:auto;
-    max-height:min(100vh, 760px);
-    display:flex;
-    overflow-y:auto;
-    overflow-x:hidden;
-    overscroll-behavior:contain;
-    scrollbar-gutter:stable;
-    scrollbar-width:thin;
-    scrollbar-color:rgba(168,85,247,.65) rgba(255,255,255,.04);
-  }
-  .sidebar::-webkit-scrollbar { width:7px; }
-  .sidebar::-webkit-scrollbar-track { background:rgba(255,255,255,.035); }
-  .sidebar::-webkit-scrollbar-thumb { background:linear-gradient(180deg,rgba(168,85,247,.75),rgba(57,255,99,.55)); border-radius:99px; }
-  .portrait-frame { display:block; width:min(100%, 300px); min-height:0; margin:0 auto 16px; }
-  .motto-card { display:flex; }
-  .nav-list { flex:none; overflow:visible; padding-right:0; }
-  .nav-item { white-space:nowrap; }
-  .main-panel { padding:16px; }
-  .topbar { flex-direction:column; }
-  .kpi-grid, .secondary-grid, .settings-grid, .quality-cards { grid-template-columns:1fr; }
-  .hero-content { grid-template-columns:1fr; }
-  .hero-chart-wrap { padding-right:0; }
-  .pdf-converter-heading { flex-direction:column; }
-  .pdf-converter-results .result { grid-template-columns:1fr; }
-  .chart-callout { position:static; width:auto; margin-top:8px; }
-}
 
 /* Plain-English + driver detail modal + optional electric APU review */
 .hidden { display:none !important; }
@@ -458,13 +428,6 @@ tbody tr:hover { background:rgba(168,85,247,.075); }
 .apu-modal-panel { border-color:rgba(57,255,99,.24); }
 .apu-modal-panel h3 { color:var(--green); }
 .modal-footer { display:flex; justify-content:flex-end; gap:9px; margin-top:15px; }
-
-@media (max-width: 850px) {
-  .apu-summary-grid, .modal-metrics, .modal-detail-grid { grid-template-columns:1fr; }
-  .modal-heading { flex-direction:column; }
-  .driver-modal { width:calc(100vw - 16px); }
-  .modal-shell { padding:20px 16px; }
-}
 
 /* =========================================================
    Vixen Fuel Ops v2.1 - Smooth Edge Pass
@@ -658,13 +621,6 @@ tbody tr:hover { background:rgba(168,85,247,.075); }
   box-shadow: inset 0 1px 0 rgba(255,255,255,.025);
 }
 
-/* Preserve softness on mobile too. */
-@media (max-width: 850px) {
-  .sidebar { border-radius: 0 0 var(--radius-xl) var(--radius-xl); }
-  .driver-modal,
-  .modal-shell { border-radius: var(--radius-lg); }
-}
-
 /* =========================================================
    Vixen Fleet Ops v3.0 - PTA Dispatch Board
    Overdue timing, no-preplan queues, and dispatch pop-ups.
@@ -854,14 +810,6 @@ tbody tr:hover { background:rgba(168,85,247,.075); }
   .pta-summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .pta-pulse-layout { grid-template-columns:1fr; }
 }
-@media (max-width: 650px) {
-  .pta-pulse-summary,
-  .pta-summary-grid { grid-template-columns:1fr; }
-  .pta-overview-row { grid-template-columns:78px minmax(0,1fr); }
-  .pta-overview-row .pta-time,
-  .pta-overview-row > span:last-child { display:none; }
-}
-
 
 /* Manual PTA paste ------------------------------------------------------- */
 .pta-paste-panel {
@@ -1005,13 +953,6 @@ tbody tr:hover { background:rgba(168,85,247,.075); }
 .pta-paste-message.success { color: #7dff97; }
 .pta-paste-message.error { color: #ff88b2; }
 
-@media (max-width: 760px) {
-  .pta-paste-panel > summary { align-items: flex-start; flex-wrap: wrap; }
-  .pta-paste-status { order: 2; }
-  .pta-paste-instructions { flex-direction: column; }
-  .pta-paste-message { width: 100%; margin-left: 0; }
-}
-
 
 /* PTA action-note history ------------------------------------------------ */
 .pta-action-note-panel {
@@ -1073,10 +1014,6 @@ tbody tr:hover { background:rgba(168,85,247,.075); }
 .action-note-input::placeholder { color:#687780; }
 .pta-heading-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:10px; }
 .pta-heading-actions .table-search { min-width:260px; }
-@media (max-width: 760px) {
-  .pta-heading-actions { width:100%; justify-content:flex-start; }
-  .pta-heading-actions .table-search { width:100%; min-width:0; }
-}
 .pta-action-note-controls {
   display:flex;
   align-items:center;
@@ -1146,9 +1083,4 @@ tbody tr:hover { background:rgba(168,85,247,.075); }
   color:#7e8d95;
   font-size:10px;
   text-align:center;
-}
-@media (max-width: 650px) {
-  .pta-action-note-heading { align-items:flex-start; flex-direction:column; }
-  .pta-action-note-heading small { text-align:left; }
-  .pta-action-note-controls > span { width:100%; }
 }

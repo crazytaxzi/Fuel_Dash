@@ -25,23 +25,6 @@
       width: calc(100% - 128px) !important;
       height: calc(100% - 40px) !important;
     }
-
-    @media (max-width: 850px) {
-      .hero-content {
-        grid-auto-rows: auto;
-      }
-
-      .hero-chart-wrap {
-        min-height: 320px;
-        padding: 30px 0 2px 2px;
-      }
-
-      .hero-chart-wrap canvas {
-        position: static;
-        width: 100% !important;
-        height: 280px !important;
-      }
-    }
   `;
   document.head.appendChild(style);
 })();

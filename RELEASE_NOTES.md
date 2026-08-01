@@ -13,7 +13,8 @@
 - Keeps the full Vixen truck image visible instead of cropping it.
 - Keeps the branding, image, motto, and refresh status stationary.
 - Makes the navigation area scroll independently on shorter desktop displays.
-- Adds a compact neon-styled navigation scrollbar while preserving mobile navigation behavior.
+- Adds a compact neon-styled navigation scrollbar for short desktop windows.
+- Uses a desktop-only 1180px canvas; narrower windows scroll horizontally instead of switching to a mobile layout.
 
 ## Completion feedback hotfix
 

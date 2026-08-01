@@ -112,7 +112,6 @@
         .bol-message.error{border-color:rgba(255,79,104,.5);color:#ff8797;background:rgba(255,79,104,.06)}
         .bol-secondary{display:block;margin-top:3px;color:var(--muted);font-size:10px}
         @media(max-width:900px){.bol-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-        @media(max-width:520px){.bol-summary-grid{grid-template-columns:1fr}}
       `;
       document.head.append(style);
     }

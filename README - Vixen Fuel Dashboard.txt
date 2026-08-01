@@ -7,6 +7,11 @@ VERSION
 
 Fuel Dash reads supported XLSX and text-based PDF reports from the local data folder. Report roles are determined from worksheet headers, values, layout, and cross-field structure. The filename is ignored.
 
+SYSTEM TARGET
+-------------
+- Windows desktop or laptop with a modern Chromium-based browser.
+- The interface uses a minimum 1180-pixel desktop canvas and is not designed for phones or tablets.
+
 START
 -----
 1. Put the current XLSX and PDF reports in the data folder.
