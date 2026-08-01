@@ -559,7 +559,7 @@
       change: null,
       rollingAverage: weeks.map((_, index) => average(weeks.slice(Math.max(0, index - 3), index + 1).map((week) => week.totalCost))),
     };
-    const emptyApu = analyzeApu([], drivers, null);
+    const apu = analyzeApu(apuWorkbookRows(workbooks.apu), drivers, files.apu || null);
     const pta = analyzePta(workbooks.ptaTracker || null, workbooks.ptaFinder || null, files, activeManualPtaRows());
     const quality = {
       findings: [{
@@ -570,9 +570,9 @@
         fix: "Add transaction-detail data when unit and fueling-event drilldown is needed.",
       }],
     };
-    const actions = buildActions(drivers, detail, quality, emptyApu, pta);
+    const actions = buildActions(drivers, detail, quality, apu, pta);
     return {
-      summary, drivers, detail, trend, apu: emptyApu, pta, quality, actions, files,
+      summary, drivers, detail, trend, apu, pta, quality, actions, files,
       settings: { ...state.settings }, generatedAt: new Date(), sourceMode: "basic-reports",
     };
   }
@@ -620,7 +620,7 @@
       totalCost: detail.totals.netCost,
     };
     const trend = { weeks: [week], recent: [week], latest: week, previous: null, change: null, rollingAverage: [week.totalCost] };
-    const apu = analyzeApu([], drivers, null);
+    const apu = analyzeApu(apuWorkbookRows(workbooks.apu), drivers, files.apu || null);
     const pta = analyzePta(workbooks.ptaTracker || null, workbooks.ptaFinder || null, files, activeManualPtaRows());
     const quality = buildDataQuality(detail, drivers, summary);
     quality.findings.unshift({
@@ -853,6 +853,17 @@
     if (!workbook?.SheetNames?.length) return [];
     const sheetName = workbook.SheetNames[sheetIndex] || workbook.SheetNames[0];
     return XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, raw: true, defval: null, blankrows: true });
+  }
+
+  function apuWorkbookRows(workbook) {
+    if (!workbook?.SheetNames?.length) return [];
+    let fallback = [];
+    for (const sheetName of workbook.SheetNames) {
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, raw: true, defval: null, blankrows: true });
+      if (!fallback.length && rows.length) fallback = rows;
+      if (findApuHeaderRow(rows) >= 0) return rows;
+    }
+    return fallback;
   }
 
   function workbookRowsByName(workbook, names) {

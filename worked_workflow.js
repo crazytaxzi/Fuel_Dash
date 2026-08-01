@@ -107,10 +107,11 @@
     if (overview) overview.innerHTML = "<span>⌂</span>Insights";
 
     const groups = [
+      ["PERSONAL", ["specialNotes"]],
       ["PERFORMANCE", ["overview", "drivers", "units", "apu", "exceptions"]],
       ["DISPATCH", ["pta", "tripPlanning305", "bols"]],
       ["HANDOFF", ["transition"]],
-      ["TOOLS", ["specialNotes", "exclusions", "quality", "settings"]],
+      ["TOOLS", ["exclusions", "quality", "settings"]],
     ];
     groups.forEach(([label, views]) => {
       const buttons = views.map((view) => nav.querySelector(`[data-view="${view}"]`)).filter(Boolean);

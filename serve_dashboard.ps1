@@ -46,7 +46,8 @@ function Get-ContentType([string]$Path) {
 }
 
 function Get-CacheControl([string]$RequestPath) {
-    if ($RequestPath -eq "index.html" -or $RequestPath -eq "data-manifest.json" -or $RequestPath.StartsWith("data-file/", [StringComparison]::OrdinalIgnoreCase)) {
+    $Extension = [IO.Path]::GetExtension($RequestPath).ToLowerInvariant()
+    if ($RequestPath -eq "index.html" -or $RequestPath -eq "data-manifest.json" -or $RequestPath.StartsWith("data-file/", [StringComparison]::OrdinalIgnoreCase) -or $Extension -in @(".js", ".mjs", ".css")) {
         return "no-cache"
     }
     return "public, max-age=3600"
