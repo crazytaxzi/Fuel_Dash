@@ -1,4 +1,18 @@
-# Fuel Dash 3.19.0
+# Fuel Dash 3.19.1
+
+## Simplified transition cards
+
+- Reduces standard truck cards to a bold truck number, driver name, and clearly separated note text.
+- Groups truck-linked notes strictly by truck so a shared driver cannot combine unrelated trucks.
+- Gives Division 305 cards the same concise truck, driver, and latest-note structure.
+- Adds a visible accent border to manual `card_start` and `card_end` blocks.
+
+## Desktop and workflow reliability
+
+- Keeps the full sidebar image visible with independently scrolling desktop navigation.
+- Prevents duplicate confirmations from Finish only and Finish + handoff.
+- Removes unused phone and tablet layouts from the local PC-only dashboard.
+- Consolidates packaging into one main-only release workflow with stronger validation.
 
 ## In-app PDF conversion and cleaner package
 
