@@ -38,18 +38,20 @@
   async function classifyFiles(inputFiles) {
     const files = dedupeFiles(Array.from(inputFiles || []).filter((file) => inspector.supported(file)));
     const run = { files: [], routes: {}, unclassified: [], errors: [] };
-    const inspected = [];
-
-    for (const file of files) {
+    const inspectionResults = await Promise.all(files.map(async (file) => {
       try {
         const inspection = await inspectFile(file);
         const scores = scoreInspection(inspection);
-        inspected.push({ file, inspection, scores });
-        run.files.push({ name: file.name, kind: inspection.kind, sheets: inspection.sheetNames, scores });
+        return { file, inspection, scores };
       } catch (error) {
         run.errors.push(`${file.name}: ${error?.message || error}`);
+        return null;
       }
-    }
+    }));
+    const inspected = inspectionResults.filter(Boolean);
+    inspected.forEach(({ file, inspection, scores }) => {
+      run.files.push({ name: file.name, kind: inspection.kind, sheets: inspection.sheetNames, scores });
+    });
 
     for (const [role, rule] of Object.entries(ROLE_RULES)) {
       const candidates = inspected

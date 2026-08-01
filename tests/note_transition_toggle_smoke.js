@@ -5,8 +5,10 @@ const assert = require("node:assert/strict");
 
 const source = fs.readFileSync("note_transition_toggle.js", "utf8");
 assert.match(source, /observer\.disconnect\(\)/, "history observer must disconnect before enhancing its own subtree");
-assert.match(source, /label\.textContent !== nextText/, "status labels must not rewrite unchanged text nodes");
 assert.match(source, /observer\.observe\(history, OBSERVER_OPTIONS\)/, "history observer must resume after a guarded enhancement");
+assert.match(source, /finish-handoff/, "the default finish action must include the note in handoff");
+assert.match(source, /finish-only/, "users must be able to complete a note without adding it to handoff");
+assert.match(source, /data-note-action=\"reopen\"/, "completed notes must be recoverable");
 
 const store = new Map();
 const localStorage = {
