@@ -22,7 +22,9 @@
   }
 
   function handleWorkedClick(event) {
-    const card = event.target?.closest?.("[data-worked-type]");
+    const openButton = event.target?.closest?.(".worked-card-open");
+    if (!openButton) return;
+    const card = openButton.closest("[data-worked-type]");
     if (!card || !card.closest("#workedList")) return;
     event.preventDefault();
     event.stopImmediatePropagation();

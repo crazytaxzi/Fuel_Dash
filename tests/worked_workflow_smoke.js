@@ -26,6 +26,10 @@ assert.ok(api);
 assert.equal(api.normalizeKey(" 12-34 a "), "1234A");
 assert.equal(api.noteStateKey("pta", "note-1"), "pta:note-1");
 
+const navigationSource = fs.readFileSync("database/worked-navigation-fix.js", "utf8");
+assert.match(navigationSource, /closest\?\.\("\.worked-card-open"\)/, "Worked navigation must only capture the card's dedicated open-details button");
+assert.doesNotMatch(navigationSource, /event\.target\?\.closest\?\.\("\[data-worked-type\]"\)/, "Worked navigation must not capture finish and handoff action buttons");
+
 const noteOne = { id: "p1", text: "Called driver", savedAt: "2026-07-26T10:00:00" };
 const noteTwo = { id: "p2", text: "Reset confirmed", savedAt: "2026-07-26T11:00:00" };
 assert.equal(api.completionState("pta", noteOne, {}).done, false);

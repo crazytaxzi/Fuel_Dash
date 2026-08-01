@@ -142,26 +142,30 @@
       }
       const finish = event.target.closest("[data-today-finish]");
       if (finish) {
-        event.stopPropagation();
+        event.preventDefault();
+        event.stopImmediatePropagation();
         finishNote(finish.dataset.type, finish.dataset.noteId, true);
         return;
       }
       const finishOnly = event.target.closest("[data-today-finish-only]");
       if (finishOnly) {
-        event.stopPropagation();
+        event.preventDefault();
+        event.stopImmediatePropagation();
         finishNote(finishOnly.dataset.type, finishOnly.dataset.noteId, false);
         return;
       }
       const reopen = event.target.closest("[data-today-reopen]");
       if (reopen) {
-        event.stopPropagation();
+        event.preventDefault();
+        event.stopImmediatePropagation();
         setNoteComplete(reopen.dataset.type, reopen.dataset.noteId, false);
         showToast("Follow-up reopened and returned to Today.");
         return;
       }
       const handoff = event.target.closest("[data-today-handoff]");
       if (handoff) {
-        event.stopPropagation();
+        event.preventDefault();
+        event.stopImmediatePropagation();
         setIncluded(handoff.dataset.type, handoff.dataset.noteId, handoff.dataset.included !== "true");
         renderWorkedView();
         return;
