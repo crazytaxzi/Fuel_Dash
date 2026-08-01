@@ -1,4 +1,11 @@
-# Fuel Dash 3.18.0
+# Fuel Dash 3.18.1
+
+## Completion feedback hotfix
+
+- Makes Finish only and Finish + handoff idempotent so duplicate browser click events cannot complete or announce the same follow-up twice.
+- Prevents duplicate finish events from rewriting handoff state.
+- Reuses one toast timer so completion feedback appears exactly once.
+- Adds regression coverage for repeated completion events.
 
 ## Continuous Today workflow
 

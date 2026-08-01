@@ -27,9 +27,11 @@
         event.preventDefault();
         const noteId = action.dataset.noteId;
         if (action.dataset.noteAction === "finish-handoff") {
+          if (isComplete(type, noteId)) return;
           setIncluded(type, noteId, true);
           setComplete(type, noteId, true);
         } else if (action.dataset.noteAction === "finish-only") {
+          if (isComplete(type, noteId)) return;
           setIncluded(type, noteId, false);
           setComplete(type, noteId, true);
         } else if (action.dataset.noteAction === "reopen") {
