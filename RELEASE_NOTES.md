@@ -1,4 +1,11 @@
-# Fuel Dash 3.18.1
+# Fuel Dash 3.18.2
+
+## Stationary sidebar image
+
+- Keeps the full Vixen truck image visible instead of cropping it.
+- Keeps the branding, image, motto, and refresh status stationary.
+- Makes the navigation area scroll independently on shorter desktop displays.
+- Adds a compact neon-styled navigation scrollbar while preserving mobile navigation behavior.
 
 ## Completion feedback hotfix
 

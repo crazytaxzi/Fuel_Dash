@@ -171,8 +171,8 @@ jobs:
 
           (dist / "release-notes.md").write_text(
               f"# Fuel Dash {tag}\n\n"
-              "Fixes duplicate completion feedback from Finish only and Finish + handoff. Completion is now idempotent, so repeated browser click events are ignored after the first successful state change and cannot announce or process the same follow-up twice.\n\n"
-              "The Today workflow, handoff selection, recoverable completed work, attention notifications, grouped navigation, and runtime improvements from v3.18.0 remain intact. Operational reports and browser-stored notes remain local and are not included in the package.\n",
+              "Keeps the full Vixen truck image visible and stationary in the left sidebar instead of cropping or scrolling it away. Branding, the motto, and refresh status also remain fixed while the navigation scrolls independently on shorter desktop displays.\n\n"
+              "Adds a compact neon-styled navigation scrollbar and preserves the existing mobile navigation behavior. The continuous Today workflow and v3.18.1 completion-feedback hotfix remain intact. Operational reports and browser-stored notes remain local and are not included in the package.\n",
               encoding="utf-8",
           )
 
