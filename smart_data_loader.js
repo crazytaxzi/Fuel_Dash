@@ -27,7 +27,7 @@
     ready: Promise.resolve({ routes: {}, diagnostics }),
     classifyFiles,
     inspectFile,
-    test: { scoreInspection, structuralScore, roleThreshold, roleQualifies, normalize },
+    test: { scoreInspection, structuralScore, roleThreshold, roleQualifies, selectRoleCandidate, isApuFileName, normalize },
     supported: (file) => Boolean(file && SUPPORTED_REPORT.test(file.name || "")),
     clearCache: () => inspectionCache.clear(),
   };
@@ -54,12 +54,8 @@
     });
 
     for (const [role, rule] of Object.entries(ROLE_RULES)) {
-      const candidates = inspected
-        .map((entry) => ({ ...entry, value: entry.scores[role] || 0 }))
-        .filter((entry) => entry.value >= roleThreshold(rule, entry.inspection.kind))
-        .sort((a, b) => b.value - a.value || (b.file.lastModified || 0) - (a.file.lastModified || 0));
-      if (!candidates.length) continue;
-      const winner = candidates[0];
+      const winner = selectRoleCandidate(role, rule, inspected);
+      if (!winner) continue;
       winner.file.vixenRole = role;
       winner.file.vixenConfidence = winner.value;
       winner.file.vixenInspection = winner.inspection;
@@ -81,6 +77,28 @@
     inspector.ready = Promise.resolve(result);
     document.dispatchEvent(new CustomEvent("vixen:data-classified", { detail: { ...result, files } }));
     return result;
+  }
+
+  function selectRoleCandidate(role, rule, inspected) {
+    return inspected
+      .map((entry) => {
+        const apuNamed = isApuFileName(entry.file?.name);
+        if (apuNamed && role !== "apu") return null;
+        const roleScore = entry.scores[role] || 0;
+        const driverDetailsScore = entry.scores.driverDetails || 0;
+        const qualifies = roleScore >= roleThreshold(rule, entry.inspection.kind)
+          || (role === "apu" && apuNamed && driverDetailsScore >= roleThreshold(ROLE_RULES.driverDetails, entry.inspection.kind));
+        if (!qualifies) return null;
+        return { ...entry, value: roleScore, apuNamed };
+      })
+      .filter(Boolean)
+      .sort((a, b) => Number(b.apuNamed) - Number(a.apuNamed)
+        || b.value - a.value
+        || (b.file.lastModified || 0) - (a.file.lastModified || 0))[0] || null;
+  }
+
+  function isApuFileName(name) {
+    return /apu/i.test(String(name || ""));
   }
 
   async function inspectFile(file) {

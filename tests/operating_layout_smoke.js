@@ -53,4 +53,23 @@ assert.equal(test.roleQualifies("reportDriverMetrics", driverHistory), false, "r
 assert.equal(test.roleQualifies("driverMetricsDetail", driverHistory), false);
 assert.equal(test.roleQualifies("reportMpg", driverHistory), false);
 
+const regularDriverDetails = {
+  file: { name: "Primary Operating History.xlsx", lastModified: 100 },
+  inspection: driverHistory,
+  scores: test.scoreInspection(driverHistory),
+};
+const namedApuDetails = {
+  file: { name: "LEW1 APU Trucks.xlsx", lastModified: 200 },
+  inspection: driverHistory,
+  scores: test.scoreInspection(driverHistory),
+};
+const driverDetailsWinner = test.selectRoleCandidate("driverDetails", { threshold: 12 }, [regularDriverDetails, namedApuDetails]);
+const apuWinner = test.selectRoleCandidate("apu", { threshold: 11 }, [regularDriverDetails, namedApuDetails]);
+assert.equal(driverDetailsWinner.file.name, "Primary Operating History.xlsx", "an APU-named workbook must never replace the core Driver Details source");
+assert.equal(apuWinner.file.name, "LEW1 APU Trucks.xlsx", "an APU-named Driver Details-shaped workbook must feed the APU report");
+assert.equal(test.isApuFileName("apu.xlsx"), true);
+assert.equal(test.isApuFileName("LEW1-APU Trucks.XLSX"), true);
+assert.equal(test.isApuFileName("LEW1APUTrucks.xlsx"), true);
+assert.equal(test.isApuFileName("Capture.xlsx"), false, "APU must be matched as a filename token, not as part of another word");
+
 console.log("Operating layout classifier smoke test passed.");

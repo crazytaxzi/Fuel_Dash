@@ -38,4 +38,4 @@ if (problems.length) {
   console.error(problems.join("\n"));
   process.exit(1);
 }
-console.log(`Validated ${scripts.length} JavaScript files. Report discovery is content-based and no explicit report filenames remain.`);
+console.log(`Validated ${scripts.length} JavaScript files. Report discovery is content-based except for the isolated APU filename marker.`);
