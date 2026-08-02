@@ -30,12 +30,18 @@ DATA RULES
 - A report can contribute to more than one role when its contents support those roles.
 - Strong structural matches load automatically. Unrecognized files are listed in diagnostics rather than forced into the wrong parser.
 - Driver codes are preserved as text.
+- Driver codes and names form the persistent identity; a truck is the driver's current operational assignment, not a separate idle record.
+- Order numbers shared by the Missing BOL and fuel-detail reports provide evidence for driver-to-truck assignments and changes.
+- Rolling idle is weighted from source hours: total idle hours divided by total engine hours for the selected period.
+- Personal-category records and saved idle exclusions do not enter idle rankings or weighted idle KPIs.
 - Missing BOL records are recognized from their operational columns and trip-value patterns, then sorted oldest first.
 - Report data stays on the local computer.
 
 NOTES AND TRANSITIONS
 ---------------------
-Driver and PTA notes are stored in the browser used to run the dashboard. Export transitions regularly if the notes matter after a browser reset or computer change.
+Operational notes are stored in the browser used to run the dashboard and follow the persistent driver identity; the current truck remains visible as context. Export transitions regularly if the notes matter after a browser reset or computer change.
+
+Fuel notes capture a record type, follow-up state, optional follow-up date, and the current rolling idle values. A note requires both a driver and a truck. Use Assignments and coaching history on Fuel Coaching to correct a link, support a two-driver team truck, or retrieve prior notes and fuel snapshots. Only explicitly selected notes enter handoff, formatted as a bold truck number followed by the driver and note.
 
 CONTINUOUS WORKFLOW
 -------------------

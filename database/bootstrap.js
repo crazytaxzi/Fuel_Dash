@@ -7,6 +7,7 @@
     "smart_data_loader.js",
     "auxiliary_mode.js",
     "database/exclusion-manager.js",
+    "database/driver-operations.js",
     "database/trip-planning-notes.js",
     "database/trip-planning-table.js",
     "database/idle-history-ui.js",

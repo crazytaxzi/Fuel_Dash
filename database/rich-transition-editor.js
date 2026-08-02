@@ -4,11 +4,11 @@
   const PTA_NOTES_KEY = "vixenPtaActionNotesV1";
   const DRIVER_NOTES_KEY = "vixenDriverActionNotesV1";
   const NOTE_SELECTION_KEY = "vixenTransitionNoteSelectionV1";
-  const SETTINGS_KEY = "vixenTransitionEmailSettingsV2";
-  const LEGACY_SETTINGS_KEY = "vixenTransitionEmailSettingsV1";
-  const DRAFT_KEY = "vixenTransitionEmailDraftV2";
+  const SETTINGS_KEY = "vixenTransitionEmailSettingsV3";
+  const LEGACY_SETTINGS_KEY = "vixenTransitionEmailSettingsV2";
+  const DRAFT_KEY = "vixenTransitionEmailDraftV3";
   const DATE_SCOPE_KEY = "vixenTransitionDateScopeV1";
-  const FORMAT_VERSION = 2;
+  const FORMAT_VERSION = 3;
 
   const DEFAULT_SETTINGS = Object.freeze({
     formatVersion: FORMAT_VERSION,
@@ -16,39 +16,13 @@
     cc: "",
     subjectTemplate: "Shift Transition - {{date}}",
     bodyTemplate: [
-      '<div style="font-family:Arial,Helvetica,sans-serif;color:#172033;line-height:1.45;max-width:760px;margin:0 auto;">',
-      '  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#18263a;color:#ffffff;border-radius:10px;overflow:hidden;">',
-      '    <tr><td style="padding:22px 24px;">',
-      '      <div style="font-size:12px;letter-spacing:1.8px;text-transform:uppercase;color:#a9f3c0;">{{brand}} Fleet Operations</div>',
-      '      <div style="font-size:24px;font-weight:700;margin-top:4px;">Shift Transition</div>',
-      '      <div style="font-size:13px;color:#d8e1ec;margin-top:7px;">{{weekday}}, {{date}} · Prepared {{time}}</div>',
-      '    </td></tr>',
-      '  </table>',
-      '  <div style="height:16px;"></div>',
-      '  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">',
-      '    <tr>',
-      '      <td width="50%" style="padding:0 6px 0 0;vertical-align:top;">',
-      '        <div style="border:1px solid #d8e0ea;border-radius:9px;padding:14px 16px;background:#f8fafc;">',
-      '          <div style="font-size:12px;text-transform:uppercase;letter-spacing:1.1px;color:#667085;">Truck follow-ups</div>',
-      '          <div style="font-size:25px;font-weight:700;color:#172033;margin-top:3px;">{{truck_count}}</div>',
-      '        </div>',
-      '      </td>',
-      '      <td width="50%" style="padding:0 0 0 6px;vertical-align:top;">',
-      '        <div style="border:1px solid #d8e0ea;border-radius:9px;padding:14px 16px;background:#f8fafc;">',
-      '          <div style="font-size:12px;text-transform:uppercase;letter-spacing:1.1px;color:#667085;">Driver follow-ups</div>',
-      '          <div style="font-size:25px;font-weight:700;color:#172033;margin-top:3px;">{{driver_count}}</div>',
-      '        </div>',
-      '      </td>',
-      '    </tr>',
-      '  </table>',
-      '  <div style="height:18px;"></div>',
-      '  <div style="font-size:17px;font-weight:700;color:#172033;border-bottom:3px solid #7c3aed;padding-bottom:7px;margin-bottom:10px;">🚛 Truck / PTA follow-ups</div>',
-      '  {{truck_followups_html}}',
-      '  <div style="height:20px;"></div>',
-      '  <div style="font-size:17px;font-weight:700;color:#172033;border-bottom:3px solid #16a34a;padding-bottom:7px;margin-bottom:10px;">⛽ Driver / idle follow-ups</div>',
-      '  {{driver_followups_html}}',
-      '  <div style="height:18px;"></div>',
-      '  <div style="font-size:12px;color:#667085;border-top:1px solid #d8e0ea;padding-top:10px;">Total selected follow-ups: <strong>{{followup_count}}</strong></div>',
+      '<div style="font-family:Arial,Helvetica,sans-serif;color:#172033;line-height:1.5;max-width:760px;">',
+      '<div style="font-size:20px;font-weight:700;">Shift Transition</div>',
+      '<div style="font-size:12px;color:#667085;margin-bottom:16px;">{{weekday}}, {{date}}</div>',
+      '<div style="font-size:14px;font-weight:700;margin:12px 0 5px;">PTA / truck operations</div>',
+      '{{truck_followups_html}}',
+      '<div style="font-size:14px;font-weight:700;margin:16px 0 5px;">Fuel coaching</div>',
+      '{{driver_followups_html}}',
       '</div>',
     ].join("\n"),
   });
@@ -134,7 +108,7 @@
         <div><span class="eyebrow">SHIFT HANDOFF</span><h2>Rich Transition Email</h2></div>
         <div class="transition-summary"><strong id="transitionSelectedCount">0</strong><span>selected notes</span></div>
       </div>
-      <div class="table-explainer"><strong>Built for Outlook:</strong> selected truck notes are grouped by truck into simple bordered cards containing the truck, driver, and notes only. Driver-only notes remain grouped by driver identity. Format the prepared message with bold, italic, underline, and emoji controls. Use <strong>Copy Rich Email</strong> to paste into an Outlook draft or download the HTML .eml file. The mail-app shortcut is plain text because mail links cannot carry rich HTML.</div>
+      <div class="table-explainer"><strong>Built for Outlook:</strong> PTA and idle notes are grouped by persistent driver identity. The current truck is shown as operational context and can change without splitting the driver's history. Format the prepared message with bold, italic, underline, and emoji controls. Use <strong>Copy Rich Email</strong> to paste into an Outlook draft or download the HTML .eml file. The mail-app shortcut is plain text because mail links cannot carry rich HTML.</div>
       <div class="transition-address-panel panel">
         <div class="transition-address-grid">
           <label><span>To</span><input id="transitionToInput" type="text" placeholder="name@company.com; another@company.com" /></label>
@@ -508,15 +482,11 @@
     const driverNotesSelected = collectDriverFollowups(driverNotes, scope, selections);
     const selectedNotes = [...truckNotes, ...driverNotesSelected]
       .sort((a, b) => a.savedAt - b.savedAt || a.text.localeCompare(b.text));
-    const groups = groupSelectedFollowups(selectedNotes, scope);
-    const truckGroups = groups.filter((item) => item.hasTruck);
-    const driverOnlyGroups = groups.filter((item) => !item.hasTruck);
-    const truckHtml = truckGroups.length
-      ? truckGroups.map((item) => item.html).join("")
-      : emptyStateHtml(`No truck-linked follow-ups selected for ${scope.emptyLabel}.`);
-    const driverHtml = driverOnlyGroups.length
-      ? driverOnlyGroups.map((item) => item.html).join("")
-      : emptyStateHtml(`No driver-only follow-ups selected for ${scope.emptyLabel}.`);
+    const truckGroups = groupSelectedFollowups(truckNotes, scope);
+    const driverOnlyGroups = groupSelectedFollowups(driverNotesSelected, scope);
+    const groups = [...truckGroups, ...driverOnlyGroups];
+    const truckHtml = truckNotes.length ? truckNotes.map(compactFollowupLineHtml).join("") : emptyStateHtml(`No PTA follow-ups selected for ${scope.emptyLabel}.`);
+    const driverHtml = driverNotesSelected.length ? driverNotesSelected.map(compactFollowupLineHtml).join("") : emptyStateHtml(`No fuel follow-ups selected for ${scope.emptyLabel}.`);
     return {
       date: scope.dateLabel,
       date_scope: scope.label,
@@ -551,7 +521,7 @@
         .filter((note) => dateMatchesScope(note.savedAt, scope.dates) && noteIncluded("pta", note, selections))
         .sort((a, b) => new Date(a.savedAt) - new Date(b.savedAt));
       notes.forEach((note) => {
-        const truckLabel = cleanLine(note.truck || truck) || "Unknown";
+        const truckLabel = cleanLine(note.truck);
         const parsed = grouping?.parseDriverIdentity?.(note.driver) || { name: cleanLine(note.driver), code: "" };
         const driverName = cleanLine(parsed.name);
         const driverCode = cleanLine(note.driverCode || parsed.code);
@@ -570,9 +540,10 @@
           note.destination ? `Destination ${cleanLine(note.destination)}` : "",
         ].filter(Boolean).join(" | ");
         const noteText = cleanNoteText(note.text);
+        if (!cleanLine(note.driver) || !truckLabel) return;
         items.push({
           type: "truck",
-          sourceLabel: "Truck / PTA note",
+          sourceLabel: "PTA",
           savedAt: safeTime(note.savedAt),
           truck: truckLabel,
           driverName,
@@ -618,9 +589,10 @@
           .join("");
         const metricsText = metricPairs.map(([label, value]) => `${label} ${value}`).join(" | ");
         const noteText = cleanNoteText(note.text);
+        if (!driverName || !truckLabel) return;
         items.push({
           type: "driver",
-          sourceLabel: "Driver / idle note",
+          sourceLabel: "Fuel",
           savedAt: safeTime(note.savedAt),
           truck: truckLabel,
           driverName,
@@ -646,7 +618,10 @@
     const grouping = window.VixenTransitionGrouping;
     const groupingMessages = messages.map((message) => {
       const truck = grouping?.normalizeTruck?.(message.truck) || cleanLine(message.truck);
-      return truck ? { ...message, identities: [`truck:${truck}`] } : message;
+      const driverCode = grouping?.normalizeDriverCode?.(message.driverCode);
+      const driverName = grouping?.normalizeDriverName?.(message.driverName || message.driverRaw);
+      const identities = driverCode ? [`code:${driverCode}`] : driverName ? [`name:${driverName}`] : truck ? [`truck:${truck}`] : [];
+      return { ...message, identities };
     });
     const rawGroups = grouping?.groupMessages
       ? grouping.groupMessages(groupingMessages)
@@ -654,6 +629,13 @@
     return rawGroups
       .map((group) => renderFollowupGroup(group, scope))
       .sort((a, b) => a.savedAt - b.savedAt || a.text.localeCompare(b.text));
+  }
+
+  function compactFollowupLineHtml(message) {
+    const truck = cleanLine(message.truck) || "UNASSIGNED";
+    const driver = cleanLine(message.driverName || message.driverRaw) || "Unknown driver";
+    const note = cleanNoteText(message.noteText || "Note saved without text");
+    return `<div style="font-size:14px;margin:3px 0;"><strong>${escapeHtml(truck)}</strong> - ${escapeHtml(driver)}: ${escapeHtml(note).replace(/\n/g, "<br>")}</div>`;
   }
 
   function renderFollowupGroup(group, scope) {
@@ -665,9 +647,9 @@
     const hasTruck = messages.some((message) => message.type === "truck" || cleanLine(message.truck));
     const hasDriver = messages.some((message) => message.type === "driver" || cleanLine(message.driverName) || cleanLine(message.driverCode));
     const titleParts = [
-      trucks.length ? `${trucks.length === 1 ? "Truck" : "Trucks"} ${formatIdentityList(trucks)}` : "",
       names.length ? formatIdentityList(names) : "",
       codes.length ? `(${formatIdentityList(codes)})` : "",
+      trucks.length ? `${trucks.length === 1 ? "Truck" : "Trucks"} ${formatIdentityList(trucks)}` : "",
     ].filter(Boolean);
     const titleText = titleParts.join(" · ") || "Unmatched follow-up";
     const sourceTypes = [
@@ -685,22 +667,6 @@
       const details = message.detailsText ? ` | ${message.detailsText}` : "";
       return `[${formatDateTime(message.savedAt)}] ${message.sourceLabel || "Follow-up"}${details}\n${message.noteText || "Note saved without text"}`;
     }).join("\n\n");
-    if (hasTruck) {
-      const truckLabel = trucks[0] || "Unknown";
-      const driverLabel = names.length ? formatIdentityList(names) : "";
-      const notes = messages.map((message) => message.noteText || "Note saved without text");
-      const headingText = `${truckLabel}${driverLabel ? ` — ${driverLabel}` : ""}`;
-      return {
-        savedAt: messages[0]?.savedAt || Number(group.savedAt || 0),
-        text: `${headingText}\n${notes.join("\n\n")}`,
-        html: truckFollowupGroupHtml(truckLabel, driverLabel, notes),
-        hasTruck,
-        hasDriver,
-        messageCount: messages.length,
-        messages,
-        identities: group.identities || [],
-      };
-    }
     return {
       savedAt: messages[0]?.savedAt || Number(group.savedAt || 0),
       text: `${plainHeader}\n${summary}\n${plainMessages}`,

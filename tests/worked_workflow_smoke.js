@@ -34,8 +34,8 @@ assert.equal((workflowSource.match(/new Notification\("Fuel Dash needs attention
 assert.match(workflowSource, /vixenLastAttentionNoticeV2/, "Attention notification state must persist across reloads");
 assert.doesNotMatch(workflowSource, /vixenLastAttentionNoticeV1/, "Session-only notification tracking must not return");
 
-const noteOne = { id: "p1", text: "Called driver", savedAt: "2026-07-26T10:00:00" };
-const noteTwo = { id: "p2", text: "Reset confirmed", savedAt: "2026-07-26T11:00:00" };
+const noteOne = { id: "p1", truck: "300001", driver: "Test Driver", text: "Called driver", savedAt: "2026-07-26T10:00:00" };
+const noteTwo = { id: "p2", truck: "300001", driver: "Test Driver", text: "Reset confirmed", savedAt: "2026-07-26T11:00:00" };
 assert.equal(api.completionState("pta", noteOne, {}).done, false);
 assert.equal(api.completionState("pta", noteOne, { "pta:p1": { completedAt: "2026-07-26T10:30:00" } }).done, true);
 assert.equal(api.completionState("pta", noteTwo, { "pta:p1": { completedAt: "2026-07-26T10:30:00" } }).done, false, "completion must not spill to another note on the same truck");

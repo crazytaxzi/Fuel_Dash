@@ -1,4 +1,23 @@
-# Fuel Dash 3.19.3
+# Fuel Dash 3.20.0
+
+## 3.20.0 coaching and operational tracking
+
+- Makes Today use the actual five highest eligible current 7-day idlers and gives the five lowest idlers a dedicated Capture Idea action.
+- Adds structured coaching types, follow-up states, follow-up dates, and performance-at-note context.
+- Retains up to 120 dated fuel snapshots and provides searchable fuel coaching and performance history.
+- Adds reversible manual driver-to-truck corrections and supports a maximum of two manually linked drivers per team truck.
+- Blocks fuel and PTA note saves unless both the driver and truck are known.
+- Keeps fuel and PTA notes in separate operational domains while using the same persistent driver and historical truck identity.
+- Reduces selected handoff notes to one line: bold truck number, driver name, and note; the word “Truck” is intentionally omitted.
+
+## Unified driver and truck operations
+
+- Treats the driver code and driver name as the persistent identity, with the current truck displayed as that driver's operational container.
+- Joins Missing-BOL orders to fuel-detail orders to accept a truck assignment only when the source data provides order-level evidence.
+- Recomputes rolling 7-day and 28-day idle as total idle hours divided by total engine hours after Personal records and saved exclusions are removed.
+- Replaces the standalone Unit Watchlist navigation with driver-and-truck assignment evidence in the unified review.
+- Keys PTA notes to the matched driver and migrates legacy truck-keyed notes when a reliable match is available, so notes follow truck changes.
+- Groups transition cards by driver code or driver name first and shows truck, PTA, and idle details as context on the same card.
 
 ## Release catch-up
 
@@ -22,6 +41,8 @@
 - Groups truck-linked notes strictly by truck so a shared driver cannot combine unrelated trucks.
 - Gives Division 305 cards the same concise truck, driver, and latest-note structure.
 - Adds a visible accent border to manual `card_start` and `card_end` blocks.
+
+The newer unified-driver behavior above supersedes the earlier truck-only grouping rules in this section.
 
 ## Desktop and workflow reliability
 

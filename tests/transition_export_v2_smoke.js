@@ -10,15 +10,15 @@ const api = window.VixenTransitionExport;
 const now = new Date(2026, 6, 27, 15, 0);
 const pta = {
   "300001": [
-    { id: "pta-a", savedAt: new Date(2026, 6, 27, 9, 0).toISOString(), driver: "Test Driver", status: "Late", destination: "Dallas", text: "Called driver" },
-    { id: "pta-b", savedAt: new Date(2026, 6, 27, 10, 0).toISOString(), driver: "Test Driver", planStatus: "Planned", text: "Reset confirmed" },
+    { id: "pta-a", savedAt: new Date(2026, 6, 27, 9, 0).toISOString(), truck: "300001", driver: "Test Driver", status: "Late", destination: "Dallas", text: "Called driver" },
+    { id: "pta-b", savedAt: new Date(2026, 6, 27, 10, 0).toISOString(), truck: "300001", driver: "Test Driver", planStatus: "Planned", text: "Reset confirmed" },
     { id: "pta-c", savedAt: new Date(2026, 6, 27, 11, 0).toISOString(), text: "Internal note only" },
   ],
 };
 const drivers = {
   "123456": [
-    { id: "driver-a", savedAt: new Date(2026, 6, 27, 11, 0).toISOString(), driverName: "Test Driver", text: "Discussed idle" },
-    { id: "driver-b", savedAt: new Date(2026, 6, 27, 12, 0).toISOString(), driverName: "Test Driver", text: "Private reminder" },
+    { id: "driver-a", savedAt: new Date(2026, 6, 27, 11, 0).toISOString(), truck: "300001", driverName: "Test Driver", text: "Discussed idle" },
+    { id: "driver-b", savedAt: new Date(2026, 6, 27, 12, 0).toISOString(), truck: "300001", driverName: "Test Driver", text: "Private reminder" },
   ],
 };
 
@@ -38,10 +38,10 @@ assert.match(output.all_followups, /Called driver/);
 assert.match(output.all_followups, /Reset confirmed/);
 assert.match(output.all_followups, /Discussed idle/);
 assert.doesNotMatch(output.all_followups, /Internal note only|Private reminder/);
-assert.match(output.truck_followups_html, /<strong>300001<\/strong> &mdash; Test Driver/);
-assert.doesNotMatch(output.truck_followups_html, /Truck <strong>/);
-assert.match(output.truck_followups_html, /border-bottom:1px solid #d8e0ea/);
-assert.doesNotMatch(output.truck_followups_html, /Late|Dallas|Planned|Truck \/ PTA note|Idle today|message/);
+assert.match(output.truck_followups_html, /<strong>300001<\/strong> - Test Driver: Called driver/);
+assert.match(output.truck_followups_html, /<strong>300001<\/strong> - Test Driver: Reset confirmed/);
+assert.doesNotMatch(output.truck_followups_html, /\bTruck\b|Late|Dallas|Planned|message/);
+assert.match(output.driver_followups_html, /<strong>300001<\/strong> - Test Driver: Discussed idle/);
 assert.equal(api.noteIncluded("pta", { id: "pta-a" }, selections), true);
 assert.equal(api.noteIncluded("pta", { id: "pta-c" }, selections), false);
 console.log("Transition export default-off selection smoke test passed.");

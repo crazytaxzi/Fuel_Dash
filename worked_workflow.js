@@ -277,12 +277,14 @@
 
   function collectWorkedItems(now = Date.now(), ptaNotes = readObject(PTA_NOTES_KEY), driverNotes = readObject(DRIVER_NOTES_KEY), completions = readObject(COMPLETE_KEY), selections = readObject(SELECTION_KEY)) {
     const items = [];
-    Object.entries(ptaNotes || {}).forEach(([truck, notes]) => (Array.isArray(notes) ? notes : []).forEach((rawNote) => {
+    Object.entries(ptaNotes || {}).forEach(([key, notes]) => (Array.isArray(notes) ? notes : []).forEach((rawNote) => {
       const time = new Date(rawNote?.savedAt).getTime();
       const noteId = String(rawNote?.id ?? "").trim();
       if (!Number.isFinite(time) || !noteId) return;
       const note = { ...rawNote, time };
-      items.push({ type: "pta", identity: truck, noteId, label: truck, meta: [note.driver || "No driver", note.destination || "No destination"].join(" · "), note, done: completionState("pta", note, completions).done, included: selections[noteStateKey("pta", noteId)] === true });
+      const truck = note.truck || "";
+      if (!truck || !note.driver) return;
+      items.push({ type: "pta", identity: truck, noteId, label: `${truck} — ${note.driver}`, meta: ["PTA", note.destination || "No destination"].join(" · "), note, done: completionState("pta", note, completions).done, included: selections[noteStateKey("pta", noteId)] === true });
     }));
     Object.entries(driverNotes || {}).forEach(([key, notes]) => (Array.isArray(notes) ? notes : []).forEach((rawNote) => {
       const time = new Date(rawNote?.savedAt).getTime();

@@ -19,6 +19,7 @@
     apu: { threshold: 11, phrases: [["electric apu", 8], ["apu hours", 5], ["engine idle hours", 5], ["battery soc", 5], ["state of charge", 4], ["faults", 3]] },
     ptaTracker: { threshold: 11, phrases: [["projected time available", 8], ["pta", 4], ["truck", 3], ["driver", 3], ["status", 2], ["plans", 3]] },
     ptaFinder: { threshold: 12, phrases: [["pta", 4], ["preplan", 6], ["available", 4], ["dispatched", 4], ["flag", 3], ["truck", 2], ["driver", 2]] },
+    driverAssignments: { threshold: 14, phrases: [["last dispatch driver cd", 8], ["last dispatch driver nm", 8], ["order", 3], ["empty call date", 3]] },
     driverPdf: { threshold: 11, pdfOnly: true, phrases: [["driver", 3], ["dispatch mpg", 5], ["idle", 3], ["fuel cost", 4], ["unit", 2]] },
   });
 
@@ -69,6 +70,10 @@
     if (!run.routes.driverPdf && run.routes.reportDriverMetrics && /\.pdf$/i.test(run.routes.reportDriverMetrics.name)) {
       run.routes.driverPdf = run.routes.reportDriverMetrics;
     }
+
+    // Assignment evidence is also consumed by the Missing BOL view. Giving it a
+    // first-class route lets the main parser join order -> truck -> driver without
+    // depending on a filename or parsing the workbook twice.
 
     const used = new Set(Object.values(run.routes));
     run.unclassified = files.filter((file) => !used.has(file)).map((file) => file.name);

@@ -46,8 +46,7 @@
 
       <nav class="nav-list" aria-label="Dashboard views">
         <button class="nav-item active" data-view="overview"><span>⌂</span>Overview</button>
-        <button class="nav-item" data-view="drivers"><span>◉</span>Cost Drivers</button>
-        <button class="nav-item" data-view="units"><span>♜</span>Unit Watchlist</button>
+        <button class="nav-item" data-view="drivers"><span>◉</span>Fuel Coaching</button>
         <button class="nav-item" data-view="apu"><span>⚡</span>Electric APU</button>
         <button class="nav-item" data-view="pta"><span>◷</span>PTA Dispatch</button>
         <button class="nav-item" data-view="exceptions"><span>▤</span>Fueling Events</button>
@@ -93,7 +92,7 @@
           </article>
           <article class="kpi-card purple">
             <div class="kpi-icon">▣</div>
-            <div class="kpi-copy"><span>TRUCKS OVER 50% IDLE</span><strong id="kpiHighIdleTrucks">--</strong><small id="kpiHighIdleTrucksNote">Rolling 7-day idle from matched trucks</small></div>
+            <div class="kpi-copy"><span>DRIVERS OVER 50% IDLE</span><strong id="kpiHighIdleTrucks">--</strong><small id="kpiHighIdleTrucksNote">Eligible unified records</small></div>
             <div class="kpi-bar"><i id="kpiHighIdleTrucksBar"></i></div>
           </article>
           <article class="kpi-card purple">
@@ -142,10 +141,10 @@
 
         <div class="secondary-grid">
           <article class="panel watch-panel">
-            <div class="panel-title green-text"><span>▧</span> UNITS TO REVIEW</div>
-            <button class="view-all" data-view-target="units">VIEW ALL</button>
-            <div class="watch-table header"><span>Unit</span><span>Added cost</span><span>Net cost</span><span>Review level</span></div>
-            <div id="unitWatchList" class="watch-table-body empty-state">No unit data yet.</div>
+            <div class="panel-title green-text"><span>▧</span> DRIVER + TRUCK EVIDENCE</div>
+            <button class="view-all" data-view-target="drivers">VIEW ALL</button>
+            <div class="watch-table header"><span>Driver</span><span>Code</span><span>Current truck</span><span>Evidence</span></div>
+            <div id="unitWatchList" class="watch-table-body empty-state">No assignment evidence yet.</div>
           </article>
 
           <article class="panel trend-panel">
@@ -185,7 +184,7 @@
       </section>
 
       <section id="driversView" class="view table-view">
-        <div class="view-heading"><div><span class="eyebrow">PEOPLE + PERFORMANCE</span><h2>Drivers to Review</h2></div><input class="table-search" data-table="driversTable" placeholder="Search drivers..." /></div>
+        <div class="view-heading"><div><span class="eyebrow">DRIVER + CURRENT TRUCK</span><h2>Unified Idle Review</h2></div><input class="table-search" data-table="driversTable" placeholder="Search driver, code, or truck..." /></div>
         <div class="table-explainer"><strong>How to read this:</strong> use the idle columns to identify the highest and best idlers. Cost fields are available only when the selected source reports provide enough driver-level detail.</div>
         <div class="table-shell"><table id="driversTable"><thead><tr><th>Review level</th><th>Driver</th><th>Leader</th><th>Fuel MPG</th><th>Idle today</th><th>7-day idle</th><th>28-day idle</th><th>Out-of-route</th><th>MPG while moving</th><th>Estimated excess gallons</th><th>Possible 28-day savings</th><th>What stands out</th><th>What to check next</th><th>Details</th></tr></thead><tbody></tbody></table></div>
       </section>
@@ -338,7 +337,8 @@
           <div><span class="modal-kicker">TODAY'S DRIVER LOG</span><h3 id="driverActionNoteHeading">Fuel / idle follow-up notes</h3></div>
           <small id="driverActionNoteStatus">Included in the next shift-transition export.</small>
         </div>
-        <textarea id="driverActionNoteInput" class="action-note-input" maxlength="2500" spellcheck="true" placeholder="Example: Reviewed idle with driver; weather delay accounted for most of today’s idle. Recheck tomorrow."></textarea>
+        <div class="coaching-note-fields"><label>Record type<select id="driverNoteType"><option>Coaching</option><option>Observation</option><option>Driver explanation</option><option>Commitment</option><option>Outcome</option><option>Best-practice idea</option></select></label><label>Status<select id="driverFollowUpStatus"><option>Open</option><option>Waiting</option><option>Improved</option><option>No change</option><option>Closed</option></select></label><label>Follow-up date<input id="driverFollowUpAt" type="date" /></label></div>
+        <textarea id="driverActionNoteInput" class="action-note-input" maxlength="2500" spellcheck="true" placeholder="Record the conversation, commitment, outcome, or reusable idea..."></textarea>
         <div class="pta-action-note-controls">
           <span>Tip: press Ctrl+Enter to save.</span>
           <button id="clearDriverActionNoteBtn" class="button button-secondary" type="button">Clear draft</button>
@@ -375,6 +375,7 @@
           <div><span class="modal-kicker">YOUR FOLLOW-UP LOG</span><h3 id="ptaActionNoteHeading">Why did we take that action?</h3></div>
           <small id="ptaActionNoteStatus">Notes are saved locally in this browser.</small>
         </div>
+        <label class="pta-note-driver-field">Driver for this note<select id="ptaNoteDriverSelect"><option value="">Assignment required</option></select></label>
         <textarea id="ptaActionNoteInput" maxlength="2500" spellcheck="true" placeholder="Example: Held the truck because the driver needed a reset. Called dispatch at 14:20 and moved the PTA to the evening queue."></textarea>
         <div class="pta-action-note-controls">
           <span>Tip: press Ctrl+Enter to save.</span>

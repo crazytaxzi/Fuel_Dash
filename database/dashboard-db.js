@@ -12,6 +12,8 @@
     "vixenManualPtaSavedAt",
     "vixenPtaActionNotesV1",
     "vixenDriverActionNotesV1",
+    "vixenDriverTruckAssignmentsV1",
+    "vixenFuelSnapshotsV1",
     "vixenWorkedNoteCompletionV2",
     "vixenTransitionNoteSelectionV1",
     "vixenSpecialNotesV1",
@@ -355,10 +357,11 @@
       groups = {};
     }
     const matches = [];
-    Object.entries(groups && typeof groups === "object" ? groups : {}).forEach(([truck, notes]) => {
+    Object.entries(groups && typeof groups === "object" ? groups : {}).forEach(([key, notes]) => {
       (Array.isArray(notes) ? notes : []).forEach((note) => {
-        const haystack = normalize([truck, note?.text, note?.driver, note?.status, note?.planStatus, note?.destination, note?.pta, note?.savedAt].join(" "));
-        if (!needle || haystack.includes(needle)) matches.push({ truck, ...note });
+        const truck = note?.truck || "";
+        const haystack = normalize([truck, key, note?.driverCode, note?.text, note?.driver, note?.status, note?.planStatus, note?.destination, note?.pta, note?.savedAt].join(" "));
+        if (!needle || haystack.includes(needle)) matches.push({ key, ...note, truck });
       });
     });
     return matches
