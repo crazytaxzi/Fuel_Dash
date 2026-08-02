@@ -7,6 +7,7 @@
   const ROLE_GROUPS = Object.freeze({
     legacy: ["summary", "drivers", "detail", "trend"],
     idle: ["detail", "driverMetricsDetail", "driverDetails", "rolling7Day"],
+    csvIdle: ["rollingIdleCsv", "rolling28IdleCsv"],
     basic: ["reportDriverMetrics", "reportCompliance", "reportCost", "reportMpg"],
   });
 

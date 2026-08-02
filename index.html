@@ -15,11 +15,11 @@
       <div class="connect-brand">VIXEN <span>FLEET OPS</span></div>
       <h1>Connect your fuel-report folder</h1>
       <p>
-        Choose a local folder or select reports manually. Every supported XLSX and text-based PDF is inspected by its headers, values, and worksheet structure. Filenames are ignored. Complete report sets populate the full dashboard; partial and auxiliary reports remain available without manufacturing missing metrics.
+        Choose a local folder or select reports manually. CSV, XLSX, and text-based PDF reports are inspected by their headers, values, and structure. Filenames are ignored. The rolling-idle CSV is the authoritative fuel-coaching source; operational reports supply truck evidence and fueling-event context.
       </p>
       <button id="connectFolderBtn" class="button button-primary">Choose Data Folder</button>
       <button id="fallbackFilesBtn" class="button button-secondary">Choose Files Instead</button>
-      <input id="fallbackFilesInput" type="file" accept=".xlsx,.xlsm,.xlsb,.xls,.pdf" multiple hidden />
+      <input id="fallbackFilesInput" type="file" accept=".csv,.xlsx,.xlsm,.xlsb,.xls,.pdf" multiple hidden />
       <div id="connectError" class="connect-error"></div>
       <small>Your reports stay on this computer. The dashboard reads them locally.</small>
     </div>
@@ -395,8 +395,8 @@
 
   <script src="vendor/xlsx.full.min.js"></script>
   <script src="vendor/chart.umd.js"></script>
-  <script src="database/dashboard-db.js?v=3.20.3"></script>
-  <script src="database/bootstrap.js?v=3.20.3"></script>
-  <script type="module" src="pdf_to_xlsx.js?v=3.20.3"></script>
+  <script src="database/dashboard-db.js?v=3.21.0"></script>
+  <script src="database/bootstrap.js?v=3.21.0"></script>
+  <script type="module" src="pdf_to_xlsx.js?v=3.21.0"></script>
 </body>
 </html>

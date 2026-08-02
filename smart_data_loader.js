@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const SUPPORTED_REPORT = /\.(?:xlsx|xlsm|xlsb|xls|pdf)$/i;
+  const SUPPORTED_REPORT = /\.(?:csv|xlsx|xlsm|xlsb|xls|pdf)$/i;
   const diagnostics = { files: [], routes: {}, unclassified: [], errors: [] };
   const inspectionCache = new Map();
   const ROLE_RULES = Object.freeze({
@@ -15,6 +15,8 @@
     reportCost: { threshold: 12, phrases: [["fuel noncompliant cost analysis", 10], ["gallon over under cost", 6], ["location noncompliant cost", 6], ["total noncompliant cost", 6]] },
     reportMpg: { threshold: 11, xlsxThreshold: 16, phrases: [["mpg by driver", 10], ["dispatch mpg", 5], ["driver code", 4], ["driver name", 3], ["mpg", 2]] },
     rolling7Day: { threshold: 12, phrases: [["rolling 7 day", 10], ["idle", 3], ["driver", 2]] },
+    rollingIdleCsv: { threshold: 20, csvOnly: true, phrases: [["rolling 7 day engine time", 8], ["rolling 7 day idle time", 8], ["measure names", 4], ["unit code", 4], ["ops lob", 3]] },
+    rolling28IdleCsv: { threshold: 20, csvOnly: true, phrases: [["rolling 28 day engine time", 8], ["rolling 28 day idle time", 8], ["dispatch mpg", 4], ["moving mpg", 4], ["unit code", 3]] },
     driverDetails: { threshold: 12, phrases: [["driver details", 8], ["cruise in time", 10], ["moving mpg", 4], ["idle", 3]] },
     apu: { threshold: 11, phrases: [["electric apu", 8], ["apu hours", 5], ["engine idle hours", 5], ["battery soc", 5], ["state of charge", 4], ["faults", 3]] },
     ptaTracker: { threshold: 11, phrases: [["projected time available", 8], ["pta", 4], ["truck", 3], ["driver", 3], ["status", 2], ["plans", 3]] },
@@ -121,7 +123,7 @@
     let workbook = null;
     const inspection = /\.pdf$/i.test(file.name)
       ? await inspectPdf(await file.arrayBuffer())
-      : inspectWorkbook(workbook = await readWorkbook(file));
+      : inspectWorkbook(workbook = await readWorkbook(file), /\.csv$/i.test(file.name) ? "csv" : "xlsx");
 
     file.vixenInspection = inspection;
     if (workbook) file.vixenWorkbook = workbook;
@@ -137,7 +139,7 @@
     return XLSX.read(await file.arrayBuffer(), { type: "array", raw: true, cellDates: false, cellText: false, cellNF: false, dense: false });
   }
 
-  function inspectWorkbook(workbook) {
+  function inspectWorkbook(workbook, kind = "xlsx") {
     const sheetNames = workbook.SheetNames.slice();
     const rows = [];
     const text = [...sheetNames];
@@ -155,7 +157,7 @@
       }
       if (cellsLeft <= 0) break;
     }
-    return { kind: "xlsx", text: normalize(text.join("\n")), rows, sheetNames };
+    return { kind, text: normalize(text.join("\n")), rows, sheetNames };
   }
 
   async function inspectPdf(buffer) {
@@ -174,6 +176,14 @@
   function scoreInspection(inspection) {
     const result = {};
     for (const [role, rule] of Object.entries(ROLE_RULES)) {
+      if (inspection.kind === "csv" && !rule.csvOnly) {
+        result[role] = 0;
+        continue;
+      }
+      if (rule.csvOnly && inspection.kind !== "csv") {
+        result[role] = 0;
+        continue;
+      }
       if (rule.pdfOnly && inspection.kind !== "pdf") {
         result[role] = 0;
         continue;
@@ -194,7 +204,7 @@
   }
 
   function structuralScore(role, inspection) {
-    if (inspection.kind !== "xlsx") return 0;
+    if (!["xlsx", "csv"].includes(inspection.kind)) return 0;
     const rows = inspection.rows;
     if (role === "detail" && headerRow(rows, ["actual fuel date", "rec gallons", "actual gallons", "location compliant"]) >= 0) return 14;
     if (role === "summary" && headerRow(rows, ["zz recommendation", "zz compliance", "re opt count"]) >= 0) return 12;
@@ -202,6 +212,8 @@
     if (role === "trend" && rows.some((row) => normalize(row?.[0]).includes("line tooltip title")) && rows.some((row) => normalize(row?.[1]).includes("total noncompliant cost"))) return 12;
     if ((role === "reportDriverMetrics" || role === "driverMetricsDetail") && headerRow(rows, ["driver", "dispatch mpg", "idle"]) >= 0) return 12;
     if (role === "rolling7Day" && rollingSevenStructure(rows)) return 14;
+    if (role === "rollingIdleCsv" && headerRow(rows, ["group by", "measure names", "rolling 7 day engine time", "rolling 7 day idle time", "unit code"]) >= 0) return 20;
+    if (role === "rolling28IdleCsv" && headerRow(rows, ["group by", "rolling 28 day engine time", "rolling 28 day idle time", "dispatch mpg", "unit code"]) >= 0) return 20;
     if (role === "driverDetails" && rollingHistoryStructure(rows)) return 14;
     if (role === "apu" && (headerRow(rows, ["apu", "idle", "driver"]) >= 0 || (rollingHistoryStructure(rows) && rows.some((row) => row.some((cell) => /\b(?:electric\s+)?apu\b/.test(normalize(cell))))))) return 12;
     if (role === "ptaTracker" && headerRow(rows, ["truck", "driver", "pta", "status"]) >= 0) return 12;

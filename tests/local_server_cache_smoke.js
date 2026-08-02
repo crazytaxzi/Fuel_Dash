@@ -8,7 +8,7 @@ const html = fs.readFileSync("index.html", "utf8");
 const bootstrap = fs.readFileSync("database/bootstrap.js", "utf8");
 assert.match(server, /\$Extension\s+-in\s+@\("\.js",\s*"\.mjs",\s*"\.css"\)/, "runtime assets must revalidate after a local app update");
 assert.match(workflow, /\["PERSONAL", \["specialNotes"\]\]/, "Special Notes must remain near the top of desktop navigation");
-assert.match(html, /database\/bootstrap\.js\?v=3\.20\.3/, "the release bootstrap must bypass stale browser cache");
+assert.match(html, /database\/bootstrap\.js\?v=3\.21\.0/, "the release bootstrap must bypass stale browser cache");
 assert.match(bootstrap, /script\.src = `\$\{src\}\?v=\$\{BUILD_VERSION\}`/, "dynamically loaded modules must use the release cache key");
 
 console.log("Local upgrade cache and Special Notes navigation smoke test passed.");

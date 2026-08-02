@@ -4,9 +4,10 @@
   const REPORT_ROLE_GROUPS = Object.freeze({
     legacy: ["summary", "drivers", "detail", "trend"],
     idle: ["detail", "driverMetricsDetail", "driverDetails", "rolling7Day"],
+    csvIdle: ["rollingIdleCsv", "rolling28IdleCsv"],
     basic: ["reportDriverMetrics", "reportCompliance", "reportCost", "reportMpg"],
   });
-  const SUPPORTED_REPORT_FILE = /\.(?:xlsx|xlsm|xlsb|xls|pdf)$/i;
+  const SUPPORTED_REPORT_FILE = /\.(?:csv|xlsx|xlsm|xlsb|xls|pdf)$/i;
   const PTA_PASTE_HEADERS = ["Truck #", "Div #", "Driver", "PTA", "Status", "Plans", "Plan", "Team", "Destination", "OM", "Count"];
   const PTA_PASTE_KEYS = {
     active: "vixenManualPtaActive",
@@ -357,8 +358,9 @@
       const files = await collectSourceFiles();
       const legacyReady = reportModeReady(files, "legacy", { drivers: ["driverPdf"] });
       const idleReady = reportModeReady(files, "idle");
+      const csvIdleReady = reportModeReady(files, "csvIdle");
       const basicReady = reportModeReady(files, "basic");
-      if (!legacyReady && !idleReady && !basicReady) {
+      if (!legacyReady && !idleReady && !csvIdleReady && !basicReady) {
         throw new Error("The available reports were inspected by content, but they do not yet provide a complete fuel-analysis mode.");
       }
 
@@ -381,8 +383,10 @@
 
       state.sourceFiles = files;
       state.sourceSignatures = signatures;
-      state.analysis = idleReady
-        ? analyzeIdleReports(workbooks, files)
+      state.analysis = csvIdleReady
+        ? analyzeCsvIdleReports(workbooks, files)
+        : idleReady
+          ? analyzeIdleReports(workbooks, files)
         : legacyReady
           ? analyzeWorkbooks(workbooks, files)
           : analyzeBasicReports(workbooks, files);
@@ -392,8 +396,7 @@
       els.connectOverlay.classList.add("hidden");
       els.connectError.textContent = "";
       scheduleAutoRefresh();
-      const hasPdf = Object.values(files).some((file) => /\.pdf$/i.test(file.name));
-      showToast(`Dashboard refreshed from local ${hasPdf ? "XLSX/PDF reports" : "workbooks"}.`);
+      showToast("Dashboard refreshed from local reports.");
     } catch (error) {
       console.error(error);
       els.connectOverlay.classList.remove("hidden");
@@ -455,9 +458,9 @@
     } else if (state.fallbackFiles) {
       candidates.push(...state.fallbackFiles.filter((file) => SUPPORTED_REPORT_FILE.test(file.name || "")));
     } else {
-      throw new Error("Choose a folder or select XLSX/PDF reports to inspect.");
+      throw new Error("Choose a folder or select CSV, XLSX, or PDF reports to inspect.");
     }
-    if (!candidates.length) throw new Error("No supported XLSX or PDF reports were found.");
+    if (!candidates.length) throw new Error("No supported CSV, XLSX, or PDF reports were found.");
     return classifyReportFiles(candidates);
   }
 
@@ -489,12 +492,14 @@
       driverMetricsDetail: "driver metrics detail data",
       driverDetails: "driver operating history data",
       rolling7Day: "rolling idle history data",
+      rollingIdleCsv: "authoritative rolling idle CSV data",
+      rolling28IdleCsv: "authoritative rolling 28-day CSV data",
       driverAssignments: "driver-to-truck assignment evidence",
     })[key] || key;
   }
 
   function isIdleFocusedMode(analysis = state.analysis) {
-    return analysis?.sourceMode === "basic-reports" || analysis?.sourceMode === "idle-reports";
+    return analysis?.sourceMode === "basic-reports" || analysis?.sourceMode === "idle-reports" || analysis?.sourceMode === "csv-idle";
   }
 
   function analyzeWorkbooks(workbooks, files) {
@@ -508,7 +513,7 @@
     const drivers = driverRows.length
       ? analyzeDrivers(driverRows, summary.latest.date, state.settings.planningPpg, workbooks.driverPdf || [])
       : analyzePdfDrivers(workbooks.driverPdf || [], summary.latest.date, state.settings.planningPpg);
-    const detail = analyzeDetail(detailRows);
+    const detail = detailRows.length >= 3 ? analyzeDetail(detailRows) : emptyDetailAnalysis();
     const trend = analyzeTrend(trendRows, summary.completed, summary.latest.date);
     const apu = analyzeApu(apuRows, drivers, files.apu || null);
     const pta = analyzePta(workbooks.ptaTracker || null, workbooks.ptaFinder || null, files, activeManualPtaRows());
@@ -656,6 +661,219 @@
       summary, drivers, detail, trend, apu, pta, quality, actions, files,
       settings: { ...state.settings }, generatedAt: new Date(), sourceMode: "idle-reports",
     };
+  }
+
+  function analyzeCsvIdleReports(workbooks, files) {
+    const detailRows = workbookRows(workbooks.detail, 0);
+    const detail = detailRows.length >= 3 ? analyzeDetail(detailRows) : emptyDetailAnalysis();
+    const csv = parseRollingIdleCsv(workbooks.rollingIdleCsv);
+    const rolling28 = parseRolling28IdleCsv(workbooks.rolling28IdleCsv);
+    if (dateKey(csv.reportDate) !== dateKey(rolling28.reportDate)) {
+      throw new Error("The 7-day and 28-day CSV reports do not have the same latest reporting date.");
+    }
+    const rolling28ByIdentity = new Map(rolling28.records.flatMap((record) => [
+      record.driverCode ? [`code:${normalizeIdentity(record.driverCode)}`, record] : null,
+      record.driverName ? [`name:${normalizeIdentity(record.driverName)}`, record] : null,
+    ].filter(Boolean)));
+    csv.records.forEach((record) => {
+      const direct = rolling28ByIdentity.get(`code:${normalizeIdentity(record.driverCode)}`) || rolling28ByIdentity.get(`name:${normalizeIdentity(record.driverName)}`);
+      if (!direct) {
+        record.idle28DayPct = null;
+        record.engineHours28Day = null;
+        record.idleHours28Day = null;
+        return;
+      }
+      ["idle28DayPct", "engineHours28Day", "idleHours28Day", "dispatchMpg", "movingMpg", "oorPct", "fuelGallons", "drivingFuel", "dispatchMiles", "qualcommMiles"].forEach((field) => {
+        record[field] = direct[field] ?? null;
+      });
+      if (!record.csvTruck && direct.csvTruck) {
+        record.csvTruck = direct.csvTruck;
+        record.unit = direct.csvTruck;
+      }
+    });
+    const latestDate = csv.reportDate;
+    const complianceRows = detail.records.filter((record) => ["Y", "N"].includes(text(record.locationCompliant).toUpperCase()));
+    const compliance = complianceRows.length
+      ? complianceRows.filter((record) => text(record.locationCompliant).toUpperCase() === "Y").length / complianceRows.length
+      : 0;
+    const latest = { date: latestDate, compliance, marker: "*", recommendations: detail.records.length, followed: Math.round(detail.records.length * compliance) };
+    const summary = { completed: [latest], allDated: [latest], latest, previous: null, partialRows: [] };
+    const drivers = buildBasicReportDrivers(csv.records, [], latestDate);
+    drivers.fleetIdle7DayPct = csv.fleetIdle7DayPct;
+    drivers.fleetIdle28DayPct = rolling28.fleetIdle28DayPct;
+    const week = { date: latestDate, compliance, gallonCost: detail.totals.grossPositive, locationCost: 0, totalCost: detail.totals.netCost };
+    const trend = { weeks: [week], recent: [week], latest: week, previous: null, change: null, rollingAverage: [week.totalCost] };
+    const apu = analyzeApu(apuWorkbookRows(workbooks.apu), drivers, files.apu || null);
+    const pta = analyzePta(workbooks.ptaTracker || null, workbooks.ptaFinder || null, files, activeManualPtaRows());
+    const assignmentEvidence = parseDriverTruckEvidence(detailRows, workbooks.driverAssignments || null, files.driverAssignments || null);
+    attachDriverTruckAssignments(drivers, pta, apu, assignmentEvidence);
+    const quality = buildDataQuality(detail, drivers, summary);
+    const missing28 = drivers.records.filter((driver) => !isFiniteNumber(driver.idle28DayPct)).length;
+    const missingTruck = drivers.records.filter((driver) => !driver.idleExcluded && !driver.assignedTruck).length;
+    quality.findings.unshift({
+      severity: missing28 ? "Medium" : "Low",
+      count: missing28,
+      title: "Incomplete 28-day idle windows",
+      impact: `${formatCount(drivers.records.length - missing28)} of ${formatCount(drivers.records.length)} drivers have four consecutive raw weekly periods for a weighted 28-day calculation.`,
+      fix: "Keep four consecutive weekly rows with engine and idle hours for every active driver.",
+    }, {
+      severity: missingTruck ? "High" : "Low",
+      count: missingTruck,
+      title: "Drivers without truck evidence",
+      impact: `${formatCount(missingTruck)} drivers remain unlinked after CSV unit codes and order evidence were combined.`,
+      fix: "Refresh Detail and Missing BOL assignment evidence or add a manual driver/truck link.",
+    });
+    const actions = buildActions(drivers, detail, quality, apu, pta);
+    return {
+      summary, drivers, detail, trend, apu, pta, quality, actions, files,
+      settings: { ...state.settings }, generatedAt: new Date(), sourceMode: "csv-idle",
+    };
+  }
+
+  function parseRollingIdleCsv(workbook) {
+    const rows = workbookRows(workbook, 0);
+    const headerIndex = findHeaderRowIndex(rows, ["measure names", "rolling 7 day engine time", "rolling 7 day idle time", "unit code"]);
+    if (headerIndex < 0) throw new Error("The rolling-idle CSV did not contain the required raw-hour columns.");
+    const headers = rows[headerIndex].map(normalizeHeader);
+    const column = (...names) => names.map(normalizeHeader).map((name) => headers.findIndex((header) => header === name || header.includes(name))).find((index) => index >= 0) ?? -1;
+    const identityColumn = column("group by copy", "driver");
+    const measureColumn = column("measure names");
+    const dateColumn = column("week start date");
+    const engineColumn = column("rolling 7 day engine time 60");
+    const idleColumn = column("rolling 7 day idle time 60");
+    const dispatchMilesColumn = column("rolling 7 day dispatch miles");
+    const qualcommMilesColumn = column("rolling 7 day qualcomm miles");
+    const costCenterColumn = column("cost center");
+    const leaderColumn = column("driver leader");
+    const fleetLeaderColumn = column("fleet leader");
+    const lobColumn = column("ops lob");
+    const truckColumn = column("unit code");
+    const valueColumn = column("measure values");
+    if ([identityColumn, measureColumn, dateColumn, engineColumn, idleColumn].some((index) => index < 0)) {
+      throw new Error("The rolling-idle CSV is missing driver, date, engine-hour, or idle-hour fields.");
+    }
+    const byDriver = new Map();
+    for (const row of rows.slice(headerIndex + 1)) {
+      if (normalizeHeader(row[measureColumn]) !== "idle") continue;
+      const identity = parseCsvDriverIdentity(row[identityColumn]);
+      const date = parseDate(row[dateColumn]);
+      if ((!identity.code && !identity.name) || !date) continue;
+      const engineHours = number(row[engineColumn]);
+      const idleHours = number(row[idleColumn]);
+      const reportedIdlePct = normalizePercent(row[valueColumn]);
+      const idlePct = isFiniteNumber(engineHours) && engineHours > 0 && isFiniteNumber(idleHours) ? idleHours / engineHours : reportedIdlePct;
+      const key = normalizeIdentity(identity.code || identity.name);
+      const record = byDriver.get(key) || {
+        driverCode: identity.code, driverName: identity.name, driverLeader: text(row[leaderColumn]) || "Unassigned",
+        fleetLeader: text(row[fleetLeaderColumn]), category: text(row[lobColumn]), costCenter: text(row[costCenterColumn]), history: [],
+      };
+      record.history.push({
+        date, engineHours, idleHours, idlePct,
+        truck: normalizeCsvTruck(row[truckColumn]),
+        dispatchMiles: number(row[dispatchMilesColumn]), qualcommMiles: number(row[qualcommMilesColumn]),
+      });
+      byDriver.set(key, record);
+    }
+    const allDates = [...byDriver.values()].flatMap((driver) => driver.history.map((item) => item.date));
+    const reportDate = allDates.sort((a, b) => a - b).at(-1);
+    if (!reportDate || !byDriver.size) throw new Error("The rolling-idle CSV did not contain usable driver history.");
+    const records = [...byDriver.values()].map((driver) => {
+      const history = driver.history.sort((a, b) => a.date - b.date);
+      const latest = history.at(-1);
+      const current = dateKey(latest.date) === dateKey(reportDate) ? latest : null;
+      const fourWeeks = current ? history.slice(-4) : [];
+      const consecutive = fourWeeks.length === 4 && fourWeeks.every((item, index) => index === 0 || Math.round((item.date - fourWeeks[index - 1].date) / 86400000) === 7);
+      const completeRawHours = consecutive && fourWeeks.every((item) => isFiniteNumber(item.engineHours) && isFiniteNumber(item.idleHours));
+      const engineHours28Day = completeRawHours ? sum(fourWeeks.map((item) => item.engineHours)) : null;
+      const idleHours28Day = completeRawHours ? sum(fourWeeks.map((item) => item.idleHours)) : null;
+      const idle28DayPct = isFiniteNumber(engineHours28Day) && engineHours28Day > 0 ? idleHours28Day / engineHours28Day : null;
+      return {
+        ...driver,
+        reportDate,
+        personalCategory: /\bpersonal\b/i.test(`${driver.category} ${driver.costCenter}`),
+        idle7DayPct: current?.idlePct ?? null,
+        engineHours7Day: current?.engineHours ?? null,
+        idleHours7Day: current?.idleHours ?? null,
+        idle28DayPct,
+        engineHours28Day,
+        idleHours28Day,
+        priorIdle7DayPct: history.at(-2)?.idlePct ?? null,
+        priorIdlePct: fourWeeks.at(-2)?.idlePct ?? null,
+        csvTruck: current?.truck || "",
+        csvTruckHistory: [...new Set(history.map((item) => item.truck).filter(Boolean))],
+        unit: current?.truck || "",
+        dispatchMiles: current?.dispatchMiles ?? null,
+        qualcommMiles: current?.qualcommMiles ?? null,
+      };
+    });
+    const eligible = records.filter((driver) => !driver.personalCategory);
+    const sevenTotals = eligible.reduce((total, driver) => ({ engine: total.engine + (driver.engineHours7Day || 0), idle: total.idle + (driver.idleHours7Day || 0) }), { engine: 0, idle: 0 });
+    const twentyEightTotals = eligible.reduce((total, driver) => ({ engine: total.engine + (driver.engineHours28Day || 0), idle: total.idle + (driver.idleHours28Day || 0) }), { engine: 0, idle: 0 });
+    return {
+      records, reportDate,
+      fleetIdle7DayPct: sevenTotals.engine > 0 ? sevenTotals.idle / sevenTotals.engine : null,
+      fleetIdle28DayPct: twentyEightTotals.engine > 0 ? twentyEightTotals.idle / twentyEightTotals.engine : null,
+    };
+  }
+
+  function parseRolling28IdleCsv(workbook) {
+    const rows = workbookRows(workbook, 0);
+    const headerIndex = findHeaderRowIndex(rows, ["rolling 28 day engine time", "rolling 28 day idle time", "dispatch mpg", "unit code"]);
+    if (headerIndex < 0) throw new Error("The rolling 28-day CSV did not contain the required raw-hour columns.");
+    const headers = rows[headerIndex].map(normalizeHeader);
+    const column = (...names) => names.map(normalizeHeader).map((name) => headers.findIndex((header) => header === name || header.includes(name))).find((index) => index >= 0) ?? -1;
+    const identityColumn = column("group by copy", "driver");
+    const dateColumn = column("week start date");
+    const engineColumn = column("rolling 28 day engine time 60");
+    const idleColumn = column("rolling 28 day idle time 60");
+    const dispatchMpgColumn = column("dispatch mpg");
+    const movingMpgColumn = column("moving mpg");
+    const oorColumn = column("oor");
+    const dispatchMilesColumn = column("rolling 28 day dispatch miles");
+    const fuelGallonsColumn = column("rolling 28 day fuel gallons");
+    const qualcommMilesColumn = column("rolling 28 day qualcomm miles");
+    const costCenterColumn = column("cost center");
+    const leaderColumn = column("driver leader");
+    const fleetLeaderColumn = column("fleet leader");
+    const truckColumn = column("unit code");
+    if ([identityColumn, dateColumn, engineColumn, idleColumn].some((index) => index < 0)) {
+      throw new Error("The rolling 28-day CSV is missing driver, date, engine-hour, or idle-hour fields.");
+    }
+    const parsed = rows.slice(headerIndex + 1).map((row) => {
+      const identity = parseCsvDriverIdentity(row[identityColumn]);
+      const date = parseDate(row[dateColumn]);
+      if ((!identity.code && !identity.name) || !date) return null;
+      const engineHours28Day = number(row[engineColumn]);
+      const idleHours28Day = number(row[idleColumn]);
+      return {
+        driverCode: identity.code, driverName: identity.name, reportDate: date,
+        driverLeader: text(row[leaderColumn]) || "Unassigned", fleetLeader: text(row[fleetLeaderColumn]), costCenter: text(row[costCenterColumn]),
+        engineHours28Day, idleHours28Day,
+        idle28DayPct: isFiniteNumber(engineHours28Day) && engineHours28Day > 0 && isFiniteNumber(idleHours28Day) ? idleHours28Day / engineHours28Day : null,
+        dispatchMpg: number(row[dispatchMpgColumn]), movingMpg: number(row[movingMpgColumn]), oorPct: normalizePercent(row[oorColumn]),
+        dispatchMiles: number(row[dispatchMilesColumn]), fuelGallons: number(row[fuelGallonsColumn]), qualcommMiles: number(row[qualcommMilesColumn]),
+        csvTruck: normalizeCsvTruck(row[truckColumn]),
+      };
+    }).filter(Boolean);
+    const reportDate = parsed.map((record) => record.reportDate).sort((a, b) => a - b).at(-1);
+    const records = parsed.filter((record) => dateKey(record.reportDate) === dateKey(reportDate));
+    if (!reportDate || !records.length) throw new Error("The rolling 28-day CSV did not contain usable current driver history.");
+    const totals = records.reduce((total, driver) => ({
+      engine: total.engine + (isFiniteNumber(driver.engineHours28Day) ? driver.engineHours28Day : 0),
+      idle: total.idle + (isFiniteNumber(driver.idleHours28Day) ? driver.idleHours28Day : 0),
+    }), { engine: 0, idle: 0 });
+    return { records, reportDate, fleetIdle28DayPct: totals.engine > 0 ? totals.idle / totals.engine : null };
+  }
+
+  function normalizeCsvTruck(value) {
+    const truck = text(value).toUpperCase().replace(/[^A-Z0-9]/g, "");
+    return truck && truck !== "*" ? truck : "";
+  }
+
+  function parseCsvDriverIdentity(value) {
+    const raw = text(value).replace(/\s+/g, " ");
+    const match = raw.match(/^([A-Z0-9]{4,10})\s+(.+)$/i);
+    return match ? { code: match[1], name: text(match[2]) } : parseEmbeddedDriverIdentity(raw);
   }
 
   function parseRolling7DayReport(workbook) {
@@ -929,7 +1147,7 @@
         idle7DayPct: record.idle7DayPct ?? null,
         idle28DayPct: record.idle28DayPct ?? null,
         idlePct: record.idle7DayPct ?? record.idle28DayPct ?? null,
-        movingMpg: record.movingMpg ?? null, fuelGallons: null, dispatchMiles: null, drivingFuel: null, qualcommMiles: null,
+        movingMpg: record.movingMpg ?? null, fuelGallons: record.fuelGallons ?? null, dispatchMiles: record.dispatchMiles ?? null, drivingFuel: record.drivingFuel ?? null, qualcommMiles: record.qualcommMiles ?? null,
         oorPct: record.oorPct ?? null, priorIdlePct: record.priorIdlePct ?? record.priorIdle7DayPct ?? null, priorOorPct: null,
       };
     });
@@ -2158,6 +2376,14 @@
     return { records, units, stops, totals, quality };
   }
 
+  function emptyDetailAnalysis() {
+    return {
+      records: [], units: [], stops: [],
+      totals: { grossPositive: 0, negativeOffsets: 0, netCost: 0 },
+      quality: { invalidNextDates: 0, invalidPpgRows: 0, badPurchaseType: 0, badRecGallons: 0, duplicateCount: 0 },
+    };
+  }
+
   function newGroup() {
     return { transactions: 0, orders: new Set(), grossPositive: 0, negativeOffsets: 0, netCost: 0, gallonVariance: 0, locationNoncompliant: 0, didNotFollow: 0, types: new Map(), stops: new Map() };
   }
@@ -2298,7 +2524,7 @@
     const bestIdlers = [...idleRecords].sort((a, b) => currentIdlePct(a) - currentIdlePct(b)).slice(0, 5);
     const topDriver = isIdleFocusedMode(analysis) ? highestIdlers[0] : drivers.records[0];
     els.heroInsight.innerHTML = topDriver
-      ? analysis.sourceMode === "idle-reports"
+      ? ["idle-reports", "csv-idle"].includes(analysis.sourceMode)
         ? `<strong>Current idle review.</strong> ${escapeHtml(topDriver.driverName)} has the highest current 7-day idle at <strong>${pct(topDriver.idle7DayPct, 1)}</strong>, compared with ${pct(topDriver.idle28DayPct, 1)} over 28 days.`
         : analysis.sourceMode === "basic-reports"
           ? `<strong>Basic XLSX/PDF report mode.</strong> ${escapeHtml(topDriver.driverName)} is first in the idle/MPG review order. ${escapeHtml(topDriver.focus)}. Transaction-level driver cost is not included in these reports.`
@@ -3072,7 +3298,7 @@
       matchedEvidence.sort((a, b) => (b.evidenceDate?.getTime?.() || 0) - (a.evidenceDate?.getTime?.() || 0));
       const evidenceTrucks = [...new Set(matchedEvidence.map((record) => text(record.truck)).filter(Boolean))];
       const manualAssignment = window.VixenDriverOperations?.assignmentFor?.(driver) || null;
-      const currentEvidenceTruck = manualAssignment?.truck || evidenceTrucks[0] || "";
+      const currentEvidenceTruck = manualAssignment?.truck || text(driver.csvTruck) || evidenceTrucks[0] || "";
       const matchedPta = ptaRecords
         .filter((record) => record.truck && (
           ptaDriverNameMatches(record.driver, driver.driverName, driver.driverCode)
@@ -3085,6 +3311,7 @@
       ));
       const trucks = [...new Set([
         text(manualAssignment?.truck),
+        text(driver.csvTruck),
         ...evidenceTrucks,
         ...matchedPta.map((record) => text(record.truck)),
         ...matchedApu.map((record) => text(record.unit)),
@@ -3093,9 +3320,9 @@
       driver.assignedTrucks = trucks;
       driver.assignedTruck = trucks[0] || "";
       driver.assignmentEvidence = matchedEvidence;
-      driver.assignmentChanged = evidenceTrucks.length > 1;
-      driver.assignmentStatus = matchedEvidence.length
-        ? manualAssignment ? "Truck manually confirmed" : driver.assignmentChanged ? "Truck changed with order evidence" : "Truck confirmed by order evidence"
+      driver.assignmentChanged = evidenceTrucks.length > 1 || (driver.csvTruckHistory || []).length > 1;
+      driver.assignmentStatus = matchedEvidence.length || driver.csvTruck
+        ? manualAssignment ? "Truck manually confirmed" : driver.csvTruck ? driver.assignmentChanged ? "Truck changed in rolling-idle CSV history" : "Truck confirmed by rolling-idle CSV" : driver.assignmentChanged ? "Truck changed with order evidence" : "Truck confirmed by order evidence"
         : driver.assignedTruck ? "Truck matched from live operational data" : "No truck evidence available";
       if (manualAssignment) driver.assignmentStatus = "Truck manually confirmed";
       matchedPta.forEach((record) => {
@@ -3202,7 +3429,9 @@
   }
 
   function updateSourceStatus() {
-    const activePatterns = state.analysis?.sourceMode === "idle-reports"
+    const activePatterns = state.analysis?.sourceMode === "csv-idle"
+      ? { ...Object.fromEntries(REPORT_ROLE_GROUPS.csvIdle.map((role) => [role, true])), ...Object.fromEntries(["detail", "driverAssignments", "apu", "ptaTracker", "ptaFinder"].map((role) => [role, true])) }
+      : state.analysis?.sourceMode === "idle-reports"
       ? { ...Object.fromEntries(REPORT_ROLE_GROUPS.idle.map((role) => [role, true])), ...Object.fromEntries(["apu", "ptaTracker", "ptaFinder", "driverPdf"].map((role) => [role, true])) }
       : state.analysis?.sourceMode === "basic-reports"
         ? { ...Object.fromEntries(REPORT_ROLE_GROUPS.basic.map((role) => [role, true])), ...Object.fromEntries(["apu", "ptaTracker", "ptaFinder", "driverPdf"].map((role) => [role, true])) }
@@ -3400,10 +3629,10 @@
 
   // Lightweight diagnostic hook used by the included validation script.
   window.VixenFuelDebug = {
-    analyzeWorkbooks, analyzeBasicReports, analyzeIdleReports, analyzeApu, analyzePta, normalizePtaPasteRows,
+    analyzeWorkbooks, analyzeBasicReports, analyzeIdleReports, analyzeCsvIdleReports, analyzeApu, analyzePta, normalizePtaPasteRows,
     parseDelimitedText, parseBasicDriverPdfLines, analyzePdfDrivers,
     parseBasicDriverMetricsReport, parseBasicComplianceReport, parseBasicCostReport, parseBasicMpgReport,
-    parseRolling7DayReport, parseRolling28DayHistory, limitDatedHistory, parseDriverDetailsApuRows,
+    parseRolling7DayReport, parseRolling28DayHistory, parseRollingIdleCsv, parseRolling28IdleCsv, limitDatedHistory, parseDriverDetailsApuRows,
     parseDate, parseDateTime, sourceLabel, ptaTruckNoteKey, driverNoteKey, recentTruckWork, splitNotesByAge
   };
 })();

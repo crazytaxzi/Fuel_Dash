@@ -121,7 +121,7 @@ jobs:
           data_dir = package / "data"
           data_dir.mkdir(exist_ok=True)
           (data_dir / "PLACE_REPORTS_HERE.txt").write_text(
-              "Place the current XLSX and PDF operating reports in this folder.\n"
+              "Place the rolling 7-day and Driver Details 28-day CSV reports in this folder. Add XLSX or PDF operational reports only when their separate tabs or truck evidence are needed.\n"
               "PTA snapshots, notes, history, report exclusions, and transition email settings remain in the local browser database and are not included in this package.\n",
               encoding="utf-8",
           )
@@ -149,6 +149,8 @@ jobs:
               f"# Fuel Dash {tag}\n\n"
               "This stable package contains the current dashboard from `main`.\n\n"
               "## Included\n\n"
+              "- Authoritative rolling-idle CSV mode with direct raw-hour 7-day idle and weighted four-week 28-day idle\n"
+              "- CSV-first truck association with optional operational-report and manual-assignment fallback\n"
               "- Exact top-five eligible 7-day idler coaching queue and five-lowest best-practice lane\n"
               "- Structured fuel coaching notes with record type, follow-up status, follow-up date, and captured 7-day/28-day context\n"
               "- Searchable retained fuel snapshots and coaching history by driver, truck, text, status, and date\n"

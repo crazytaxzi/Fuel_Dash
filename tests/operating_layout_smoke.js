@@ -13,6 +13,7 @@ const inspection = (rows) => ({
   sheetNames: ["Sheet 1"],
   text: test.normalize(rows.flat().filter((value) => value !== null && value !== "").join("\n")),
 });
+const csvInspection = (rows) => ({ ...inspection(rows), kind: "csv" });
 
 const costSummary = inspection([
   ["Groupby", "Thenby", "Fuel Rec Count", "Actual Gallon Amounts", "Gallon Over/Under Cost", "Location Noncompliant Cost", "Total Noncompliant Cost"],
@@ -37,6 +38,18 @@ const rollingRows = [
 const rolling = inspection(rollingRows);
 assert.equal(test.roleQualifies("rolling7Day", rolling), true);
 assert.equal(test.roleQualifies("driverMetricsDetail", rolling), false);
+
+const rollingCsv = csvInspection([
+  ["Group by  (copy)", "Measure Names", "Week Start Date", "[Rolling 7 Day Engine Time]/60", "[Rolling 7 Day Idle Time]/60", "Rolling 7 Day Dispatch Miles", "Rolling 7 Day Qualcomm Miles", "Cost Center", "Driver Leader", "Driver Terminal", "Fleet Leader", "OPS LOB", "Rolling 7 Day Start Date", "Unit Code", "Week Start Date", "Measure Values"],
+  ["92385 SAMPLE DRIVER", "Idle %", "7/26/2026", 42.9, 5.9, 1682, 1870, "611 - Lewiston", "VANHL", "Lewiston", "LEW1", "Line Haul", "7/20/2026", "260976", "7/26/2026", 0.1375],
+]);
+assert.equal(test.roleQualifies("rollingIdleCsv", rollingCsv), true, "the raw-hour CSV must be the authoritative idle source");
+assert.equal(test.roleQualifies("rollingIdleCsv", { ...rollingCsv, kind: "xlsx" }), false, "an unrelated workbook must not take the CSV route");
+const rolling28Csv = csvInspection([
+  ["Group by  (copy)", "Week Start Date", "[Rolling 28 Day Engine Time]/60", "[Rolling 28 Day Idle Time]/60", "Dispatch MPG", "Moving MPG", "Unit Code"],
+  ["92385 SAMPLE DRIVER", "7/26/2026", 160, 24, 6.8, 7.2, "260976"],
+]);
+assert.equal(test.roleQualifies("rolling28IdleCsv", rolling28Csv), true, "the direct raw-hour 28-day CSV must be recognized separately");
 
 const historyRows = Array.from({ length: 10 }, () => []);
 historyRows[0] = ["Driver", "92385 SAMPLE DRIVER", "7/19/2026", "6/22/2026", "Division", "*", "Terminal", "VANHL", "LEW1", "*", "19.0%", 0, 0, "% Cruise in Time", 0.60];
