@@ -701,6 +701,8 @@
     const drivers = buildBasicReportDrivers(csv.records, [], latestDate);
     drivers.fleetIdle7DayPct = csv.fleetIdle7DayPct;
     drivers.fleetIdle28DayPct = rolling28.fleetIdle28DayPct;
+    const rolling28Trend = new Map(rolling28.fleetHistory.map((item) => [dateKey(item.date), item.idlePct]));
+    drivers.idleTrend = csv.fleetHistory.map((item) => ({ date: item.date, idle7DayPct: item.idlePct, idle28DayPct: rolling28Trend.get(dateKey(item.date)) ?? null }));
     const week = { date: latestDate, compliance, gallonCost: detail.totals.grossPositive, locationCost: 0, totalCost: detail.totals.netCost };
     const trend = { weeks: [week], recent: [week], latest: week, previous: null, change: null, rollingAverage: [week.totalCost] };
     const apu = analyzeApu(apuWorkbookRows(workbooks.apu), drivers, files.apu || null);
@@ -809,8 +811,19 @@
     const eligible = records.filter((driver) => !driver.personalCategory);
     const sevenTotals = eligible.reduce((total, driver) => ({ engine: total.engine + (driver.engineHours7Day || 0), idle: total.idle + (driver.idleHours7Day || 0) }), { engine: 0, idle: 0 });
     const twentyEightTotals = eligible.reduce((total, driver) => ({ engine: total.engine + (driver.engineHours28Day || 0), idle: total.idle + (driver.idleHours28Day || 0) }), { engine: 0, idle: 0 });
+    const fleetByDate = new Map();
+    eligible.forEach((driver) => driver.history.forEach((item) => {
+      if (!isFiniteNumber(item.engineHours) || !isFiniteNumber(item.idleHours)) return;
+      const key = dateKey(item.date);
+      const total = fleetByDate.get(key) || { date: item.date, engine: 0, idle: 0 };
+      total.engine += item.engineHours;
+      total.idle += item.idleHours;
+      fleetByDate.set(key, total);
+    }));
+    const fleetHistory = [...fleetByDate.values()].filter((item) => item.engine > 0).map((item) => ({ date: item.date, idlePct: item.idle / item.engine })).sort((a, b) => a.date - b.date);
     return {
       records, reportDate,
+      fleetHistory,
       fleetIdle7DayPct: sevenTotals.engine > 0 ? sevenTotals.idle / sevenTotals.engine : null,
       fleetIdle28DayPct: twentyEightTotals.engine > 0 ? twentyEightTotals.idle / twentyEightTotals.engine : null,
     };
@@ -862,7 +875,17 @@
       engine: total.engine + (isFiniteNumber(driver.engineHours28Day) ? driver.engineHours28Day : 0),
       idle: total.idle + (isFiniteNumber(driver.idleHours28Day) ? driver.idleHours28Day : 0),
     }), { engine: 0, idle: 0 });
-    return { records, reportDate, fleetIdle28DayPct: totals.engine > 0 ? totals.idle / totals.engine : null };
+    const fleetByDate = new Map();
+    parsed.forEach((driver) => {
+      if (!isFiniteNumber(driver.engineHours28Day) || !isFiniteNumber(driver.idleHours28Day)) return;
+      const key = dateKey(driver.reportDate);
+      const total = fleetByDate.get(key) || { date: driver.reportDate, engine: 0, idle: 0 };
+      total.engine += driver.engineHours28Day;
+      total.idle += driver.idleHours28Day;
+      fleetByDate.set(key, total);
+    });
+    const fleetHistory = [...fleetByDate.values()].filter((item) => item.engine > 0).map((item) => ({ date: item.date, idlePct: item.idle / item.engine })).sort((a, b) => a.date - b.date);
+    return { records, reportDate, fleetHistory, fleetIdle28DayPct: totals.engine > 0 ? totals.idle / totals.engine : null };
   }
 
   function normalizeCsvTruck(value) {
@@ -2530,7 +2553,7 @@
           ? `<strong>Basic XLSX/PDF report mode.</strong> ${escapeHtml(topDriver.driverName)} is first in the idle/MPG review order. ${escapeHtml(topDriver.focus)}. Transaction-level driver cost is not included in these reports.`
         : `${escapeHtml(topDriver.driverName)} has the largest estimated cost gap to review. ${escapeHtml(topDriver.focus)}. The dashboard estimates <strong>${moneyCompact(topDriver.estimatedCost)}</strong> in possible 28-day savings if performance reaches the strong-peer target. Fleet-wide possible savings are <strong>${moneyCompact(drivers.totals.modeledCost)}</strong>.`
       : "No estimated driver cost gap was found.";
-    els.heroSavings.textContent = moneyCompact(drivers.totals.modeledCost);
+    els.heroSavings.textContent = pct(idle7Average, 1);
 
     renderIdleDrivers(els.topDriversList, highestIdlers, "highest");
     renderIdleDrivers(els.bestIdlersList, bestIdlers, "best");
@@ -2538,7 +2561,7 @@
     renderQualityAlerts(quality.findings.filter((item) => item.count > 0).slice(0, 3));
     renderActions(actions);
     renderPtaPulse(pta);
-    renderCharts(trend);
+    renderCharts(trend, drivers);
 
     els.trendWeekTotal.textContent = trend.latest ? moneyCompact(trend.latest.totalCost) : "--";
     els.trendWeekDelta.textContent = trend.change === null ? "No comparison" : deltaLabel(trend.change, "vs prior", false);
@@ -2595,22 +2618,25 @@
     Chart.defaults.borderColor = "rgba(255,255,255,.07)";
   }
 
-  function renderCharts(trend) {
+  function renderCharts(trend, drivers) {
+    const idleTrend = drivers.idleTrend?.length
+      ? drivers.idleTrend
+      : [{ date: drivers.currentDate, idle7DayPct: drivers.fleetIdle7DayPct ?? null, idle28DayPct: drivers.fleetIdle28DayPct ?? null }];
+    const idleLabels = idleTrend.map((item) => shortDate(item.date));
     const labels = trend.weeks.map((week) => shortDate(week.date));
     const actual = trend.weeks.map((week) => week.totalCost);
-    const rolling = trend.rollingAverage;
 
     if (state.heroChart) state.heroChart.destroy();
     state.heroChart = new Chart($("heroChart"), {
       type: "line",
       data: {
-        labels,
+        labels: idleLabels,
         datasets: [
-          { label: "Actual Cost", data: actual, borderColor: "#b55cff", backgroundColor: "rgba(168,85,247,.2)", fill: true, tension: .28, pointRadius: 3, pointBackgroundColor: "#d9a2ff", borderWidth: 2 },
-          { label: "4-Week Avg", data: rolling, borderColor: "#39ff63", backgroundColor: "transparent", borderDash: [7,5], tension: .25, pointRadius: 0, borderWidth: 2 },
+          { label: "7-Day Idle", data: idleTrend.map((item) => item.idle7DayPct), borderColor: "#b55cff", backgroundColor: "rgba(168,85,247,.2)", fill: true, tension: .28, pointRadius: 3, pointBackgroundColor: "#d9a2ff", borderWidth: 2 },
+          { label: "28-Day Idle", data: idleTrend.map((item) => item.idle28DayPct), borderColor: "#39ff63", backgroundColor: "transparent", borderDash: [7,5], tension: .25, pointRadius: 2, borderWidth: 2 },
         ],
       },
-      options: chartOptions({ legend: true, compact: false }),
+      options: chartOptions({ legend: true, compact: false, format: "percent" }),
     });
 
     if (state.weeklyChart) state.weeklyChart.destroy();
@@ -2623,22 +2649,24 @@
           { label: "Location", data: trend.weeks.map((week) => week.locationCost), borderColor: "#39ff63", borderDash: [6,4], tension: .25, pointRadius: 0, borderWidth: 2 },
         ],
       },
-      options: chartOptions({ legend: true, compact: true }),
+      options: chartOptions({ legend: true, compact: true, format: "money" }),
     });
   }
 
-  function chartOptions({ legend, compact }) {
+  function chartOptions({ legend, compact, format = "money" }) {
+    const formatValue = format === "percent" ? (value) => pct(value, 1) : (value) => money(value, 2);
+    const formatTick = format === "percent" ? (value) => pct(value, 0) : (value) => moneyCompact(value);
     return {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
       plugins: {
         legend: { display: legend, position: "top", align: "start", labels: { boxWidth: 9, boxHeight: 9, font: { size: 9 }, padding: 12 } },
-        tooltip: { backgroundColor: "rgba(4,9,13,.95)", borderColor: "rgba(168,85,247,.5)", borderWidth: 1, callbacks: { label: (context) => `${context.dataset.label}: ${money(context.parsed.y, 2)}` } },
+        tooltip: { backgroundColor: "rgba(4,9,13,.95)", borderColor: "rgba(168,85,247,.5)", borderWidth: 1, callbacks: { label: (context) => `${context.dataset.label}: ${formatValue(context.parsed.y)}` } },
       },
       scales: {
         x: { grid: { display: false }, ticks: { font: { size: compact ? 8 : 9 }, maxRotation: 0 } },
-        y: { grid: { color: "rgba(255,255,255,.06)" }, ticks: { font: { size: compact ? 8 : 9 }, callback: (value) => moneyCompact(value) } },
+        y: { beginAtZero: format === "percent", grid: { color: "rgba(255,255,255,.06)" }, ticks: { font: { size: compact ? 8 : 9 }, callback: formatTick } },
       },
     };
   }

@@ -114,12 +114,12 @@
               <div class="hero-copy">
                 <p id="heroInsight">Connect the source folder to interrogate the numbers.</p>
                 <button id="heroDriverDetailsBtn" class="ghost-button" type="button">OPEN DRIVER DETAILS <span>›</span></button>
-                <div class="plain-english-note"><strong>Possible savings</strong> means estimated cost that may be reduced. A higher number is a bigger problem to address, not better performance.</div>
+                <div class="plain-english-note"><strong>Idle percentage</strong> is calculated from raw idle hours divided by engine hours. The 7-day line shows current behavior; the 28-day line provides longer-term context.</div>
               </div>
               <div class="hero-chart-wrap">
-                <div class="chart-heading">EXTRA COST TREND</div>
+                <div class="chart-heading">WEIGHTED FLEET IDLE TREND</div>
                 <canvas id="heroChart"></canvas>
-                <div class="chart-callout"><span>POSSIBLE 28-DAY SAVINGS</span><strong id="heroSavings">--</strong></div>
+                <div class="chart-callout"><span>CURRENT 7-DAY IDLE</span><strong id="heroSavings">--</strong></div>
               </div>
             </div>
           </article>
@@ -395,8 +395,8 @@
 
   <script src="vendor/xlsx.full.min.js"></script>
   <script src="vendor/chart.umd.js"></script>
-  <script src="database/dashboard-db.js?v=3.21.0"></script>
-  <script src="database/bootstrap.js?v=3.21.0"></script>
-  <script type="module" src="pdf_to_xlsx.js?v=3.21.0"></script>
+  <script src="database/dashboard-db.js?v=3.21.1"></script>
+  <script src="database/bootstrap.js?v=3.21.1"></script>
+  <script type="module" src="pdf_to_xlsx.js?v=3.21.1"></script>
 </body>
 </html>

@@ -3,6 +3,8 @@ const fs = require("node:fs");
 
 const css = fs.readFileSync("styles.css", "utf8");
 const html = fs.readFileSync("index.html", "utf8");
+assert.match(html, /WEIGHTED FLEET IDLE TREND/);
+assert.match(html, /CURRENT 7-DAY IDLE/);
 
 assert.match(html, /<img src="assets\/vixen\.png"[^>]*alt="[^"]+"/i, "Sidebar image must have a valid source and description");
 assert.match(css, /\.portrait-frame img\s*\{[^}]*object-fit:\s*contain/s, "Sidebar image must render without cropping");

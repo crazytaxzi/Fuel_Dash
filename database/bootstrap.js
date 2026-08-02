@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const BUILD_VERSION = "3.21.0";
+  const BUILD_VERSION = "3.21.1";
 
   const OPTIONAL_MODULES = [
     "core/resource_coordinator.js",

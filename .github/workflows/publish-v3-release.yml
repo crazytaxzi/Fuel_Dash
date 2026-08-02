@@ -151,6 +151,7 @@ jobs:
               "## Included\n\n"
               "- Authoritative rolling-idle CSV mode with direct raw-hour 7-day idle and weighted four-week 28-day idle\n"
               "- CSV-first truck association with optional operational-report and manual-assignment fallback\n"
+              "- Hero Insight chart showing weighted fleet 7-day and 28-day idle percentages instead of costs\n"
               "- Exact top-five eligible 7-day idler coaching queue and five-lowest best-practice lane\n"
               "- Structured fuel coaching notes with record type, follow-up status, follow-up date, and captured 7-day/28-day context\n"
               "- Searchable retained fuel snapshots and coaching history by driver, truck, text, status, and date\n"
