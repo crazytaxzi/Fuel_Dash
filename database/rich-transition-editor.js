@@ -689,7 +689,7 @@
       const truckLabel = trucks[0] || "Unknown";
       const driverLabel = names.length ? formatIdentityList(names) : "";
       const notes = messages.map((message) => message.noteText || "Note saved without text");
-      const headingText = `Truck ${truckLabel}${driverLabel ? ` — ${driverLabel}` : ""}`;
+      const headingText = `${truckLabel}${driverLabel ? ` — ${driverLabel}` : ""}`;
       return {
         savedAt: messages[0]?.savedAt || Number(group.savedAt || 0),
         text: `${headingText}\n${notes.join("\n\n")}`,
@@ -714,7 +714,7 @@
   }
 
   function truckFollowupGroupHtml(truck, driver, notes) {
-    const heading = `Truck <strong>${escapeHtml(truck)}</strong>${driver ? ` &mdash; ${escapeHtml(driver)}` : ""}`;
+    const heading = `<strong>${escapeHtml(truck)}</strong>${driver ? ` &mdash; ${escapeHtml(driver)}` : ""}`;
     const noteHtml = notes.map((note, index) => {
       const divider = index ? "border-top:1px solid #e4e7ec;padding-top:10px;margin-top:10px;" : "";
       return `<div style="${divider}font-size:14px;line-height:1.55;">${escapeHtml(note).replace(/\n/g, "<br>")}</div>`;

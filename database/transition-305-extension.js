@@ -253,7 +253,7 @@
   }
 
   function recordLineHtml(record) {
-    const heading = `Truck <strong>${escapeHtml(record.truck)}</strong>${record.driver ? ` &mdash; ${escapeHtml(record.driver)}` : ""}`;
+    const heading = `<strong>${escapeHtml(record.truck)}</strong>${record.driver ? ` &mdash; ${escapeHtml(record.driver)}` : ""}`;
     return [
       '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0;margin:0 0 12px;border:1px solid #d8e0ea;border-left:5px solid #2563eb;border-radius:8px;">',
       '<tr><td style="padding:13px 15px;">',
@@ -264,7 +264,7 @@
   }
 
   function recordLineText(record) {
-    return `Truck ${record.truck}${record.driver ? ` — ${record.driver}` : ""}\n${record.truckNotes}`;
+    return `${record.truck}${record.driver ? ` — ${record.driver}` : ""}\n${record.truckNotes}`;
   }
 
   function latestNote(notes) {

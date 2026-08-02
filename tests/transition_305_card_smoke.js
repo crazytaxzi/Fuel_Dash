@@ -30,7 +30,8 @@ vm.createContext(context);
 vm.runInContext(fs.readFileSync("database/transition-305-extension.js", "utf8"), context);
 
 const output = window.VixenTransitionExport.buildContext();
-assert.match(output.division_305_followups_html, /Truck <strong>30542<\/strong> &mdash; Jordan Smith/);
+assert.match(output.division_305_followups_html, /<strong>30542<\/strong> &mdash; Jordan Smith/);
+assert.doesNotMatch(output.division_305_followups_html, /Truck <strong>/);
 assert.match(output.division_305_followups_html, /border-left:5px solid #2563eb/);
 assert.match(output.division_305_followups_html, /border-bottom:1px solid #d8e0ea/);
 assert.match(output.division_305_followups_html, /Waiting on receiver confirmation/);

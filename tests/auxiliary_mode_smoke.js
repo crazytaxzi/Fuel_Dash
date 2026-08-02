@@ -15,7 +15,9 @@ assert.equal((app.match(/analyzeApu\(apuWorkbookRows\(workbooks\.apu\), drivers,
 assert.match(app, /function apuWorkbookRows\(workbook\)[\s\S]*for \(const sheetName of workbook\.SheetNames\)[\s\S]*findApuHeaderRow\(rows\) >= 0/, "APU parsing must inspect every worksheet for its header row");
 assert.match(app, /function ptaDriverCode\(fullName, driverCode = ""\)[\s\S]*last\.slice\(0, 7\)[\s\S]*slice\(0, 8\)/, "PTA driver codes must use up to seven surname characters plus the first-name initial, capped at eight characters");
 assert.equal((app.match(/attachDriverTruckAssignments\(drivers, pta, apu\);/g) || []).length, 3, "every report mode must attach PTA and APU truck assignments to drivers");
-assert.match(app, /function driverAssignmentLabel\(driver\)[\s\S]*Truck \$\{driver\.assignedTruck\} — \$\{name\}/, "linked trucks and drivers must remain one operational assignment in the UI");
+assert.match(app, /function driverAssignmentLabel\(driver\)[\s\S]*\$\{driver\.assignedTruck\} — \$\{name\}/, "linked trucks and drivers must remain one operational assignment in the UI without a redundant Truck prefix");
 assert.match(app, /truck: driver\.assignedTruck \|\| ""/, "driver follow-up notes must retain their matched truck for handoff grouping");
+assert.match(app, /limitDatedHistory\(record\.history, 7, reportDate\)/, "rolling 7-day output must discard data outside the latest seven calendar days");
+assert.match(app, /limitDatedHistory\(history, 28, reportDate\)/, "rolling 28-day output must discard data outside the latest 28 calendar days");
 assert.doesNotMatch(app, /const emptyApu = analyzeApu\(\[\], drivers, null\)/, "basic mode must not discard routed APU data");
 console.log("Content discovery and partial-idle bridge smoke test passed.");

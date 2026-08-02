@@ -263,7 +263,7 @@
   function card(record) {
     const latest = record.notes[0];
     return `<article class="trip305-card ${record.status === "Complete" ? "complete" : ""}">
-      <div class="trip305-card-head"><div><span>DIV ${DIVISION}</span><h3>Truck ${html(record.truck)}</h3><p>${html(record.driver || "Driver not listed")}</p></div><select data-trip-status="${html(record.id)}">${STATUSES.map((status) => `<option ${status === record.status ? "selected" : ""}>${html(status)}</option>`).join("")}</select></div>
+      <div class="trip305-card-head"><div><span>DIV ${DIVISION}</span><h3>${html(record.truck)}</h3><p>${html(record.driver || "Driver not listed")}</p></div><select data-trip-status="${html(record.id)}">${STATUSES.map((status) => `<option ${status === record.status ? "selected" : ""}>${html(status)}</option>`).join("")}</select></div>
       <div class="trip305-facts"><span><b>Load / order</b>${html(record.load || "Not entered")}</span><span><b>Destination</b>${html(record.destination || "Not entered")}</span><span><b>PTA / ready</b>${html(record.pta || "Not entered")}</span></div>
       <p class="trip305-next"><b>Next action</b>${html(record.nextAction || "No next action entered.")}</p>
       <p class="trip305-latest"><b>Latest note</b>${html(latest?.text || "No planning notes saved yet.")} ${latest ? `<small>${html(formatDate(latest.savedAt))}</small>` : ""}</p>

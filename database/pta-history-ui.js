@@ -197,7 +197,7 @@
   function renderChange(change) {
     const reviewed = Boolean(change.reviewedAt);
     return `<article class="pta-db-change ${escapeHtml(change.severity || "medium")} ${reviewed ? "reviewed" : ""}">
-      <div class="pta-db-change-head"><span>${escapeHtml((change.severity || "medium").toUpperCase())}</span><strong>Truck ${escapeHtml(change.truck || "Unknown")}</strong><time>${escapeHtml(formatDate(change.detectedAt))}</time></div>
+      <div class="pta-db-change-head"><span>${escapeHtml((change.severity || "medium").toUpperCase())}</span><strong>${escapeHtml(change.truck || "Unknown")}</strong><time>${escapeHtml(formatDate(change.detectedAt))}</time></div>
       <p>${escapeHtml(change.summary || "PTA change detected.")}</p>
       <small>${escapeHtml([change.driver ? `Driver: ${change.driver}` : "", change.previousValue ? `Before: ${change.previousValue}` : "", change.currentValue ? `Now: ${change.currentValue}` : ""].filter(Boolean).join(" · "))}</small>
       <button class="pta-db-text-button" type="button" data-change-review="${escapeHtml(change.id)}" data-reviewed="${reviewed}">${reviewed ? "Mark unreviewed" : "Mark reviewed"}</button>
@@ -206,12 +206,12 @@
 
   function renderMatch(match) {
     const record = match.record || {};
-    return `<article class="pta-db-record"><strong>Truck ${escapeHtml(record.truck || "Unknown")}</strong><span>${escapeHtml(record.driver || "No driver")}</span><span>${escapeHtml(record.ptaDisplay || "No PTA")}</span><small>${escapeHtml([record.status, record.planStatus, record.destination].filter(Boolean).join(" · "))}</small><time>Snapshot ${escapeHtml(formatDate(match.savedAt))}</time></article>`;
+    return `<article class="pta-db-record"><strong>${escapeHtml(record.truck || "Unknown")}</strong><span>${escapeHtml(record.driver || "No driver")}</span><span>${escapeHtml(record.ptaDisplay || "No PTA")}</span><small>${escapeHtml([record.status, record.planStatus, record.destination].filter(Boolean).join(" · "))}</small><time>Snapshot ${escapeHtml(formatDate(match.savedAt))}</time></article>`;
   }
 
   function renderNote(note) {
     const pta = note.pta ? formatDate(note.pta) : "PTA not captured";
-    return `<article class="pta-db-record pta-db-note"><strong>Truck ${escapeHtml(note.truck || "Unknown")}</strong><span>${escapeHtml(note.driver || "No driver")}</span><span>${escapeHtml(pta)}</span><small>${escapeHtml(note.text || "No note text")}</small><time>${escapeHtml(formatDate(note.savedAt))}</time></article>`;
+    return `<article class="pta-db-record pta-db-note"><strong>${escapeHtml(note.truck || "Unknown")}</strong><span>${escapeHtml(note.driver || "No driver")}</span><span>${escapeHtml(pta)}</span><small>${escapeHtml(note.text || "No note text")}</small><time>${escapeHtml(formatDate(note.savedAt))}</time></article>`;
   }
 
   function renderSnapshot(snapshot) {

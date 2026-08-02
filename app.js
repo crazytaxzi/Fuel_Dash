@@ -79,7 +79,7 @@
           type: "pta",
           index: record.index,
           identity: record.truck,
-          label: `Truck ${record.truck || "Unknown"}`,
+          label: record.truck || "Unknown truck",
           meta: [record.urgency, record.driver || "No driver", record.destination || "No destination"].filter(Boolean).join(" · "),
           detail: record.action || record.notes || "Review this PTA and record the next action.",
           urgent: record.overdueHours > 0 || record.urgencyKey === "critical",
@@ -662,10 +662,11 @@
     if (!records.length) throw new Error("The recognized rolling-idle report did not contain usable driver idle history.");
     const reportDate = records.flatMap((record) => record.history.map((item) => item.date)).sort((a, b) => a - b).at(-1);
     return records.map((record) => {
-      const latest = record.history.at(-1);
+      const history = limitDatedHistory(record.history, 7, reportDate);
       return {
         ...record,
-        idle7DayPct: latest && dateKey(latest.date) === dateKey(reportDate) ? latest.idlePct : null,
+        history,
+        idle7DayPct: history.at(-1) && dateKey(history.at(-1).date) === dateKey(reportDate) ? history.at(-1).idlePct : null,
         reportDate,
       };
     });
@@ -688,9 +689,25 @@
       if (!byDriver.has(currentDriver)) byDriver.set(currentDriver, []);
       byDriver.get(currentDriver).push({ date, idlePct, movingMpg });
     }
+    const reportDate = Array.from(byDriver.values()).flat().map((item) => item.date).sort((a, b) => a - b).at(-1) || null;
     return Array.from(byDriver.entries()).map(([driverName, history]) => {
       history.sort((a, b) => a.date - b.date);
-      return { driverName, history, reportDate: history.at(-1)?.date || null, movingMpg: history.at(-1)?.movingMpg ?? null };
+      const limitedHistory = limitDatedHistory(history, 28, reportDate);
+      return { driverName, history: limitedHistory, reportDate: limitedHistory.at(-1)?.date || null, movingMpg: limitedHistory.at(-1)?.movingMpg ?? null };
+    }).filter((record) => record.history.length);
+  }
+
+  function limitDatedHistory(history, maximumDays, reportDate = null) {
+    const dated = (history || [])
+      .filter((item) => item?.date instanceof Date && !Number.isNaN(item.date.getTime()))
+      .sort((a, b) => a.date - b.date);
+    const end = reportDate instanceof Date && !Number.isNaN(reportDate.getTime()) ? reportDate : dated.at(-1)?.date;
+    if (!end || !Number.isInteger(maximumDays) || maximumDays < 1) return [];
+    const endDay = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
+    const startDay = endDay - (maximumDays - 1) * 86400000;
+    return dated.filter((item) => {
+      const day = Date.UTC(item.date.getUTCFullYear(), item.date.getUTCMonth(), item.date.getUTCDate());
+      return day >= startDay && day <= endDay;
     });
   }
 
@@ -2868,7 +2885,7 @@
 
   function driverAssignmentLabel(driver) {
     const name = driver?.driverName || driver?.driverCode || "Unknown driver";
-    return driver?.assignedTruck ? `Truck ${driver.assignedTruck} — ${name}` : name;
+    return driver?.assignedTruck ? `${driver.assignedTruck} — ${name}` : name;
   }
 
   function renderQuality(findings) {
@@ -3133,7 +3150,7 @@
     analyzeWorkbooks, analyzeBasicReports, analyzeIdleReports, analyzeApu, analyzePta, normalizePtaPasteRows,
     parseDelimitedText, parseBasicDriverPdfLines, analyzePdfDrivers,
     parseBasicDriverMetricsReport, parseBasicComplianceReport, parseBasicCostReport, parseBasicMpgReport,
-    parseRolling7DayReport, parseRolling28DayHistory, parseDriverDetailsApuRows,
+    parseRolling7DayReport, parseRolling28DayHistory, limitDatedHistory, parseDriverDetailsApuRows,
     parseDate, parseDateTime, sourceLabel, ptaTruckNoteKey, driverNoteKey, recentTruckWork
   };
 })();

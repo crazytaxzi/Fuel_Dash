@@ -282,7 +282,7 @@
       const noteId = String(rawNote?.id ?? "").trim();
       if (!Number.isFinite(time) || !noteId) return;
       const note = { ...rawNote, time };
-      items.push({ type: "pta", identity: truck, noteId, label: `Truck ${truck}`, meta: [note.driver || "No driver", note.destination || "No destination"].join(" · "), note, done: completionState("pta", note, completions).done, included: selections[noteStateKey("pta", noteId)] === true });
+      items.push({ type: "pta", identity: truck, noteId, label: truck, meta: [note.driver || "No driver", note.destination || "No destination"].join(" · "), note, done: completionState("pta", note, completions).done, included: selections[noteStateKey("pta", noteId)] === true });
     }));
     Object.entries(driverNotes || {}).forEach(([key, notes]) => (Array.isArray(notes) ? notes : []).forEach((rawNote) => {
       const time = new Date(rawNote?.savedAt).getTime();
@@ -291,7 +291,7 @@
       const note = { ...rawNote, time };
       const identity = note.driverCode || key || note.driverName;
       const driverLabel = note.driverName || note.driverCode || key || "Unknown driver";
-      const label = note.truck || note.assignedTruck ? `Truck ${note.truck || note.assignedTruck} — ${driverLabel}` : driverLabel;
+      const label = note.truck || note.assignedTruck ? `${note.truck || note.assignedTruck} — ${driverLabel}` : driverLabel;
       items.push({ type: "driver", identity, noteId, label, meta: `High-idle follow-up${note.driverCode ? ` · ${note.driverCode}` : ""}`, note, done: completionState("driver", note, completions).done, included: selections[noteStateKey("driver", noteId)] === true });
     }));
     const notedIdentities = new Set(items.map((item) => `${item.type}:${normalizeKey(item.identity)}`));
