@@ -70,10 +70,15 @@
     if (!looksLikeRolling7(rows)) return [];
     const records = [];
     let currentDriver = "";
+    let currentIsTotal = false;
+    let fleetHistory = [];
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index] || [];
-      if (text(row[0]) && !/^grand total$/i.test(text(row[0]))) currentDriver = text(row[0]);
-      if (!currentDriver || normalizeHeader(row[1]) !== "idle") continue;
+      if (text(row[0])) {
+        currentIsTotal = /^grand total$/i.test(text(row[0]));
+        currentDriver = currentIsTotal ? "" : text(row[0]);
+      }
+      if ((!currentDriver && !currentIsTotal) || normalizeHeader(row[1]) !== "idle") continue;
       const history = [];
       for (let cursor = index; cursor < rows.length; cursor += 1) {
         const item = rows[cursor] || [];
@@ -83,8 +88,10 @@
         if (date && idlePct !== null) history.push({ date, idlePct });
       }
       history.sort((a, b) => a.date - b.date);
-      if (history.length) records.push({ driverName: currentDriver, history });
+      if (history.length && currentIsTotal) fleetHistory = history;
+      else if (history.length) records.push({ driverName: currentDriver, history });
     }
+    records.fleetHistory = fleetHistory;
     return records;
   }
 
@@ -92,19 +99,29 @@
     if (!looksLikeDriverDetails(rows)) return [];
     const byDriver = new Map();
     let currentDriver = "";
+    let currentIsTotal = false;
+    const fleetHistory = [];
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index] || [];
-      if (text(row[1]) && !/^total$/i.test(text(row[1]))) currentDriver = text(row[1]);
+      if (text(row[1])) {
+        currentIsTotal = /^total$/i.test(text(row[1]));
+        currentDriver = currentIsTotal ? "" : text(row[1]);
+      }
       const date = parseDate(row[2]);
-      if (!currentDriver || !date || normalizeHeader(row[13]) !== "cruise in time") continue;
+      if ((!currentDriver && !currentIsTotal) || !date || normalizeHeader(row[13]) !== "cruise in time") continue;
       const idleRow = rows[index + 5] || [];
       const idlePct = idleRow.slice(14).map(normalizePercent).find(isFiniteNumber) ?? null;
       if (idlePct === null) continue;
-      const key = normalizeIdentity(currentDriver);
-      if (!byDriver.has(key)) byDriver.set(key, { driverName: currentDriver, history: [] });
-      byDriver.get(key).history.push({ date, idlePct });
+      if (currentIsTotal) fleetHistory.push({ date, idlePct });
+      else {
+        const key = normalizeIdentity(currentDriver);
+        if (!byDriver.has(key)) byDriver.set(key, { driverName: currentDriver, history: [] });
+        byDriver.get(key).history.push({ date, idlePct });
+      }
     }
-    return [...byDriver.values()].map((record) => ({ ...record, history: record.history.sort((a, b) => a.date - b.date) }));
+    const records = [...byDriver.values()].map((record) => ({ ...record, history: record.history.sort((a, b) => a.date - b.date) }));
+    records.fleetHistory = fleetHistory.sort((a, b) => a.date - b.date);
+    return records;
   }
 
   function looksLikeRolling7(rows) {
@@ -122,7 +139,7 @@
     const add = (date, field, value) => {
       if (!(date instanceof Date) || Number.isNaN(date.getTime()) || !isFiniteNumber(value)) return;
       const key = dateKey(date);
-      if (!byDate.has(key)) byDate.set(key, { date, idle7: [], idle28: [] });
+      if (!byDate.has(key)) byDate.set(key, { date, idle7: [], idle28: [], fleet7: [], fleet28: [] });
       byDate.get(key)[field].push(value);
     };
 
@@ -134,14 +151,16 @@
       if (isExcluded(record.driverName)) return;
       record.history.forEach((point) => add(point.date, "idle28", point.idlePct));
     });
+    (state.rolling7.fleetHistory || []).forEach((point) => add(point.date, "fleet7", point.idlePct));
+    (state.rolling28.fleetHistory || []).forEach((point) => add(point.date, "fleet28", point.idlePct));
 
     return [...byDate.values()]
       .sort((a, b) => a.date - b.date)
       .slice(-Math.max(1, limit))
       .map((entry) => ({
         date: entry.date,
-        idle7DayPct: entry.idle7.length ? average(entry.idle7) : null,
-        idle28DayPct: entry.idle28.length ? average(entry.idle28) : null,
+        idle7DayPct: entry.fleet7?.at(-1) ?? (entry.idle7.length ? average(entry.idle7) : null),
+        idle28DayPct: entry.fleet28?.at(-1) ?? (entry.idle28.length ? average(entry.idle28) : null),
         idle7DriverCount: entry.idle7.length,
         idle28DriverCount: entry.idle28.length,
       }));

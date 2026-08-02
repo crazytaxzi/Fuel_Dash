@@ -106,6 +106,7 @@
 
   const els = {};
   const $ = (id) => document.getElementById(id);
+  const expandedOlderNotes = { pta: new Set(), driver: new Set() };
 
   document.addEventListener("DOMContentLoaded", async () => {
     cacheElements();
@@ -614,6 +615,8 @@
     const latest = { date: latestDate, compliance, marker: "*", recommendations: detail.records.length, followed: Math.round(detail.records.length * compliance) };
     const summary = { completed: [latest], allDated: [latest], latest, previous: null, partialRows: [] };
     const drivers = buildBasicReportDrivers(mergedMetrics, [], latestDate);
+    drivers.fleetIdle7DayPct = rolling7.fleetIdle7DayPct ?? null;
+    drivers.fleetIdle28DayPct = metrics.fleetIdle28DayPct ?? rolling28.fleetIdle28DayPct ?? null;
     const week = {
       date: latestDate,
       compliance,
@@ -644,10 +647,15 @@
     const rows = workbookRows(workbook, 0);
     const records = [];
     let currentDriver = "";
+    let currentIsTotal = false;
+    let fleetHistory = [];
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index] || [];
-      if (text(row[0]) && !/^grand total$/i.test(text(row[0]))) currentDriver = text(row[0]);
-      if (!currentDriver || normalizeHeader(row[1]) !== "idle") continue;
+      if (text(row[0])) {
+        currentIsTotal = /^grand total$/i.test(text(row[0]));
+        currentDriver = currentIsTotal ? "" : text(row[0]);
+      }
+      if ((!currentDriver && !currentIsTotal) || normalizeHeader(row[1]) !== "idle") continue;
       const history = [];
       for (let cursor = index; cursor < rows.length; cursor += 1) {
         const item = rows[cursor] || [];
@@ -657,11 +665,12 @@
         if (date && idlePct !== null) history.push({ date, idlePct });
       }
       history.sort((a, b) => a.date - b.date);
-      if (history.length) records.push({ driverName: currentDriver, history });
+      if (history.length && currentIsTotal) fleetHistory = history;
+      else if (history.length) records.push({ driverName: currentDriver, history });
     }
     if (!records.length) throw new Error("The recognized rolling-idle report did not contain usable driver idle history.");
-    const reportDate = records.flatMap((record) => record.history.map((item) => item.date)).sort((a, b) => a - b).at(-1);
-    return records.map((record) => {
+    const reportDate = [...records.flatMap((record) => record.history.map((item) => item.date)), ...fleetHistory.map((item) => item.date)].sort((a, b) => a - b).at(-1);
+    const result = records.map((record) => {
       const history = limitDatedHistory(record.history, 7, reportDate);
       return {
         ...record,
@@ -670,31 +679,49 @@
         reportDate,
       };
     });
+    const limitedFleetHistory = limitDatedHistory(fleetHistory, 7, reportDate);
+    result.fleetHistory = limitedFleetHistory;
+    result.fleetIdle7DayPct = limitedFleetHistory.at(-1) && dateKey(limitedFleetHistory.at(-1).date) === dateKey(reportDate)
+      ? limitedFleetHistory.at(-1).idlePct
+      : null;
+    return result;
   }
 
   function parseRolling28DayHistory(workbook) {
     const rows = workbookRows(workbook, 0);
     const byDriver = new Map();
     let currentDriver = "";
+    let currentIsTotal = false;
+    const fleetHistory = [];
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index] || [];
-      if (text(row[1]) && !/^total$/i.test(text(row[1]))) currentDriver = text(row[1]);
+      if (text(row[1])) {
+        currentIsTotal = /^total$/i.test(text(row[1]));
+        currentDriver = currentIsTotal ? "" : text(row[1]);
+      }
       const date = parseDate(row[2]);
-      if (!currentDriver || !date || normalizeHeader(row[13]) !== "cruise in time") continue;
+      if ((!currentDriver && !currentIsTotal) || !date || normalizeHeader(row[13]) !== "cruise in time") continue;
       const idleRow = rows[index + 5] || [];
       const movingRow = rows[index + 9] || [];
       const idlePct = idleRow.slice(14).map(normalizePercent).find(isFiniteNumber) ?? null;
       const movingMpg = movingRow.slice(14).map(number).find(isFiniteNumber) ?? null;
       if (idlePct === null) continue;
-      if (!byDriver.has(currentDriver)) byDriver.set(currentDriver, []);
-      byDriver.get(currentDriver).push({ date, idlePct, movingMpg });
+      if (currentIsTotal) fleetHistory.push({ date, idlePct, movingMpg });
+      else {
+        if (!byDriver.has(currentDriver)) byDriver.set(currentDriver, []);
+        byDriver.get(currentDriver).push({ date, idlePct, movingMpg });
+      }
     }
-    const reportDate = Array.from(byDriver.values()).flat().map((item) => item.date).sort((a, b) => a - b).at(-1) || null;
-    return Array.from(byDriver.entries()).map(([driverName, history]) => {
+    const reportDate = [...Array.from(byDriver.values()).flat(), ...fleetHistory].map((item) => item.date).sort((a, b) => a - b).at(-1) || null;
+    const result = Array.from(byDriver.entries()).map(([driverName, history]) => {
       history.sort((a, b) => a.date - b.date);
       const limitedHistory = limitDatedHistory(history, 28, reportDate);
       return { driverName, history: limitedHistory, reportDate: limitedHistory.at(-1)?.date || null, movingMpg: limitedHistory.at(-1)?.movingMpg ?? null };
     }).filter((record) => record.history.length);
+    const limitedFleetHistory = limitDatedHistory(fleetHistory, 28, reportDate);
+    result.fleetHistory = limitedFleetHistory;
+    result.fleetIdle28DayPct = limitedFleetHistory.at(-1)?.idlePct ?? null;
+    return result;
   }
 
   function limitDatedHistory(history, maximumDays, reportDate = null) {
@@ -728,7 +755,7 @@
     const idleColumn = headers.findIndex((value) => /idle\s*%/i.test(text(value)));
     const oorColumn = findHeaderIndex(headers, ["oor"]);
     const idleDate = idleColumn >= 0 ? parseDate(text(headers[idleColumn]).split(/\r?\n/)[0]) : null;
-    return rows.slice(headerIndex + 1).map((row) => ({
+    const result = rows.slice(headerIndex + 1).map((row) => ({
       driverName: text(row[driverColumn]),
       driverCode: text(row[codeColumn]),
       driverLeader: text(row[leaderColumn]) || "Unassigned",
@@ -739,6 +766,9 @@
       oorPct: normalizePercent(row[oorColumn]),
       reportDate: idleDate,
     })).filter((record) => record.driverName && !/^grand total$/i.test(record.driverName));
+    const totalRow = rows.slice(headerIndex + 1).find((row) => /^grand total$/i.test(text(row[driverColumn])));
+    result.fleetIdle28DayPct = totalRow ? normalizePercent(totalRow[idleColumn]) : null;
+    return result;
   }
 
   function parseDriverMetricsPdfLines(lines) {
@@ -2172,8 +2202,8 @@
     const idleExclusionNote = idleExcludedCount ? ` · ${formatCount(idleExcludedCount)} excluded` : "";
     const idle7Values = idleEligibleRecords.map((driver) => driver.idle7DayPct).filter(isFiniteNumber);
     const idle28Values = idleEligibleRecords.map((driver) => driver.idle28DayPct).filter(isFiniteNumber);
-    const idle7Average = idle7Values.length ? average(idle7Values) : null;
-    const idle28Average = idle28Values.length ? average(idle28Values) : null;
+    const idle7Average = drivers.fleetIdle7DayPct ?? (idle7Values.length ? average(idle7Values) : null);
+    const idle28Average = drivers.fleetIdle28DayPct ?? (idle28Values.length ? average(idle28Values) : null);
     const idle7ByTruck = new Map();
     idleEligibleRecords.forEach((driver) => {
       const truck = normalizeIdentity(driver.assignedTruck);
@@ -2185,10 +2215,14 @@
     els.kpiHighIdleTrucksNote.textContent = `${formatCount(idle7ByTruck.size)} matched truck${idle7ByTruck.size === 1 ? "" : "s"} with rolling 7-day data`;
     els.kpiHighIdleTrucksBar.style.width = `${idle7ByTruck.size ? clamp(highIdleTruckCount / idle7ByTruck.size * 100, highIdleTruckCount ? 4 : 0, 100) : 0}%`;
     els.kpiIdle7Day.textContent = pct(idle7Average, 1);
-    els.kpiIdle7DayNote.textContent = `${formatCount(idle7Values.length)} driver${idle7Values.length === 1 ? "" : "s"} with 7-day data${idleExclusionNote}`;
+    els.kpiIdle7DayNote.textContent = drivers.fleetIdle7DayPct !== null && drivers.fleetIdle7DayPct !== undefined
+      ? "Report Grand Total · full report population"
+      : `${formatCount(idle7Values.length)}-driver average${idleExclusionNote}`;
     els.kpiIdle7DayBar.style.width = `${clamp((idle7Average || 0) * 100, idle7Average === null ? 0 : 4, 100)}%`;
     els.kpiIdle28Day.textContent = pct(idle28Average, 1);
-    els.kpiIdle28DayNote.textContent = `${formatCount(idle28Values.length)} driver${idle28Values.length === 1 ? "" : "s"} with 28-day data${idleExclusionNote}`;
+    els.kpiIdle28DayNote.textContent = drivers.fleetIdle28DayPct !== null && drivers.fleetIdle28DayPct !== undefined
+      ? "Report Grand Total · full report population"
+      : `${formatCount(idle28Values.length)}-driver average${idleExclusionNote}`;
     els.kpiIdle28DayBar.style.width = `${clamp((idle28Average || 0) * 100, idle28Average === null ? 0 : 4, 100)}%`;
 
     const idleRecords = idleEligibleRecords.filter((driver) => isFiniteNumber(currentIdlePct(driver)));
@@ -2631,10 +2665,13 @@
   function renderPtaActionNotes(record) {
     const key = ptaTruckNoteKey(record);
     const notes = Array.isArray(state.ptaActionNotes[key]) ? state.ptaActionNotes[key] : [];
+    const { recent, older } = splitNotesByAge(notes);
+    const showOlder = expandedOlderNotes.pta.has(key);
+    const visibleNotes = showOlder ? notes : recent;
     els.ptaActionNoteStatus.textContent = notes.length
-      ? `${formatCount(notes.length)} saved note${notes.length === 1 ? "" : "s"} for Truck ${record.truck || "Unknown"}. Saved only in this browser.`
+      ? `${formatCount(notes.length)} saved note${notes.length === 1 ? "" : "s"} for Truck ${record.truck || "Unknown"}.${older.length && !showOlder ? ` ${formatCount(older.length)} older than 7 days hidden.` : ""} Saved only in this browser.`
       : `No saved action notes for Truck ${record.truck || "Unknown"} yet. Notes stay in this browser.`;
-    els.ptaActionNoteHistory.innerHTML = notes.length ? notes.map((note) => {
+    const noteCards = visibleNotes.map((note) => {
       const saved = new Date(note.savedAt);
       const savedLabel = Number.isNaN(saved.getTime()) ? "Saved previously" : saved.toLocaleString([], { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
       const ptaDate = note.pta ? new Date(note.pta) : null;
@@ -2650,10 +2687,24 @@
         <p>${escapeHtml(note.text).replace(/\n/g, "<br>")}</p>
         <small>${escapeHtml(context)}</small>
       </article>`;
-    }).join("") : '<div class="pta-action-note-empty">Your saved action history will appear here.</div>';
+    }).join("");
+    const toggle = older.length
+      ? `<button type="button" class="older-notes-toggle" data-older-notes-toggle="pta" aria-expanded="${showOlder}">${showOlder ? "Hide" : "Show"} ${formatCount(older.length)} note${older.length === 1 ? "" : "s"} older than 7 days</button>`
+      : "";
+    els.ptaActionNoteHistory.innerHTML = notes.length ? `${toggle}${noteCards}` : '<div class="pta-action-note-empty">Your saved action history will appear here.</div>';
   }
 
   function handlePtaActionNoteHistoryClick(event) {
+    const toggle = event.target.closest('[data-older-notes-toggle="pta"]');
+    if (toggle) {
+      const record = currentPtaModalRecord();
+      if (!record) return;
+      const key = ptaTruckNoteKey(record);
+      if (expandedOlderNotes.pta.has(key)) expandedOlderNotes.pta.delete(key);
+      else expandedOlderNotes.pta.add(key);
+      renderPtaActionNotes(record);
+      return;
+    }
     const button = event.target.closest("[data-pta-note-delete]");
     if (!button) return;
     const record = currentPtaModalRecord();
@@ -2724,9 +2775,12 @@
   function renderDriverActionNotes(driver) {
     const key = driverNoteKey(driver);
     const notes = Array.isArray(state.driverActionNotes[key]) ? state.driverActionNotes[key] : [];
+    const { recent, older } = splitNotesByAge(notes);
+    const showOlder = expandedOlderNotes.driver.has(key);
+    const visibleNotes = showOlder ? notes : recent;
     const today = notes.filter((note) => isToday(note.savedAt));
-    els.driverActionNoteStatus.textContent = `${formatCount(today.length)} note${today.length === 1 ? "" : "s"} today · ${formatCount(notes.length)} total. Finish + handoff when the follow-up is ready for transition.`;
-    els.driverActionNoteHistory.innerHTML = notes.length ? notes.map((note) => {
+    els.driverActionNoteStatus.textContent = `${formatCount(today.length)} note${today.length === 1 ? "" : "s"} today · ${formatCount(notes.length)} total${older.length && !showOlder ? ` · ${formatCount(older.length)} older than 7 days hidden` : ""}. Finish + handoff when the follow-up is ready for transition.`;
+    const noteCards = visibleNotes.map((note) => {
       const saved = new Date(note.savedAt);
       const savedLabel = Number.isNaN(saved.getTime()) ? "Saved previously" : saved.toLocaleString([], { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
       return `<article class="pta-action-note-entry">
@@ -2734,10 +2788,24 @@
         <p>${escapeHtml(note.text).replace(/\n/g, "<br>")}</p>
         <small>Idle: daily ${pct(note.dailyIdlePct, 1)} · 7-day ${pct(note.idle7DayPct, 1)} · 28-day ${pct(note.idle28DayPct, 1)}${isIdleFocusedMode() ? "" : ` · Fuel cost ${money(note.estimatedCost, 0)}`}</small>
       </article>`;
-    }).join("") : '<div class="pta-action-note-empty">Driver follow-up notes will appear here.</div>';
+    }).join("");
+    const toggle = older.length
+      ? `<button type="button" class="older-notes-toggle" data-older-notes-toggle="driver" aria-expanded="${showOlder}">${showOlder ? "Hide" : "Show"} ${formatCount(older.length)} note${older.length === 1 ? "" : "s"} older than 7 days</button>`
+      : "";
+    els.driverActionNoteHistory.innerHTML = notes.length ? `${toggle}${noteCards}` : '<div class="pta-action-note-empty">Driver follow-up notes will appear here.</div>';
   }
 
   function handleDriverActionNoteHistoryClick(event) {
+    const toggle = event.target.closest('[data-older-notes-toggle="driver"]');
+    if (toggle) {
+      const driver = currentDriverModalRecord();
+      if (!driver) return;
+      const key = driverNoteKey(driver);
+      if (expandedOlderNotes.driver.has(key)) expandedOlderNotes.driver.delete(key);
+      else expandedOlderNotes.driver.add(key);
+      renderDriverActionNotes(driver);
+      return;
+    }
     const button = event.target.closest("[data-driver-note-delete]");
     if (!button) return;
     const driver = currentDriverModalRecord();
@@ -2751,6 +2819,17 @@
   function isToday(value) {
     const date = new Date(value);
     return !Number.isNaN(date.getTime()) && dateKey(date) === dateKey(new Date());
+  }
+
+  function splitNotesByAge(notes, now = Date.now()) {
+    const cutoff = now - 7 * 86400000;
+    const recent = [];
+    const older = [];
+    for (const note of notes || []) {
+      const savedAt = new Date(note?.savedAt).getTime();
+      (Number.isFinite(savedAt) && savedAt >= cutoff ? recent : older).push(note);
+    }
+    return { recent, older };
   }
 
   function exportShiftTransition() {
@@ -3150,6 +3229,6 @@
     parseDelimitedText, parseBasicDriverPdfLines, analyzePdfDrivers,
     parseBasicDriverMetricsReport, parseBasicComplianceReport, parseBasicCostReport, parseBasicMpgReport,
     parseRolling7DayReport, parseRolling28DayHistory, limitDatedHistory, parseDriverDetailsApuRows,
-    parseDate, parseDateTime, sourceLabel, ptaTruckNoteKey, driverNoteKey, recentTruckWork
+    parseDate, parseDateTime, sourceLabel, ptaTruckNoteKey, driverNoteKey, recentTruckWork, splitNotesByAge
   };
 })();

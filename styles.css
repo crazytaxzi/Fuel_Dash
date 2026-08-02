@@ -1035,6 +1035,26 @@ tbody tr:hover { background:rgba(168,85,247,.075); }
   overflow:auto;
   padding-right:3px;
 }
+
+.older-notes-toggle {
+  width: 100%;
+  margin: 0 0 10px;
+  padding: 9px 12px;
+  border: 1px solid rgba(168, 85, 247, .38);
+  border-radius: 8px;
+  background: rgba(168, 85, 247, .08);
+  color: #d8b4fe;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.older-notes-toggle:hover,
+.older-notes-toggle:focus-visible {
+  border-color: rgba(57, 255, 99, .65);
+  color: #b8ffca;
+}
 .pta-action-note-entry {
   padding:12px 13px;
   border:1px solid rgba(168,85,247,.20);

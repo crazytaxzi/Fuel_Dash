@@ -21,5 +21,10 @@ assert.match(app, /limitDatedHistory\(record\.history, 7, reportDate\)/, "rollin
 assert.match(app, /limitDatedHistory\(history, 28, reportDate\)/, "rolling 28-day output must discard data outside the latest 28 calendar days");
 assert.match(app, /const highIdleTruckCount = \[\.\.\.idle7ByTruck\.values\(\)\]\.filter\(\(idlePct\) => idlePct > 0\.5\)\.length/, "the overview indicator must count unique matched trucks over 50% rolling 7-day idle");
 assert.doesNotMatch(app, /modalMetric\("Possible yearly cost"/, "the unused yearly-cost driver card must be removed");
+assert.match(app, /drivers\.fleetIdle7DayPct = rolling7\.fleetIdle7DayPct \?\? null/, "the dashboard must preserve the rolling 7-day report Grand Total");
+assert.match(app, /drivers\.fleetIdle28DayPct = metrics\.fleetIdle28DayPct \?\? rolling28\.fleetIdle28DayPct \?\? null/, "the dashboard must prefer the report's weighted rolling 4-week Grand Total");
+assert.match(app, /const idle28Average = drivers\.fleetIdle28DayPct \?\?/, "the KPI must use the report Grand Total before falling back to a driver average");
+assert.match(app, /function splitNotesByAge\(notes, now = Date\.now\(\)\)[\s\S]*now - 7 \* 86400000/, "card notes older than seven days must be separated without deletion");
+assert.match(app, /data-older-notes-toggle="pta"[\s\S]*data-older-notes-toggle="driver"/, "both truck and driver note cards must provide older-note toggles");
 assert.doesNotMatch(app, /const emptyApu = analyzeApu\(\[\], drivers, null\)/, "basic mode must not discard routed APU data");
 console.log("Content discovery and partial-idle bridge smoke test passed.");
