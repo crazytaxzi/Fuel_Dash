@@ -146,7 +146,7 @@
     const needle = normalizeSearch(query);
     const results = [];
     const notes = readObject(DRIVER_NOTES_KEY);
-    Object.values(notes).flatMap((items) => Array.isArray(items) ? items : []).forEach((note) => {
+    Object.values(notes).flatMap((items) => Array.isArray(items) ? items : []).filter((note) => note && typeof note === "object").forEach((note) => {
       const value = { domain: "Fuel note", ...note };
       if (!needle || normalizeSearch(Object.values(value).join(" ")).includes(needle)) results.push(value);
     });

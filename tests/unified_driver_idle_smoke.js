@@ -18,6 +18,8 @@ assert.match(transition, /const identities = driverCode \? \[`code:/);
 assert.match(app, /sort\(\(a, b\) => b\.driver\.idle7DayPct - a\.driver\.idle7DayPct\)[\s\S]*slice\(0, 5\)/, "Today must use the actual top five eligible 7-day idlers");
 assert.match(app, /Assign this driver to a truck before saving a fuel note/);
 assert.match(app, /Link this truck to a driver before saving a PTA note/);
+assert.match(app, /const metrics = objectRecords\(parseBasicDriverMetricsReport/);
+assert.match(app, /drivers\.records = objectRecords\(drivers\.records\)/, "driver rows must be normalized before APU and assignment joins");
 assert.match(transition, /<strong>\$\{escapeHtml\(truck\)\}<\/strong> - \$\{escapeHtml\(driver\)\}:/, "handoff lines must lead with a bold truck number without a Truck label");
 assert.doesNotMatch(html, /data-view="units"/);
 assert.match(html, /DRIVER \+ TRUCK EVIDENCE/);

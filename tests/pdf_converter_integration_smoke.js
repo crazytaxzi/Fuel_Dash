@@ -9,7 +9,7 @@ const releaseWorkflow = fs.readFileSync(".github/workflows/publish-v3-release.ym
 for (const id of ["pdfInput", "chooseBtn", "dropZone", "status", "results"]) {
   assert.match(html, new RegExp(`id="${id}"`), `Settings must provide #${id}`);
 }
-assert.match(html, /type="module" src="pdf_to_xlsx\.js"/, "the in-app converter module must be loaded by the dashboard");
+assert.match(html, /type="module" src="pdf_to_xlsx\.js(?:\?v=[^"]+)?"/, "the in-app converter module must be loaded by the dashboard");
 assert.match(converter, /import\("\.\/vendor\/pdfjs\/pdf\.min\.mjs"\)/, "PDF.js must be loaded lazily when conversion starts");
 assert.doesNotMatch(converter, /^import .*pdf\.min\.mjs/m, "PDF.js must not delay normal dashboard startup");
 assert.match(releaseWorkflow, /^\s+pdf_to_xlsx\.js$/m, "the release gate must validate the in-app converter");

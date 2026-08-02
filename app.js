@@ -591,9 +591,9 @@
   function analyzeIdleReports(workbooks, files) {
     const detailRows = workbookRows(workbooks.detail, 0);
     const detail = analyzeDetail(detailRows);
-    const metrics = parseBasicDriverMetricsReport(workbooks.driverMetricsDetail);
-    const rolling7 = parseRolling7DayReport(workbooks.rolling7Day);
-    const rolling28 = parseRolling28DayHistory(workbooks.driverDetails);
+    const metrics = objectRecords(parseBasicDriverMetricsReport(workbooks.driverMetricsDetail));
+    const rolling7 = objectRecords(parseRolling7DayReport(workbooks.rolling7Day));
+    const rolling28 = objectRecords(parseRolling28DayHistory(workbooks.driverDetails));
     const sevenByCode = new Map(rolling7.filter((record) => record.driverCode).map((record) => [normalizeIdentity(record.driverCode), record]));
     const sevenByName = new Map(rolling7.map((record) => [normalizeIdentity(record.driverName), record]));
     const twentyEightByCode = new Map(rolling28.filter((record) => record.driverCode).map((record) => [normalizeIdentity(record.driverCode), record]));
@@ -911,6 +911,8 @@
   }
 
   function buildBasicReportDrivers(metrics, mpgRows, currentDate) {
+    metrics = objectRecords(metrics);
+    mpgRows = objectRecords(mpgRows);
     const mpgByCode = new Map(mpgRows.map((row) => [normalizeIdentity(row.driverCode), row]));
     const mpgByName = new Map(mpgRows.map((row) => [normalizeIdentity(row.driverName), row]));
     const base = metrics.length ? metrics : mpgRows;
@@ -1227,6 +1229,8 @@
   }
 
   function mergePdfDriverRecords(records, pdfRecords) {
+    records = objectRecords(records);
+    pdfRecords = objectRecords(pdfRecords);
     if (!pdfRecords.length) return records;
     const byIdentity = new Map();
     records.forEach((driver) => {
@@ -1250,6 +1254,7 @@
   }
 
   function analyzePdfDrivers(pdfRecords, latestWeek, planningPpg) {
+    pdfRecords = objectRecords(pdfRecords);
     if (!pdfRecords.length) throw new Error("No c1 workbook or readable basic driver PDF was found.");
     const records = pdfRecords.map((record) => {
       const estimatedCost = record.fuelCost || 0;
@@ -1290,6 +1295,7 @@
   }
 
   function analyzeApu(rows, drivers, file) {
+    drivers.records = objectRecords(drivers.records);
     const embedded = drivers.records
       .filter((driver) => [driver.electricApuHours, driver.engineIdleHours, driver.apuUsePct, driver.apuBatterySoc, driver.apuFaults].some((value) => value !== null && value !== undefined))
       .map((driver) => ({
@@ -1386,7 +1392,7 @@
       external = [...latestByIdentity.values()];
     }
 
-    const records = external.length ? external : embedded;
+    const records = objectRecords(external.length ? external : embedded);
     const validDriverRecords = drivers.records.filter((driver) => driver && typeof driver === "object");
     const driverByCode = new Map(validDriverRecords.filter((driver) => driver.driverCode).map((driver) => [normalizeIdentity(driver.driverCode), driver]));
     const driverByName = new Map(validDriverRecords.filter((driver) => driver.driverName).map((driver) => [normalizeIdentity(driver.driverName), driver]));
@@ -2936,7 +2942,7 @@
     ];
     let ptaCount = 0;
     Object.values(state.ptaActionNotes).forEach((notes) => {
-      (Array.isArray(notes) ? notes : []).filter((note) => isToday(note.savedAt) && selections[`pta:${note.id}`] === true && note.truck && note.driver).reverse().forEach((note) => {
+      objectRecords(notes).filter((note) => isToday(note.savedAt) && selections[`pta:${note.id}`] === true && note.truck && note.driver).reverse().forEach((note) => {
         ptaCount += 1;
         lines.push(`${note.truck} - ${note.driver}: ${note.text}`);
       });
@@ -2945,7 +2951,7 @@
     lines.push("", "FUEL COACHING", "-------------");
     let fuelCount = 0;
     Object.values(state.driverActionNotes).forEach((notes) => {
-      (Array.isArray(notes) ? notes : []).filter((note) => isToday(note.savedAt) && selections[`driver:${note.id}`] === true && note.truck && note.driverName).reverse().forEach((note) => {
+      objectRecords(notes).filter((note) => isToday(note.savedAt) && selections[`driver:${note.id}`] === true && note.truck && note.driverName).reverse().forEach((note) => {
         fuelCount += 1;
         lines.push(`${note.truck} - ${note.driverName}: ${note.text}`);
       });
@@ -3185,7 +3191,7 @@
 
   function findDriverApuRecord(driver) {
     const apu = state.analysis?.apu;
-    if (!apu?.hasData) return null;
+    if (!driver || typeof driver !== "object" || !apu?.hasData) return null;
     return apu.byDriver.get(`code:${normalizeIdentity(driver.driverCode)}`) || apu.byDriver.get(`name:${normalizeIdentity(driver.driverName)}`) || null;
   }
 
@@ -3319,6 +3325,12 @@
   function shortDate(date) { return date.toLocaleDateString([], { month: "short", day: "numeric" }); }
   function formatDateRange(date) { return date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }); }
   function text(value) { return value === null || value === undefined ? "" : String(value).trim(); }
+  function objectRecords(value) {
+    if (!Array.isArray(value)) return [];
+    const records = value.filter((record) => record && typeof record === "object");
+    Object.keys(value).filter((key) => !/^\d+$/.test(key)).forEach((key) => { records[key] = value[key]; });
+    return records;
+  }
   function number(value) {
     if (value === null || value === undefined || value === "") return null;
     if (typeof value === "number") return Number.isFinite(value) ? value : null;

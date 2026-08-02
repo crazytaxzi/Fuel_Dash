@@ -518,6 +518,7 @@
     const grouping = window.VixenTransitionGrouping;
     Object.entries(groups || {}).forEach(([truck, values]) => {
       const notes = (Array.isArray(values) ? values : [])
+        .filter((note) => note && typeof note === "object")
         .filter((note) => dateMatchesScope(note.savedAt, scope.dates) && noteIncluded("pta", note, selections))
         .sort((a, b) => new Date(a.savedAt) - new Date(b.savedAt));
       notes.forEach((note) => {
@@ -570,6 +571,7 @@
     const grouping = window.VixenTransitionGrouping;
     Object.entries(groups || {}).forEach(([key, values]) => {
       const notes = (Array.isArray(values) ? values : [])
+        .filter((note) => note && typeof note === "object")
         .filter((note) => dateMatchesScope(note.savedAt, scope.dates) && noteIncluded("driver", note, selections))
         .sort((a, b) => new Date(a.savedAt) - new Date(b.savedAt));
       notes.forEach((note) => {

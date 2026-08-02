@@ -287,6 +287,7 @@
       items.push({ type: "pta", identity: truck, noteId, label: `${truck} — ${note.driver}`, meta: ["PTA", note.destination || "No destination"].join(" · "), note, done: completionState("pta", note, completions).done, included: selections[noteStateKey("pta", noteId)] === true });
     }));
     Object.entries(driverNotes || {}).forEach(([key, notes]) => (Array.isArray(notes) ? notes : []).forEach((rawNote) => {
+      if (!rawNote || typeof rawNote !== "object") return;
       const time = new Date(rawNote?.savedAt).getTime();
       const noteId = String(rawNote?.id ?? "").trim();
       if (!Number.isFinite(time) || !noteId) return;

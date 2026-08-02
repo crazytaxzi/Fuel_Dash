@@ -1,6 +1,8 @@
 (() => {
   "use strict";
 
+  const BUILD_VERSION = "3.20.2";
+
   const OPTIONAL_MODULES = [
     "core/resource_coordinator.js",
     "core/read_once_mode.js",
@@ -80,7 +82,7 @@
         return;
       }
       const script = document.createElement("script");
-      script.src = src;
+      script.src = `${src}?v=${BUILD_VERSION}`;
       script.async = false;
       script.dataset.vixenSrc = src;
       script.onload = resolve;
