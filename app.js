@@ -122,8 +122,8 @@
       "connectOverlay", "connectFolderBtn", "fallbackFilesBtn", "fallbackFilesInput", "connectError",
       "refreshBtn", "changeFolderBtn", "reportingWeek", "lastRefresh", "toast", "brandName", "tagline",
       "kpiCompliance", "kpiComplianceDelta", "kpiComplianceBar", "kpiWeeklyCost", "kpiWeeklyCostDelta",
-      "kpiWeeklyCostBar", "kpiModeledSavings", "kpiModeledSavingsNote", "kpiModeledSavingsBar",
-      "kpiAnnualExposure", "kpiAnnualNote", "kpiAnnualBar", "heroInsight", "heroSavings",
+      "kpiWeeklyCostBar", "kpiHighIdleTrucks", "kpiHighIdleTrucksNote", "kpiHighIdleTrucksBar",
+      "heroInsight", "heroSavings",
       "kpiIdle7Day", "kpiIdle7DayNote", "kpiIdle7DayBar", "kpiIdle28Day", "kpiIdle28DayNote", "kpiIdle28DayBar",
       "topDriversList", "bestIdlersList", "unitWatchList", "qualityAlerts", "nextActions", "trendWeekTotal", "trendWeekDelta",
       "planningPpgInput", "refreshIntervalSelect", "brandInput", "taglineInput", "saveSettingsBtn", "saveBrandBtn",
@@ -2167,16 +2167,6 @@
     els.kpiWeeklyCostDelta.textContent = costChange === null ? "Current detail period" : deltaLabel(costChange, "vs previous week", false);
     els.kpiWeeklyCostBar.style.width = `${clamp(100 - Math.abs((costChange || 0) * 100), 18, 100)}%`;
 
-    els.kpiModeledSavings.textContent = moneyCompact(drivers.totals.modeledCost);
-    els.kpiModeledSavingsNote.textContent = isIdleFocusedMode(analysis)
-      ? "Driver-level cost and gallons are not supplied by the basic reports"
-      : `${num(drivers.totals.excessGallons, 0)} estimated gallons above the strong-peer target`;
-    els.kpiModeledSavingsBar.style.width = `${clamp(drivers.totals.topFourShare * 100, 12, 100)}%`;
-
-    els.kpiAnnualExposure.textContent = moneyCompact(drivers.totals.annualizedCost);
-    els.kpiAnnualNote.textContent = `If the current gap repeats · ${money(state.settings.planningPpg, 2)}/gal`;
-    els.kpiAnnualBar.style.width = `${clamp(drivers.totals.topFourShare * 100, 20, 100)}%`;
-
     const idleEligibleRecords = drivers.records.filter((driver) => !driver.idleExcluded);
     const idleExcludedCount = drivers.records.length - idleEligibleRecords.length;
     const idleExclusionNote = idleExcludedCount ? ` · ${formatCount(idleExcludedCount)} excluded` : "";
@@ -2184,6 +2174,16 @@
     const idle28Values = idleEligibleRecords.map((driver) => driver.idle28DayPct).filter(isFiniteNumber);
     const idle7Average = idle7Values.length ? average(idle7Values) : null;
     const idle28Average = idle28Values.length ? average(idle28Values) : null;
+    const idle7ByTruck = new Map();
+    idleEligibleRecords.forEach((driver) => {
+      const truck = normalizeIdentity(driver.assignedTruck);
+      if (!truck || !isFiniteNumber(driver.idle7DayPct)) return;
+      idle7ByTruck.set(truck, Math.max(idle7ByTruck.get(truck) ?? Number.NEGATIVE_INFINITY, driver.idle7DayPct));
+    });
+    const highIdleTruckCount = [...idle7ByTruck.values()].filter((idlePct) => idlePct > 0.5).length;
+    els.kpiHighIdleTrucks.textContent = formatCount(highIdleTruckCount);
+    els.kpiHighIdleTrucksNote.textContent = `${formatCount(idle7ByTruck.size)} matched truck${idle7ByTruck.size === 1 ? "" : "s"} with rolling 7-day data`;
+    els.kpiHighIdleTrucksBar.style.width = `${idle7ByTruck.size ? clamp(highIdleTruckCount / idle7ByTruck.size * 100, highIdleTruckCount ? 4 : 0, 100) : 0}%`;
     els.kpiIdle7Day.textContent = pct(idle7Average, 1);
     els.kpiIdle7DayNote.textContent = `${formatCount(idle7Values.length)} driver${idle7Values.length === 1 ? "" : "s"} with 7-day data${idleExclusionNote}`;
     els.kpiIdle7DayBar.style.width = `${clamp((idle7Average || 0) * 100, idle7Average === null ? 0 : 4, 100)}%`;
@@ -2325,7 +2325,7 @@
         <td class="numeric">${pct(driver.dailyIdlePct, 1)}</td><td class="numeric">${pct(driver.idle7DayPct, 1)}</td><td class="numeric">${pct(driver.idle28DayPct, 1)}</td>
         <td class="numeric">${pct(driver.oorPct, 1)}</td><td class="numeric">${num(driver.movingMpg, 2)}</td>
         <td class="numeric">${basicMode ? "--" : num(driver.excessGallons, 1)}</td><td class="numeric cost-positive">${basicMode ? "--" : money(driver.estimatedCost, 0)}</td>
-        <td class="numeric">${basicMode ? "--" : money(driver.annualizedCost, 0)}</td><td>${escapeHtml(driver.focus)}</td><td>${escapeHtml(driver.action)}</td>
+        <td>${escapeHtml(driver.focus)}</td><td>${escapeHtml(driver.action)}</td>
         <td><button class="driver-details-button" type="button" data-driver-index="${index}">Open</button></td>
       </tr>`).join("");
   }
@@ -2922,7 +2922,6 @@
       modalMetric("28-day idle", pct(driver.idle28DayPct, 1), `${driver.idlePct > state.analysis.drivers.idleThreshold ? "Above" : "At or below"} ${pct(state.analysis.drivers.idleThreshold, 1)} fleet review level`),
       modalMetric("Out-of-route", pct(driver.oorPct, 1), `${driver.oorPct > state.analysis.drivers.oorThreshold ? "Above" : "At or below"} ${pct(state.analysis.drivers.oorThreshold, 1)} fleet review level`),
       modalMetric("MPG while moving", num(driver.movingMpg, 2), `${driver.movingMpg < state.analysis.drivers.movingThreshold ? "Below" : "At or above"} ${num(state.analysis.drivers.movingThreshold, 2)} fleet middle`),
-      ...(basicMode ? [] : [modalMetric("Possible yearly cost", money(driver.annualizedCost, 0), "If the same gap repeats for 13 rolling periods")]),
       modalMetric("MPG change", driver.mpgChange === null ? "No comparison" : `${driver.mpgChange >= 0 ? "+" : ""}${num(driver.mpgChange, 2)}`, "Compared with the prior available rolling period"),
     ].join("");
     els.modalDriverFocus.textContent = driver.focus;

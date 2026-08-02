@@ -19,5 +19,7 @@ assert.match(app, /function driverAssignmentLabel\(driver\)[\s\S]*\$\{driver\.as
 assert.match(app, /truck: driver\.assignedTruck \|\| ""/, "driver follow-up notes must retain their matched truck for handoff grouping");
 assert.match(app, /limitDatedHistory\(record\.history, 7, reportDate\)/, "rolling 7-day output must discard data outside the latest seven calendar days");
 assert.match(app, /limitDatedHistory\(history, 28, reportDate\)/, "rolling 28-day output must discard data outside the latest 28 calendar days");
+assert.match(app, /const highIdleTruckCount = \[\.\.\.idle7ByTruck\.values\(\)\]\.filter\(\(idlePct\) => idlePct > 0\.5\)\.length/, "the overview indicator must count unique matched trucks over 50% rolling 7-day idle");
+assert.doesNotMatch(app, /modalMetric\("Possible yearly cost"/, "the unused yearly-cost driver card must be removed");
 assert.doesNotMatch(app, /const emptyApu = analyzeApu\(\[\], drivers, null\)/, "basic mode must not discard routed APU data");
 console.log("Content discovery and partial-idle bridge smoke test passed.");
