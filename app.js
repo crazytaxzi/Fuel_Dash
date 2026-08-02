@@ -3047,7 +3047,7 @@
         sourceName: assignmentFile?.name || "Driver assignment report",
         sourceRow: assignmentHeader + sourceIndex + 2,
       };
-    }).filter((record) => record.driverCode && record.driverName && record.truck);
+    }).filter((record) => record && record.driverCode && record.driverName && record.truck);
   }
 
   function attachDriverTruckAssignments(drivers, pta, apu, assignmentEvidence = []) {
