@@ -74,7 +74,7 @@
   window.VixenDashboardWorkflow = Object.freeze({
     getAttentionTasks() {
       const ptaTasks = (state.analysis?.pta?.actionQueue || [])
-        .filter((record) => record.needsAction)
+        .filter((record) => record && record.needsAction)
         .map((record) => ({
           type: "pta",
           index: record.index,
@@ -86,7 +86,7 @@
         }));
       const driverTasks = (state.analysis?.drivers?.records || [])
         .map((driver, index) => ({ driver, index }))
-        .filter(({ driver }) => !driver.idleExcluded && isFiniteNumber(driver.idle7DayPct))
+        .filter(({ driver }) => driver && !driver.idleExcluded && isFiniteNumber(driver.idle7DayPct))
         .sort((a, b) => b.driver.idle7DayPct - a.driver.idle7DayPct)
         .slice(0, 5)
         .map(({ driver, index }) => ({
@@ -1387,8 +1387,9 @@
     }
 
     const records = external.length ? external : embedded;
-    const driverByCode = new Map(drivers.records.filter((driver) => driver.driverCode).map((driver) => [normalizeIdentity(driver.driverCode), driver]));
-    const driverByName = new Map(drivers.records.filter((driver) => driver.driverName).map((driver) => [normalizeIdentity(driver.driverName), driver]));
+    const validDriverRecords = drivers.records.filter((driver) => driver && typeof driver === "object");
+    const driverByCode = new Map(validDriverRecords.filter((driver) => driver.driverCode).map((driver) => [normalizeIdentity(driver.driverCode), driver]));
+    const driverByName = new Map(validDriverRecords.filter((driver) => driver.driverName).map((driver) => [normalizeIdentity(driver.driverName), driver]));
 
     for (const record of records) {
       const linkedDriver = driverByCode.get(normalizeIdentity(record.driverCode)) || driverByName.get(normalizeIdentity(record.driverName)) || null;
@@ -2596,7 +2597,7 @@
     }
     state.activePtaRecordIndex = index;
     els.ptaActionNoteInput.value = "";
-    const linkedDrivers = (state.analysis?.drivers?.records || []).filter((driver) =>
+    const linkedDrivers = (state.analysis?.drivers?.records || []).filter((driver) => driver &&
       normalizeIdentity(driver.assignedTruck) === normalizeIdentity(record.truck));
     els.ptaNoteDriverSelect.innerHTML = linkedDrivers.length
       ? linkedDrivers.map((driver) => `<option value="${escapeHtml(driverNoteKey(driver))}">${escapeHtml(driver.driverName)} (${escapeHtml(driver.driverCode)})</option>`).join("")
@@ -2970,7 +2971,7 @@
 
   function findDriverPtaRecord(driver) {
     const pta = state.analysis?.pta;
-    if (!pta?.hasData) return null;
+    if (!driver || typeof driver !== "object" || !pta?.hasData) return null;
     return pta.allRecords
       .filter((record) => record.linkedDrivers?.includes(driver) || ptaDriverNameMatches(record.driver, driver.driverName, driver.driverCode) || normalizeIdentity(record.truck) === normalizeIdentity(driver.assignedTruck))
       .sort(comparePtaPriority)[0] || null;
@@ -3044,10 +3045,13 @@
   }
 
   function attachDriverTruckAssignments(drivers, pta, apu, assignmentEvidence = []) {
+    if (drivers && Array.isArray(drivers.records)) {
+      drivers.records = drivers.records.filter((record) => record && typeof record === "object");
+    }
     const ptaRecords = pta?.allRecords || [];
     const apuRecords = apu?.records || [];
     let notesChanged = false;
-    for (const driver of drivers?.records || []) {
+    for (const driver of (drivers?.records || []).filter((record) => record && typeof record === "object")) {
       if (driver.personalCategory) {
         driver.assignedTrucks = [];
         driver.assignedTruck = "";

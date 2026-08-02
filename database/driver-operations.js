@@ -65,7 +65,7 @@
     document.getElementById("driverAssignmentForm")?.addEventListener("submit", (event) => {
       event.preventDefault();
       const option = document.getElementById("assignmentDriver")?.selectedOptions?.[0];
-      const driver = latestAnalysis?.drivers?.records?.find((item) => driverKey(item) === option?.value);
+      const driver = validDrivers().find((item) => driverKey(item) === option?.value);
       const truck = normalizeTruck(document.getElementById("assignmentTruck")?.value);
       if (!driver || !truck) return;
       const occupants = Object.values(assignments).filter((item) => item.truck === truck && item.driverCode !== driver.driverCode);
@@ -91,6 +91,7 @@
   }
 
   function assignmentFor(driver) {
+    if (!driver || typeof driver !== "object") return null;
     return assignments[driverKey(driver)] || null;
   }
 
@@ -117,7 +118,7 @@
   }
 
   function captureSnapshot(analysis) {
-    const records = analysis?.drivers?.records;
+    const records = validDrivers(analysis);
     const reportDate = analysis?.drivers?.currentDate;
     if (!Array.isArray(records) || !records.length || !(reportDate instanceof Date)) return false;
     const date = reportDate.toISOString().slice(0, 10);
@@ -149,7 +150,7 @@
       const value = { domain: "Fuel note", ...note };
       if (!needle || normalizeSearch(Object.values(value).join(" ")).includes(needle)) results.push(value);
     });
-    readArray(SNAPSHOTS_KEY).forEach((snapshot) => (snapshot.drivers || []).forEach((driver) => {
+    readArray(SNAPSHOTS_KEY).filter((snapshot) => snapshot && typeof snapshot === "object").forEach((snapshot) => (Array.isArray(snapshot.drivers) ? snapshot.drivers : []).filter((driver) => driver && typeof driver === "object").forEach((driver) => {
       const value = { domain: "Fuel snapshot", savedAt: snapshot.date, ...driver };
       if (!needle || normalizeSearch(Object.values(value).join(" ")).includes(needle)) results.push(value);
     }));
@@ -159,7 +160,7 @@
   function populateDriverSelect() {
     const select = document.getElementById("assignmentDriver");
     if (!select) return;
-    const records = latestAnalysis?.drivers?.records || [];
+    const records = validDrivers();
     select.innerHTML = '<option value="">Choose a driver</option>' + records.map((driver) => `<option value="${escapeHtml(driverKey(driver))}">${escapeHtml(driver.driverCode)} - ${escapeHtml(driver.driverName)}${driver.assignedTruck ? ` · ${escapeHtml(driver.assignedTruck)}` : ""}</option>`).join("");
   }
 
@@ -178,6 +179,7 @@
   }
 
   function requestRefresh() { window.setTimeout(() => document.getElementById("refreshBtn")?.click(), 50); }
+  function validDrivers(analysis = latestAnalysis) { return (Array.isArray(analysis?.drivers?.records) ? analysis.drivers.records : []).filter((driver) => driver && typeof driver === "object"); }
   function driverKey(driver) { return normalizeId(driver?.driverCode) || normalizeName(driver?.driverName); }
   function normalizeTruck(value) { return normalizeId(value); }
   function normalizeId(value) { return String(value ?? "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
