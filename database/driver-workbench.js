@@ -23,6 +23,10 @@
     if (!view || !window.VixenDriverWorkbenchRender) return;
     installed = true;
     const heading = view.querySelector(".view-heading");
+    const navButton = document.querySelector('[data-view="drivers"]');
+    if (navButton) navButton.innerHTML = "<span>◉</span>Driver Workbench";
+    const connectCopy = document.querySelector("#connectOverlay .connect-card p");
+    if (connectCopy) connectCopy.textContent = "Core reports: Rolling 7 Day and Driver Details. Add Detail, Missing BOL, PTA, or APU reports only when you need their extra evidence.";
     heading?.querySelector("h2") && (heading.querySelector("h2").textContent = "Driver + Truck Workbench");
     heading?.querySelector(".eyebrow") && (heading.querySelector(".eyebrow").textContent = "ONE DRIVER · ONE TRUCK · ONE WORKFLOW");
     const search = heading?.querySelector(".table-search");
@@ -36,7 +40,7 @@
     view.append(shell);
     shell.addEventListener("click", handleClick);
     shell.addEventListener("submit", handleSubmit);
-    document.addEventListener("click", handleTodayOpen, true);
+    document.addEventListener("click", handleLegacyOpen, true);
     installStyles();
     bridgeDashboardWorkflow();
     analysis = window.VixenCurrentAnalysis || analysis;
@@ -64,8 +68,7 @@
   }
 
   function selectDriver(identity) {
-    const wanted = normalize(identity);
-    const record = model?.records?.find((item) => [item.key, item.driverCode, item.driverName, item.truck].some((value) => normalize(value) === wanted || normalize(value).includes(wanted)));
+    const record = findRecord(identity);
     if (!record) return false;
     selectedKey = record.key;
     document.querySelector('[data-view="drivers"]')?.click();
@@ -152,14 +155,32 @@
     render();
   }
 
-  function handleTodayOpen(event) {
-    const button = event.target.closest(".worked-card-open");
-    if (!button) return;
-    const card = button.closest("[data-worked-type]");
-    const opened = selectDriver(card?.dataset.workedIdentity || card?.textContent);
+  function handleLegacyOpen(event) {
+    const driverTrigger = event.target.closest("[data-driver-index]");
+    const ptaTrigger = event.target.closest("[data-pta-index]");
+    const workedTrigger = event.target.closest(".worked-card-open");
+    const heroTrigger = event.target.closest("#heroDriverDetailsBtn");
+    if (!driverTrigger && !ptaTrigger && !workedTrigger && !heroTrigger) return;
+
+    let record = null;
+    if (driverTrigger) record = model?.records?.find((item) => item.sourceIndex === Number(driverTrigger.dataset.driverIndex));
+    else if (ptaTrigger) record = model?.records?.find((item) => Number(item.sourcePta?.index) === Number(ptaTrigger.dataset.ptaIndex));
+    else if (workedTrigger) {
+      const card = workedTrigger.closest("[data-worked-type]");
+      const identity = card?.dataset.workedIdentity || card?.textContent;
+      record = findRecord(identity);
+    } else if (heroTrigger) record = model?.records?.[0] || null;
+
     event.preventDefault();
     event.stopImmediatePropagation();
-    if (!opened) notify("That item is not in the current driver reports. Its note remains in Today.", true);
+    if (record) selectDriver(record.key);
+    else notify("That item is not in the current driver reports. Its saved note remains available.", true);
+  }
+
+  function findRecord(identity) {
+    const wanted = normalize(identity);
+    return model?.records?.find((item) => [item.key, item.driverCode, item.driverName, item.truck]
+      .some((value) => normalize(value) === wanted || (wanted && normalize(value).includes(wanted)))) || null;
   }
 
   function bridgeDashboardWorkflow() {
