@@ -1,3 +1,3 @@
-v3.22.1
-Fuel_Dash-v3.22.1.zip
-d1e5973bdf01724e443136b69072becdc7ec669e
+v3.22.2
+Fuel_Dash-v3.22.2.zip
+5586b88fbdc0377d34eb12b618c7d3d26935fe16
