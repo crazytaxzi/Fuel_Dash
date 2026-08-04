@@ -4,6 +4,7 @@
   const ACTIVE_KEY = "vixenManualPtaActive";
   const TEXT_KEY = "vixenManualPtaText";
   const SAVED_AT_KEY = "vixenManualPtaSavedAt";
+  const OVERRIDE_KEY = "vixenDriverWorkbenchStateV1";
   const WATCHED_KEYS = new Set([ACTIVE_KEY, TEXT_KEY, SAVED_AT_KEY]);
   const SOON_HOURS = 48;
   let analysis = null;
@@ -15,11 +16,13 @@
     sync,
     applySnapshot,
     adaptSnapshot,
+    reconcileOverrides,
   });
   window.VixenWorkbenchPtaSync = api;
 
   document.addEventListener("vixen:analysis-rendered", (event) => {
     analysis = event.detail?.analysis || window.VixenCurrentAnalysis || null;
+    if (event.detail?.source === "pta-sync") return;
     if (analysis?.pta && !analysis.pta.manualPaste) baselinePta = analysis.pta;
     scheduleSync("analysis-rendered");
   });
@@ -46,8 +49,8 @@
 
     if (!active && String(reason) !== "pta-snapshot") {
       if (baselinePta) analysis.pta = baselinePta;
-      window.VixenDriverWorkbench?.refresh?.();
-      emit("file-source", 0, reason);
+      publishAnalysis("file-source", reason);
+      emit("file-source", 0, reason, 0);
       return true;
     }
 
@@ -73,12 +76,59 @@
   function applySnapshot(snapshot, reason = "pta-update") {
     analysis = window.VixenCurrentAnalysis || analysis;
     if (!analysis || !snapshot?.records?.length) return false;
+    const effectiveSnapshot = {
+      ...snapshot,
+      savedAt: normalizeSnapshotSavedAt(snapshot.savedAt),
+    };
     if (analysis.pta && !analysis.pta.manualPaste) baselinePta = analysis.pta;
-    analysis.pta = adaptSnapshot(snapshot, analysis.pta);
-    window.VixenCurrentAnalysis = analysis;
-    window.VixenDriverWorkbench?.refresh?.();
-    emit(snapshot.id || "pta-snapshot", snapshot.records.length, reason);
+    const overridesCleared = reconcileOverrides(effectiveSnapshot);
+    analysis.pta = adaptSnapshot(effectiveSnapshot, analysis.pta);
+    publishAnalysis(effectiveSnapshot.id || "pta-snapshot", reason);
+    emit(effectiveSnapshot.id || "pta-snapshot", effectiveSnapshot.records.length, reason, overridesCleared);
     return true;
+  }
+
+  function publishAnalysis(snapshotId, reason) {
+    window.VixenCurrentAnalysis = analysis;
+    document.dispatchEvent(new CustomEvent("vixen:analysis-rendered", {
+      detail: { analysis, source: "pta-sync", snapshotId, reason },
+    }));
+  }
+
+  function reconcileOverrides(snapshot) {
+    const snapshotTime = Date.parse(snapshot?.savedAt || "");
+    if (!Number.isFinite(snapshotTime)) return 0;
+    const values = readObject(OVERRIDE_KEY);
+    let cleared = 0;
+    let changed = false;
+
+    Object.entries(values).forEach(([key, original]) => {
+      if (!original || typeof original !== "object" || Array.isArray(original)) return;
+      const stateTime = Date.parse(original.updatedAt || "");
+      if (Number.isFinite(stateTime) && stateTime >= snapshotTime) return;
+      const state = { ...original };
+      const fields = ["pta", "loadStatus", "planStatus", "destination"];
+      let rowChanged = false;
+      fields.forEach((field) => {
+        if (!(field in state)) return;
+        delete state[field];
+        rowChanged = true;
+      });
+      if (!rowChanged) return;
+      const meaningfulKeys = Object.keys(state).filter((field) => field !== "updatedAt");
+      if (meaningfulKeys.length) values[key] = state;
+      else delete values[key];
+      changed = true;
+      cleared += 1;
+    });
+
+    if (changed) {
+      localStorage.setItem(OVERRIDE_KEY, JSON.stringify(values));
+      document.dispatchEvent(new CustomEvent("vixen:workbench-state-changed", {
+        detail: { key: OVERRIDE_KEY, source: "pta-sync", cleared },
+      }));
+    }
+    return cleared;
   }
 
   function adaptSnapshot(snapshot, previous = {}) {
@@ -88,6 +138,8 @@
       sourceType: "database-snapshot",
       sourceName: "PTA Update",
       sourceRow: Number(record.rowNumber) || index + 2,
+      snapshotId: snapshot.id || "",
+      snapshotSavedAt: snapshot.savedAt || "",
       truck: clean(record.truck),
       division: clean(record.division),
       driver: clean(record.driver),
@@ -193,10 +245,15 @@
       || clean(a.truck).localeCompare(clean(b.truck), undefined, { numeric: true });
   }
 
-  function emit(snapshotId, rowCount, reason) {
+  function emit(snapshotId, rowCount, reason, overridesCleared) {
     document.dispatchEvent(new CustomEvent("vixen:workbench-pta-synced", {
-      detail: { snapshotId, rowCount, reason },
+      detail: { snapshotId, rowCount, reason, overridesCleared },
     }));
+  }
+
+  function normalizeSnapshotSavedAt(value) {
+    const date = parseDate(value);
+    return date ? date.toISOString() : new Date().toISOString();
   }
 
   function parseDate(value) {
@@ -227,5 +284,14 @@
 
   function clean(value) {
     return String(value ?? "").replace(/\s+/g, " ").trim();
+  }
+
+  function readObject(key) {
+    try {
+      const value = JSON.parse(localStorage.getItem(key) || "{}");
+      return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    } catch (_) {
+      return {};
+    }
   }
 })();

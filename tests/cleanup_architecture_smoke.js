@@ -14,7 +14,7 @@ assert.match(bootstrap, /driver-workbench-render\.js/);
 assert.match(bootstrap, /workbench-pta-sync\.js/);
 assert.doesNotMatch(bootstrap, /database\/driver-operations\.js/);
 assert.doesNotMatch(bootstrap, /trip-planning-notes|trip-planning-table|missing_bol_driver_only|worked-navigation-fix/);
-assert.match(bootstrap, /BUILD_VERSION = "3\.22\.1"/);
+assert.match(bootstrap, /BUILD_VERSION = "3\.22\.2"/);
 assert.doesNotMatch(workbench, /Open full fuel detail|Open PTA board|data-open-driver-modal|data-open-pta-board/);
 assert.doesNotMatch(workbench, /vixenTripPlanningNotes305V1|VixenTripPlanningNotes/);
 assert.match(workbench, /handleLegacyOpen/);
@@ -25,7 +25,8 @@ assert.match(workbench, /VixenDashboardWorkflow = Object\.freeze/);
 assert.doesNotMatch(parser, /planningRecords|VixenTripPlanningNotes|ptaDisplay/);
 assert.match(parser, /currentIdleSource/);
 assert.match(ptaSync, /fuel-dashboard-database-change/);
-assert.match(ptaSync, /VixenDriverWorkbench\?\.refresh/);
+assert.match(ptaSync, /source: "pta-sync"/);
+assert.match(ptaSync, /reconcileOverrides/);
 assert.match(ptaSync, /vixen:workbench-pta-synced/);
 
 const storage = new Map();
