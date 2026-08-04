@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const BUILD_VERSION = "3.22.1";
+  const BUILD_VERSION = "3.22.2";
   const domReady = document.readyState === "loading"
     ? new Promise((resolve) => document.addEventListener("DOMContentLoaded", resolve, { once: true }))
     : Promise.resolve();
