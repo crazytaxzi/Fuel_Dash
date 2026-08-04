@@ -94,6 +94,10 @@ jobs:
           )
 
           tag = os.environ["RELEASE_TAG"]
+          version = tag.removeprefix("v")
+          index = package / "index.html"
+          if index.exists():
+              index.write_text(index.read_text(encoding="utf-8").replace("3.21.1", version), encoding="utf-8")
           commit = os.environ["RELEASE_SHA"]
           (package / "RELEASE_BUILD.txt").write_text(
               f"Fuel Dash\nVersion: {tag}\nCommit: {commit}\n"
