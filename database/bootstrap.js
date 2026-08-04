@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const BUILD_VERSION = "3.22.0";
+  const BUILD_VERSION = "3.22.1";
   const domReady = document.readyState === "loading"
     ? new Promise((resolve) => document.addEventListener("DOMContentLoaded", resolve, { once: true }))
     : Promise.resolve();
@@ -42,7 +42,7 @@
     await loadScript("app.js");
     await Promise.all([
       loadOptionalScript("database/pta-history-ui.js"),
-      loadGroup(["database/driver-workbench-render.js", "database/driver-workbench.js"]),
+      loadGroup(["database/driver-workbench-render.js", "database/driver-workbench.js", "database/workbench-pta-sync.js"]),
     ]);
 
     document.dispatchEvent(new Event("DOMContentLoaded", { bubbles: true }));
