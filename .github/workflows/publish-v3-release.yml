@@ -2,10 +2,8 @@ name: Publish v3 Fuel Dash release
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - .github/release-request.txt
+    branches: [main]
+    paths: [.github/release-request.txt]
 
 permissions:
   contents: write
@@ -17,7 +15,6 @@ concurrency:
 jobs:
   package-and-release:
     runs-on: ubuntu-latest
-
     steps:
       - name: Check out main
         uses: actions/checkout@v5
@@ -33,50 +30,26 @@ jobs:
           REQUESTED="$(tr -d '\r\n ' < .github/release-request.txt)"
           VERSION="$(tr -d '\r\n ' < VERSION)"
           TAG="v${VERSION#v}"
-          if [[ ! "$TAG" =~ ^v3\.[0-9]+\.[0-9]+$ ]]; then
-            echo "VERSION must use the v3.x.x convention. Found: $TAG" >&2
-            exit 1
-          fi
-          if [[ "$REQUESTED" != "$TAG" ]]; then
-            echo "Release request $REQUESTED does not match VERSION $TAG" >&2
-            exit 1
-          fi
+          [[ "$TAG" =~ ^v3\.[0-9]+\.[0-9]+$ ]] || { echo "VERSION must use v3.x.x. Found: $TAG" >&2; exit 1; }
+          [[ "$REQUESTED" == "$TAG" ]] || { echo "Release request $REQUESTED does not match VERSION $TAG" >&2; exit 1; }
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "asset=Fuel_Dash-$TAG.zip" >> "$GITHUB_OUTPUT"
 
-      - name: Validate dashboard JavaScript
+      - name: Validate dashboard
         shell: bash
         run: |
           set -euo pipefail
           node validate_dashboard.js
-          scripts=(
-            app.js
-            smart_data_loader.js
-            auxiliary_mode.js
-            missing_bol.js
-            missing_bol_driver_only.js
-            worked_workflow.js
-            special_notes.js
-            note_transition_toggle.js
-            pdf_to_xlsx.js
-            transition_export_v2.js
-            database/dashboard-db.js
-            database/bootstrap.js
-            database/pta-history-ui.js
-            database/pta-change-worker.js
-            database/worked-navigation-fix.js
-            database/exclusion-manager.js
-            database/driver-operations.js
-            database/idle-history-ui.js
-            database/rich-transition-editor.js
-            database/transition-305-extension.js
-            database/transition-grouping.js
-          )
-          for script in "${scripts[@]}"; do
-            [[ -f "$script" ]] || { echo "Missing release entry point: $script" >&2; exit 1; }
+          while IFS= read -r script; do
             node --check "$script"
-          done
-
+          done < <(find . -type f -name '*.js' \
+            -not -path './vendor/*' \
+            -not -path './dist/*' \
+            -not -path './data/*' \
+            -not -path './node_modules/*' | sort)
+          node tests/driver_report_adapter_smoke.js
+          node tests/driver_centric_parser_smoke.js
+          node tests/cleanup_architecture_smoke.js
           grep -F 'data-editor-command="bold"' database/rich-transition-editor.js
           grep -F 'ClipboardItem' database/rich-transition-editor.js
           grep -F 'multipart/alternative' database/rich-transition-editor.js
@@ -89,17 +62,13 @@ jobs:
           RELEASE_SHA: ${{ github.sha }}
         run: |
           from pathlib import Path
-          import hashlib
-          import os
-          import shutil
-          import zipfile
+          import hashlib, os, shutil, zipfile
 
           root = Path.cwd()
           dist = root / "dist"
           package = dist / "Fuel_Dash"
           shutil.rmtree(dist, ignore_errors=True)
           package.mkdir(parents=True)
-
           excluded = {
               ".git", ".github", ".gitattributes", ".gitignore", "data", "dist", "tests",
               "Dashboard_Server_Log.txt", "validate_dashboard.js", "summary.xlsx", "summary chart.xlsx",
@@ -110,27 +79,29 @@ jobs:
               if item.name in excluded:
                   continue
               target = package / item.name
-              if item.is_dir():
-                  shutil.copytree(item, target)
-              elif item.is_file():
-                  shutil.copy2(item, target)
+              shutil.copytree(item, target) if item.is_dir() else shutil.copy2(item, target)
 
-          for internal_file in [package / "database" / "README.md", package / "database" / "rich-transition-editor.manifest.json"]:
-              internal_file.unlink(missing_ok=True)
+          for internal in [package / "database" / "README.md", package / "database" / "rich-transition-editor.manifest.json"]:
+              internal.unlink(missing_ok=True)
 
           data_dir = package / "data"
           data_dir.mkdir(exist_ok=True)
           (data_dir / "PLACE_REPORTS_HERE.txt").write_text(
-              "Place the rolling 7-day and Driver Details 28-day CSV reports in this folder. Add XLSX or PDF operational reports only when their separate tabs or truck evidence are needed.\n"
-              "PTA snapshots, notes, history, report exclusions, and transition email settings remain in the local browser database and are not included in this package.\n",
+              "Core driver reports: Rolling 7 Day.xlsx and Driver Details.xlsx.\n"
+              "Optional enrichment: Detail, Missing BOL assignments, PTA, and APU reports.\n"
+              "Operational notes and settings remain in the local browser database.\n",
               encoding="utf-8",
           )
 
           tag = os.environ["RELEASE_TAG"]
+          version = tag.removeprefix("v")
+          index = package / "index.html"
+          if index.exists():
+              index.write_text(index.read_text(encoding="utf-8").replace("3.21.1", version), encoding="utf-8")
           commit = os.environ["RELEASE_SHA"]
           (package / "RELEASE_BUILD.txt").write_text(
               f"Fuel Dash\nVersion: {tag}\nCommit: {commit}\n"
-              "Data storage: local browser IndexedDB/local storage only; no operational records are bundled or shared.\n",
+              "Data storage: local browser IndexedDB/local storage only.\n",
               encoding="utf-8",
           )
 
@@ -139,52 +110,16 @@ jobs:
               for path in sorted(package.rglob("*")):
                   if path.is_file():
                       archive.write(path, path.relative_to(dist))
-
           digest = hashlib.sha256(zip_path.read_bytes()).hexdigest()
-          checksum = dist / f"{zip_path.name}.sha256"
-          checksum.write_text(f"{digest}  {zip_path.name}\n", encoding="ascii")
-
-          notes = dist / "release-notes.md"
-          notes.write_text(
+          (dist / f"{zip_path.name}.sha256").write_text(f"{digest}  {zip_path.name}\n", encoding="ascii")
+          (dist / "release-notes.md").write_text(
               f"# Fuel Dash {tag}\n\n"
-              "This stable package contains the current dashboard from `main`.\n\n"
-              "## Included\n\n"
-              "- Authoritative rolling-idle CSV mode with direct raw-hour 7-day idle and weighted four-week 28-day idle\n"
-              "- CSV-first truck association with optional operational-report and manual-assignment fallback\n"
-              "- Hero Insight chart showing weighted fleet 7-day and 28-day idle percentages instead of costs\n"
-              "- Exact top-five eligible 7-day idler coaching queue and five-lowest best-practice lane\n"
-              "- Structured fuel coaching notes with record type, follow-up status, follow-up date, and captured 7-day/28-day context\n"
-              "- Searchable retained fuel snapshots and coaching history by driver, truck, text, status, and date\n"
-              "- Editable driver-to-truck overrides with support for two-driver team trucks and a hard two-driver limit\n"
-              "- Required driver and truck association for every saved fuel or PTA note\n"
-              "- Compact selected-note handoff lines in bold-number, driver-name, note format without redundant labels\n"
-              "- Visible PERSONAL navigation group with Special Notes directly below Today\n"
-              "- Upgrade-safe JavaScript and CSS cache revalidation for the local Windows server\n"
-              "- APU loading across every report mode, every worksheet, and Driver Details-shaped APU reports\n"
-              "- Filename-isolated APU truck workbooks that cannot replace the primary Driver Details fuel source\n"
-              "- Persistent truck-driver assignments matched from order, PTA, and APU evidence, including manual corrections\n"
-              "- Cleaner card headings without redundant Truck prefixes and strict seven-day and 28-day idle-history windows\n"
-              "- Eligible unified driver/truck count for rolling 7-day idle over 50%\n"
-              "- Exclusion-aware weighted rolling 7-day and 28-day idle calculated from idle hours divided by engine hours\n"
-              "- Non-destructive seven-day note cleanup with per-card Show older notes toggles\n"
-              "- Private Special Notes workspace with optional date/time reminders, quick timers, completion, reopening, search, and recovery through Show all\n"
-              "- Change-driven browser notifications that alert once for newly due reminders or changed Today attention items\n"
-              "- Compact fuel and PTA transition lines with bold truck numbers, driver names, and note text only\n"
-              "- Bordered manual transition blocks generated by card_start and card_end placeholders\n"
-              "- Desktop-only layout with a full stationary sidebar image and independently scrolling navigation\n"
-              "- Single-confirmation Finish only and Finish + handoff actions\n"
-              "- Local IndexedDB persistence for PTA snapshots, notes, settings, and follow-up state\n"
-              "- Searchable PTA history and change alerts\n"
-              "- Worked entries that open the correct truck or driver details and show only open follow-ups\n"
-              "- Editable Exclusions tab for driver names, driver codes, and truck numbers\n"
-              "- Exclusions applied to fleet idle averages, thresholds, rankings, historical charts, and idle-related APU coaching\n"
-              "- Four-week 7-day and 28-day fleet idle history in Hero Insight and Weekly Trend\n"
-              "- Rich Outlook transition editor with readable HTML sections, bold/italic/underline controls, emoji picker, rich clipboard copy, multipart .eml download, and plain-text fallback\n"
-              "- Existing fuel, idle, APU, Missing BOL, and shift-transition tools\n\n"
-              "## Privacy\n\n"
-              "Operational PTA data, notes, saved exclusions, transition recipients, and email templates are not included in this release and are not uploaded to GitHub. They remain in the browser profile on the computer running the dashboard.\n\n"
-              "## Install\n\n"
-              "Download the ZIP, extract it, place current report files in the `data` folder, and run `Launch Fuel Dashboard.cmd`.\n",
+              "Driver-centric operations workbench with PTA-prioritized driver/truck cards.\n\n"
+              "## Core reports\n\n"
+              "- Rolling 7 Day.xlsx\n"
+              "- Driver Details.xlsx\n\n"
+              "Detail, Missing BOL, PTA, and APU reports are optional enrichments.\n\n"
+              "Operational data remains local to the browser profile and is not included in the release.\n",
               encoding="utf-8",
           )
 
@@ -196,17 +131,9 @@ jobs:
           ASSET: ${{ steps.release.outputs.asset }}
         run: |
           set -euo pipefail
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release $TAG already exists." >&2
-            exit 1
-          fi
-          gh release create "$TAG" \
-            "dist/$ASSET" \
-            "dist/$ASSET.sha256" \
-            --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
-            --title "Fuel Dash $TAG" \
-            --notes-file dist/release-notes.md
+          ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || { echo "Release $TAG already exists." >&2; exit 1; }
+          gh release create "$TAG" "dist/$ASSET" "dist/$ASSET.sha256" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Fuel Dash $TAG" --notes-file dist/release-notes.md
 
       - name: Record release success
         shell: bash
