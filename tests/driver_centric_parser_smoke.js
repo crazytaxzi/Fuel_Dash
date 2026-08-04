@@ -1,41 +1,41 @@
-"use strict";
-
+const fs = require("fs");
+const vm = require("vm");
 const assert = require("assert");
-const parser = require("../core/driver_centric_parser.js");
 
-const now = new Date("2026-08-04T12:00:00-07:00");
+const storage = new Map();
+const context = {
+  window: {
+    VixenReportContract: { mode: "driver-centric-two-report", required: ["rolling7Day", "driverDetails"], optional: ["detail"] },
+    VixenDriverOperations: { assignmentFor: (driver) => driver.driverCode === "2" ? { truck: "200" } : null },
+  },
+  localStorage: { getItem: (key) => storage.get(key) || null, setItem: (key, value) => storage.set(key, value) },
+  console,
+  Date,
+};
+vm.createContext(context);
+vm.runInContext(fs.readFileSync("core/driver_centric_parser.js", "utf8"), context);
+
+const now = new Date("2026-08-04T12:00:00Z");
 const analysis = {
-  drivers: {
-    records: [
-      { driverCode: "D100", driverName: "Ada Driver", assignedTruck: "101", dailyIdlePct: 0.31, idle7DayPct: 0.42, idle28DayPct: 0.37, dispatchMpg: 7.1 },
-      { driverCode: "D200", driverName: "Ben Driver", assignedTruck: "202", dailyIdlePct: 0.55, idle7DayPct: 0.61, idle28DayPct: 0.49, dispatchMpg: 6.2 },
-    ],
-  },
-  pta: {
-    allRecords: [
-      { index: 9, truck: "101", driver: "Ada Driver", pta: "2026-08-04T10:00:00-07:00", status: "Unloaded", planStatus: "No Preplan", destination: "Phoenix" },
-      { index: 10, truck: "202", driver: "Ben Driver", pta: "2026-08-05T12:00:00-07:00", status: "Loaded", planStatus: "Preplan", destination: "Tucson" },
-    ],
-  },
-  apu: { records: [{ driverCode: "D200", unit: "202", apuHours: 8, engineIdleHours: 3 }] },
+  files: { rolling7Day: {}, driverDetails: {} },
+  drivers: { records: [
+    { driverCode: "1", driverName: "One Driver", assignedTruck: "100", idle7DayPct: .44, idle28DayPct: .32, dispatchMpg: 6.7 },
+    { driverCode: "2", driverName: "Two Driver", assignedTruck: "999", idle7DayPct: .20, idle28DayPct: .25, dispatchMpg: 7.3 },
+  ] },
+  pta: { hasData: true, allRecords: [
+    { truck: "100", driverCode: "1", pta: "2026-08-04T10:00:00Z", status: "Unloaded", planStatus: "No Preplan" },
+    { truck: "200", driverCode: "2", pta: "2026-08-05T10:00:00Z", status: "Loaded", planStatus: "Preplan" },
+  ] },
+  apu: { hasData: false, records: [] },
 };
 
-const model = parser.build(analysis, {
-  now,
-  overrides: { d200: { preplanStatus: "No Preplan", updatedAt: "2026-08-04T11:00:00-07:00" } },
-  missingBolRecords: [{ driverCode: "D100", trip: "ABC1234" }],
-  driverNotes: { d100: [{ text: "Called driver", savedAt: "2026-08-04T11:30:00-07:00" }] },
-});
-
-assert.strictEqual(model.records.length, 2);
-assert.strictEqual(model.records[0].driverCode, "D100", "overdue/no-preplan record should sort first");
-assert.strictEqual(model.records[0].riskKey, "overdue-no-preplan");
-assert.strictEqual(model.records[0].missingBols.length, 1);
-assert.strictEqual(model.records[0].latestDriverNote.text, "Called driver");
-assert.strictEqual(model.byDriver.get("d200").preplanStatus, "No Preplan", "local operating override should win");
-assert.strictEqual(model.byDriver.get("d200").apu.apuHours, 8);
-assert.strictEqual(model.byTruck.get("101").length, 1);
-assert.strictEqual(model.stats.noPreplan, 2);
-assert.strictEqual(parser.normalizeTruck(" truck-101 "), "TRUCK101");
-
-console.log("driver_centric_parser_smoke: ok");
+const model = context.window.VixenDriverCentricParser.build(analysis, { now });
+assert.equal(model.records.length, 2);
+assert.equal(model.records[0].driverCode, "1");
+assert.equal(model.records[0].priorityKey, "overdue-no-preplan");
+assert.equal(model.records[0].currentIdleSource, "7-day");
+assert.equal(model.records[1].truck, "200", "manual assignment must win");
+assert.equal(model.coverage.coreReady, true);
+assert.equal(model.coverage.hasDetail, false);
+assert.deepEqual(Array.from(model.coverage.required), ["rolling7Day", "driverDetails"]);
+console.log("Driver-centric parser smoke passed.");
