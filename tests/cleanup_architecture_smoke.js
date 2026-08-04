@@ -15,6 +15,9 @@ assert.doesNotMatch(bootstrap, /trip-planning-notes|trip-planning-table|missing_
 assert.match(bootstrap, /BUILD_VERSION = "3\.22\.0"/);
 assert.doesNotMatch(workbench, /Open full fuel detail|Open PTA board|data-open-driver-modal|data-open-pta-board/);
 assert.doesNotMatch(workbench, /vixenTripPlanningNotes305V1|VixenTripPlanningNotes/);
+assert.match(workbench, /handleLegacyOpen/);
+assert.match(workbench, /data-driver-index/);
+assert.match(workbench, /data-pta-index/);
 assert.match(renderer, /Save \+ next/);
 assert.match(workbench, /VixenDashboardWorkflow = Object\.freeze/);
 assert.doesNotMatch(parser, /planningRecords|VixenTripPlanningNotes|ptaDisplay/);
