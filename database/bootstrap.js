@@ -1,12 +1,13 @@
 (() => {
   "use strict";
 
-  const BUILD_VERSION = "3.21.1";
-
-  const OPTIONAL_MODULES = [
-    "core/resource_coordinator.js",
+  const BUILD_VERSION = "3.22.0";
+  const FOUNDATION_MODULES = [
     "core/read_once_mode.js",
     "smart_data_loader.js",
+    "core/driver_centric_parser.js",
+  ];
+  const INDEPENDENT_MODULES = [
     "auxiliary_mode.js",
     "database/exclusion-manager.js",
     "database/driver-operations.js",
@@ -21,8 +22,6 @@
     "worked_workflow.js",
     "core/required_dom_guard.js",
     "note_transition_toggle.js",
-    "database/transition-grouping.js",
-    "transition_export_v2.js",
   ];
 
   const domReady = document.readyState === "loading"
@@ -32,16 +31,27 @@
   Promise.all([domReady, window.FuelDashboardDb?.ready || Promise.resolve()])
     .then(async () => {
       performance.mark("vixen-bootstrap-start");
-      for (const src of OPTIONAL_MODULES) {
-        await loadOptionalScript(src);
-        if (src === "transition_export_v2.js" && window.VixenRichTransitionReady) {
-          await window.VixenRichTransitionReady;
-        }
-      }
+
+      // Install the shared file/workbook cache before anything is allowed to
+      // inspect a report. That keeps classification and analysis on one read.
+      await loadOptionalScript("core/resource_coordinator.js");
+      await Promise.all(FOUNDATION_MODULES.map(loadOptionalScript));
+      await Promise.all(INDEPENDENT_MODULES.map(loadOptionalScript));
+
+      // Transition export has real ordering requirements; keep this small chain
+      // explicit instead of serializing every unrelated dashboard feature.
+      await loadOptionalScript("database/transition-grouping.js");
+      await loadOptionalScript("transition_export_v2.js");
+      if (window.VixenRichTransitionReady) await window.VixenRichTransitionReady;
+
       window.VixenRequiredDomGuard?.ensure?.();
       await loadScript("app.js");
-      await loadScript("database/pta-history-ui.js");
-      await loadScript("database/worked-navigation-fix.js");
+      await Promise.all([
+        loadOptionalScript("database/driver-workbench.js"),
+        loadOptionalScript("database/pta-history-ui.js"),
+        loadOptionalScript("database/worked-navigation-fix.js"),
+      ]);
+
       document.dispatchEvent(new Event("DOMContentLoaded", { bubbles: true }));
       installPtaShortcutBridge();
       performance.mark("vixen-bootstrap-end");
